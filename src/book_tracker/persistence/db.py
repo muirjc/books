@@ -32,7 +32,10 @@ async def get_db(request: Request) -> AsyncIterator[AsyncSession]:
     async with database.sessionmaker() as session:
         try:
             yield session
-            await session.commit()
+            if getattr(request.state, "db_rollback", False):
+                await session.rollback()  # an error page was rendered (web/rendering.py)
+            else:
+                await session.commit()
         except BaseException:
             await session.rollback()
             raise

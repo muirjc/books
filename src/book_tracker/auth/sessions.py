@@ -28,6 +28,7 @@ class ResolvedSession:
     session_id: uuid.UUID
     account: Account
     csrf_token: str
+    refreshed: bool = False
 
 
 def new_token() -> str:
@@ -66,9 +67,12 @@ async def resolve_session(
     row, account = found
     if row.expires_at <= now or not account.is_active:
         return None
-    if now - row.last_seen_at >= TOUCH_INTERVAL:
+    refreshed = now - row.last_seen_at >= TOUCH_INTERVAL
+    if refreshed:
         await accounts.touch_session(db, row.id, now, now + timedelta(days=idle_days))
-    return ResolvedSession(session_id=row.id, account=account, csrf_token=row.csrf_token)
+    return ResolvedSession(
+        session_id=row.id, account=account, csrf_token=row.csrf_token, refreshed=refreshed
+    )
 
 
 async def revoke(db: AsyncSession, token: str) -> None:

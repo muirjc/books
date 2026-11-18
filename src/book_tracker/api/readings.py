@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query, Request, Response
 
 from book_tracker.api import responses as r
-from book_tracker.auth.dependencies import ApiUser, now
+from book_tracker.auth.dependencies import ApiUser, today
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.mappers import (
@@ -130,9 +130,7 @@ async def update_reading(
     entry_id: uuid.UUID, body: ReadingEntryUpdate, request: Request, auth: ApiUser, db: DbSession
 ) -> ReadingEntry:
     changes = {name: getattr(body, name) for name in body.model_fields_set}
-    entry = await service.update_entry(
-        db, auth.account.id, entry_id, changes, today=now(request).date()
-    )
+    entry = await service.update_entry(db, auth.account.id, entry_id, changes, today=today(request))
     return reading_entry_out(entry)
 
 

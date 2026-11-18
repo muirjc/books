@@ -15,7 +15,7 @@
 
 <fieldset>
   <legend>Authors</legend>
-  {% for i in range(3) %}
+  {% for i in range(form.author_rows) %}
   {% set id_key = "author_id_" ~ i %}
   {% set name_key = "author_name_" ~ i %}
   <div class="field">

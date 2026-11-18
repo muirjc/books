@@ -27,6 +27,7 @@ from book_tracker.api.errors import (
 from book_tracker.logging import RequestLogMiddleware, configure_logging
 from book_tracker.persistence.db import Database
 from book_tracker.settings import Settings, get_settings
+from book_tracker.web.cookies import refresh_session_cookie
 from book_tracker.web.routes import admin as web_admin
 from book_tracker.web.routes import auth as web_auth
 from book_tracker.web.routes import catalog as web_catalog
@@ -55,6 +56,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.clock = utc_now
 
     configure_logging()
+    app.middleware("http")(refresh_session_cookie)
     app.add_middleware(RequestLogMiddleware)
     # Added last, so it runs first: the HTTPS redirect happens before anything else.
     app.add_middleware(SecurityHeadersMiddleware, production=settings.is_production)

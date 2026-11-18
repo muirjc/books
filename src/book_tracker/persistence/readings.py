@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.models import ReadingEntry, ReadingEntryPage
 from book_tracker.persistence import models
+from book_tracker.persistence.catalog import like_patterns
 from book_tracker.persistence.mappers import to_reading_entry
 
 FilterOptions = list[tuple[uuid.UUID, str]]
@@ -24,14 +25,9 @@ FilterOptions = list[tuple[uuid.UUID, str]]
 SORTS = ("title", "-title", "author", "-author", "series", "-series", "finished_on", "-finished_on")
 
 
-def _like(q: str) -> str:
-    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
-
-
 def _matches(q: str) -> ColumnElement[bool]:
     """Title, author name, author real name or series name (FR-023)."""
-    pattern = _like(q)
+    pattern = like_patterns(q)[0]
     by_author = exists().where(
         models.BookAuthor.book_id == models.Book.id,
         models.BookAuthor.author_id == models.Author.id,

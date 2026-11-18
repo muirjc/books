@@ -55,6 +55,9 @@ def render(
         "csrf_token": auth.csrf_token if auth else "",
     }
     ctx.update(context or {})
+    if status_code >= 400:
+        # The request failed: get_db rolls back instead of committing partial writes.
+        request.state.db_rollback = True
     return templates.TemplateResponse(request, name, ctx, status_code=status_code, headers=headers)
 
 

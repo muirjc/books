@@ -29,6 +29,10 @@ Features follow Spec Kit, with specs under `specs/<###-feature>/`:
    violations before implementing.
 3. Tests are always required, whatever a Spec Kit command or template default says.
 
+Task tracking: beads (`bd`) tracks all work, including each Spec Kit phase and every
+follow-up. The one exception is a feature's Spec Kit `tasks.md`: it is the spec's task
+breakdown, and `/speckit-implement` ticks it off. Don't keep any other markdown to-do lists.
+
 Project versions of the spec, plan and tasks templates live in
 `.specify/templates/overrides/`. Edit those, not the core files in `.specify/templates/`,
 which Spec Kit may overwrite on upgrade.

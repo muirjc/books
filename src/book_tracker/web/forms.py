@@ -14,6 +14,7 @@ from pydantic import TypeAdapter, ValidationError
 from starlette.datastructures import FormData
 
 from book_tracker.domain.enums import ReadingStatus
+from book_tracker.domain.values import normalize_name
 from book_tracker.schemas.readings import ReadingEntryUpdate
 from book_tracker.schemas.types import (
     FinishedOn,
@@ -23,7 +24,8 @@ from book_tracker.schemas.types import (
     SeriesNumberIn,
 )
 
-MAX_AUTHOR_ROWS = 5
+MAX_AUTHOR_ROWS = 20  # the API's limit
+MIN_AUTHOR_ROWS = 3
 
 _series_number = TypeAdapter(SeriesNumberIn)
 _isbn = TypeAdapter(Isbn13In)
@@ -78,7 +80,18 @@ class AddBookForm:
 
     @property
     def chosen_authors(self) -> list[AuthorRow]:
-        return [row for row in self.authors if row.author_id or row.name]
+        """Rows with a name. Clearing the name removes the author, even with a stale id."""
+        return [row for row in self.authors if row.name]
+
+    @property
+    def author_rows(self) -> int:
+        """How many author rows to show: every filled one plus one empty, at least three."""
+        filled = [
+            int(key.rsplit("_", 1)[1])
+            for key, value in self.raw.items()
+            if key.startswith(("author_name_", "author_id_")) and value
+        ]
+        return min(MAX_AUTHOR_ROWS, max(MIN_AUTHOR_ROWS, max(filled, default=-1) + 2))
 
 
 def parse_add_book(form: FormData) -> AddBookForm:
@@ -86,7 +99,9 @@ def parse_add_book(form: FormData) -> AddBookForm:
     errors = parsed.errors
     parsed.book_id = optional_uuid(form, "book_id")
     parsed.authors = [
-        AuthorRow(i, optional_uuid(form, f"author_id_{i}"), text(form, f"author_name_{i}"))
+        AuthorRow(
+            i, optional_uuid(form, f"author_id_{i}"), normalize_name(text(form, f"author_name_{i}"))
+        )
         for i in range(MAX_AUTHOR_ROWS)
     ]
     parsed.series_id = optional_uuid(form, "series_id")
@@ -104,7 +119,7 @@ def parse_add_book(form: FormData) -> AddBookForm:
             parsed.series_number = _series_number.validate_python(text(form, "series_number"))
         except ValidationError as exc:
             errors["series_number"] = first_error(exc)
-        if parsed.series_number is not None and parsed.series_id is None and not parsed.series_name:
+        if parsed.series_number is not None and not parsed.series_name:
             errors["series_number"] = "Choose a series first, or leave the number blank"
         try:
             parsed.isbn_13 = _isbn.validate_python(text(form, "isbn_13"))

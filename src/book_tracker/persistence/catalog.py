@@ -180,7 +180,7 @@ async def create_book(
 # --------------------------------------------------------------------------- search
 
 
-def _patterns(q: str) -> tuple[str, str]:
+def like_patterns(q: str) -> tuple[str, str]:
     """(contains, prefix) ILIKE patterns with ``%``, ``_`` and ``\\`` taken literally."""
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%", f"{escaped}%"
@@ -190,7 +190,7 @@ async def search_books(
     db: AsyncSession, q: str, limit: int, isbn_13: str | None = None
 ) -> list[domain.Book]:
     """Title, author name or real name; an exact ISBN match ranks first (research R7)."""
-    contains, prefix = _patterns(q)
+    contains, prefix = like_patterns(q)
     by_author = exists().where(
         models.BookAuthor.book_id == models.Book.id,
         models.BookAuthor.author_id == models.Author.id,
@@ -219,7 +219,7 @@ async def search_books(
 
 
 async def search_authors(db: AsyncSession, q: str, limit: int) -> list[domain.Author]:
-    contains, prefix = _patterns(q)
+    contains, prefix = like_patterns(q)
     rows = (
         (
             await db.execute(
@@ -244,7 +244,7 @@ async def search_authors(db: AsyncSession, q: str, limit: int) -> list[domain.Au
 
 
 async def search_series(db: AsyncSession, q: str, limit: int) -> list[domain.Series]:
-    contains, prefix = _patterns(q)
+    contains, prefix = like_patterns(q)
     rows = (
         (
             await db.execute(

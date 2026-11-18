@@ -14,7 +14,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Protocol
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,15 @@ class Clock(Protocol):
 def login_key(secret: str, login: str) -> str:
     normalized = login.strip().lower()
     return hmac.new(secret.encode(), normalized.encode(), hashlib.sha256).hexdigest()
+
+
+async def serialize(db: AsyncSession, key: str) -> None:
+    """Hold a per-login lock for the rest of the transaction.
+
+    Without it, parallel attempts could all pass ``check_allowed`` before any failure is
+    recorded, allowing more than five guesses per lock window.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0))))
 
 
 async def check_allowed(db: AsyncSession, key: str, now: datetime) -> int | None:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import hmac
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -42,6 +42,11 @@ def now(request: Request) -> datetime:
     return value
 
 
+def today(request: Request) -> date:
+    """Today's date in the server's time zone, matching the "not in the future" check."""
+    return now(request).astimezone().date()
+
+
 async def supplied_csrf_token(request: Request) -> str | None:
     """CSRF token from the ``X-CSRF-Token`` header, or a ``csrf_token`` form field."""
     header = request.headers.get("x-csrf-token")
@@ -62,6 +67,9 @@ async def authenticated_any_password(request: Request, db: DbSession) -> Authent
     )
     if resolved is None:
         raise NotAuthenticated()
+    if resolved.refreshed:
+        # The server slid the expiry forward; refresh_session_cookie() resends the cookie.
+        request.state.refresh_session_token = token
     if request.method not in SAFE_METHODS:
         supplied = await supplied_csrf_token(request)
         if not supplied or not hmac.compare_digest(supplied, resolved.csrf_token):

@@ -119,7 +119,6 @@ async def create_user(request: Request, auth: UiAdmin, db: DbSession) -> Respons
             initial_password=body.initial_password,
         )
     except ConflictError as exc:
-        await db.rollback()
         return _new_user_page(request, auth, values, {"login": exc.title}, status_code=409)
     return RedirectResponse("/admin/users?msg=created", status_code=303)
 
@@ -135,7 +134,6 @@ async def update_user(
     try:
         await service.update_account(db, user_id, **changes)
     except ConflictError as exc:
-        await db.rollback()
         return await _users_page(request, auth, db, error=exc.title, status_code=409)
     return RedirectResponse("/admin/users?msg=updated", status_code=303)
 

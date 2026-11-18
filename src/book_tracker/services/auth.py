@@ -34,6 +34,7 @@ async def sign_in(
     Five consecutive failures for a login lock it for 15 minutes (``TooManyAttempts``).
     """
     key = throttle.login_key(secret, login)
+    await throttle.serialize(db, key)  # one attempt per login at a time, across workers
     await throttle.prune(db, now)
     retry_after = await throttle.check_allowed(db, key, now)
     if retry_after is not None:

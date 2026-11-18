@@ -118,6 +118,7 @@ async def test_add_form_rolls_back_on_conflict(
             "title": "Not Mort",
             "author_name_0": "Brand New Author",
             "series_id": str(series),
+            "series_name": "Discworld",  # the form sends the chosen series' name too
             "series_number": "4",
         },
     )

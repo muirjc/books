@@ -8,9 +8,10 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
+from pydantic import ValidationError
 from starlette.responses import Response
 
-from book_tracker.auth.dependencies import Authenticated, UiUser, now
+from book_tracker.auth.dependencies import Authenticated, UiUser, today
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import BookCreate
@@ -135,6 +136,24 @@ async def series_page(
 
 # --------------------------------------------------------------------------- add
 
+BOOK_FIELD_MESSAGES = {
+    "title": ("title", "Enter a title"),
+    "author_ids": ("author_name_0", "Enter at least one author"),
+    "series_number": ("series_number", "Choose a series first, or leave the number blank"),
+    "series_id": ("series_name", "Choose a series"),
+    "isbn_13": ("isbn_13", "Enter a valid 13-digit ISBN"),
+}
+
+
+def book_create_errors(exc: ValidationError) -> dict[str, str]:
+    """Map BookCreate validation errors to the form's fields."""
+    errors: dict[str, str] = {}
+    for error in exc.errors():
+        name = str(error["loc"][0]) if error["loc"] else "title"
+        field, message = BOOK_FIELD_MESSAGES.get(name, ("title", "Check the book details"))
+        errors.setdefault(field, message)
+    return errors
+
 
 def _add_form(
     request: Request,
@@ -193,7 +212,6 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
             author_ids, author_conflicts = await resolve_authors(db, auth, form)
             series_id, series_conflict = await resolve_series(db, auth, form)
             if author_conflicts or series_conflict:
-                await db.rollback()
                 return _add_form(
                     request,
                     auth,
@@ -202,13 +220,17 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                     author_conflicts=author_conflicts,
                     series_conflict=series_conflict,
                 )
-            book = BookCreate(
-                title=form.title,
-                author_ids=author_ids,
-                series_id=series_id,
-                series_number=form.series_number,
-                isbn_13=form.isbn_13,
-            )
+            try:
+                book = BookCreate(
+                    title=form.title,
+                    author_ids=author_ids,
+                    series_id=series_id,
+                    series_number=form.series_number,
+                    isbn_13=form.isbn_13,
+                )
+            except ValidationError as exc:
+                form.errors.update(book_create_errors(exc))
+                return _add_form(request, auth, form, status_code=422)
             await service.add_entry(
                 db,
                 user_id,
@@ -225,10 +247,8 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                 notes=form.notes,
             )
     except ConflictError as exc:
-        await db.rollback()
         return _add_form(request, auth, form, status_code=409, conflict=exc)
     except (ValidationFailed, NotFoundError):
-        await db.rollback()
         form.errors["title"] = "That book is no longer in the catalog. Enter its details."
         return _add_form(request, auth, form, status_code=422)
     return RedirectResponse("/?msg=added", status_code=303)
@@ -250,7 +270,7 @@ async def resolve_authors(
                 chosen = await catalog_service.get_author(db, row.author_id)
             except NotFoundError:
                 chosen = None
-            if chosen is not None and (not row.name or chosen.name.lower() == row.name.lower()):
+            if chosen is not None and chosen.name.lower() == row.name.lower():
                 ids.append(chosen.id)
                 continue
         if not row.name:
@@ -267,17 +287,16 @@ async def resolve_authors(
 async def resolve_series(
     db: DbSession, auth: Authenticated, form: AddBookForm
 ) -> tuple[uuid.UUID | None, ConflictError | None]:
+    """A blank series name means no series, even if a stale id was sent (no-JS editing)."""
+    if not form.series_name:
+        return None, None
     if form.series_id is not None:
         try:
             chosen = await catalog_service.get_series(db, form.series_id)
         except NotFoundError:
             chosen = None
-        if chosen is not None and (
-            not form.series_name or chosen.name.lower() == form.series_name.lower()
-        ):
+        if chosen is not None and chosen.name.lower() == form.series_name.lower():
             return chosen.id, None
-    if not form.series_name:
-        return None, None
     try:
         series = await catalog_service.create_series(db, auth.account.id, name=form.series_name)
     except ConflictError as exc:
@@ -334,7 +353,7 @@ async def update_entry(
         # The form always sends "Times read"; only a changed value is an explicit edit, so
         # finishing a re-read still adds one (FR-029).
         del changes["times_read"]
-    await service.update_entry(db, auth.account.id, entry_id, changes, today=now(request).date())
+    await service.update_entry(db, auth.account.id, entry_id, changes, today=today(request))
     return RedirectResponse(f"/entries/{entry_id}?msg=saved", status_code=303)
 
 

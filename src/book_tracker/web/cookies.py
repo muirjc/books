@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import Response
@@ -70,3 +71,21 @@ def remember_profile(request: Request, response: Response, user_id: uuid.UUID) -
         httponly=True,
         samesite="lax",
     )
+
+
+async def refresh_session_cookie(request: Request, call_next: Any) -> Response:
+    """Resend the session cookie when the server slid the session's expiry forward.
+
+    Without this, the browser drops the cookie 14 days after sign-in even for daily users.
+    Responses that already set or clear the cookie (sign-in, sign-out) are left alone.
+    """
+    response: Response = await call_next(request)
+    token = getattr(request.state, "refresh_session_token", None)
+    already = any(
+        value.startswith(f"{SESSION_COOKIE}=".encode())
+        for name, value in response.raw_headers
+        if name == b"set-cookie"
+    )
+    if token and not already:
+        set_session_cookie(response, token, request.app.state.settings.session_idle_days)
+    return response

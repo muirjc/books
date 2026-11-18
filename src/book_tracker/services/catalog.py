@@ -291,6 +291,8 @@ async def update_book(
             "series_number", "Choose a series first, or leave the number blank"
         )
     author_ids = changes.get("author_ids")
+    if author_ids is not None and not author_ids:
+        raise ValidationFailed.single("author_ids", "A book needs at least one author")
     await _check_references(db, author_ids or [], series_id if "series_id" in changes else None)
     fields: dict[str, Any] = {"series_id": series_id, "series_number": number}
     if changes.get("title") is not None:

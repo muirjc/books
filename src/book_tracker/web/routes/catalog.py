@@ -18,13 +18,18 @@ from book_tracker.schemas.catalog import AuthorUpdate, SeriesWrite, SummaryCreat
 from book_tracker.services import catalog as service
 from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
-from book_tracker.web.forms import AddBookForm, first_error, parse_add_book, text
+from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import render
 from book_tracker.web.routes.readings import resolve_authors, resolve_series
 
 router = APIRouter(prefix="/catalog", include_in_schema=False)
 
 SAVED = "Saved."
+AUTHOR_MESSAGES = {
+    "name": "Enter the author's name, up to 200 characters",
+    "sort_name": "Keep the sort name to 200 characters or fewer",
+    "real_name": "Keep the real name to 200 characters or fewer",
+}
 
 
 def _message(request: Request) -> str | None:
@@ -90,8 +95,10 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
         return _book_page(request, auth, book, form, status_code=422)
     author_ids, author_conflicts = await resolve_authors(db, auth, form)
     series_id, series_conflict = await resolve_series(db, auth, form)
+    if not author_ids and not author_conflicts:
+        form.errors["author_name_0"] = "Enter at least one author"
+        return _book_page(request, auth, book, form, status_code=422)
     if author_conflicts or series_conflict:
-        await db.rollback()
         return _book_page(
             request,
             auth,
@@ -111,10 +118,8 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
     try:
         await service.update_book(db, auth.account.id, book_id, changes)
     except ConflictError as exc:
-        await db.rollback()
         return _book_page(request, auth, book, form, status_code=409, conflict=exc)
     except ValidationFailed as exc:
-        await db.rollback()
         form.errors.update({e.field: e.message for e in exc.errors})
         return _book_page(request, auth, book, form, status_code=422)
     return RedirectResponse(f"/catalog/books/{book_id}/edit?msg=saved", status_code=303)
@@ -175,17 +180,18 @@ async def edit_author(
             }
         )
     except ValidationError as exc:
-        errors = {str(e["loc"][0]) if e["loc"] else "name": first_error(exc) for e in exc.errors()}
+        errors: dict[str, str] = {}
+        for error in exc.errors():
+            field = str(error["loc"][0]) if error["loc"] else "name"
+            errors.setdefault(field, AUTHOR_MESSAGES.get(field, "Check this field"))
         return _author_page(request, auth, author, values, errors, status_code=422)
     changes = {name: getattr(body, name) for name in body.model_fields_set}
     try:
         await service.update_author(db, auth.account.id, author_id, changes)
     except ValidationFailed as exc:
-        await db.rollback()
         errors = {e.field: e.message for e in exc.errors}
         return _author_page(request, auth, author, values, errors, status_code=422)
     except ConflictError as exc:
-        await db.rollback()
         errors = {"name": f"{exc.title}: “{exc.existing_label}”"}
         return _author_page(request, auth, author, values, errors, status_code=409)
     return RedirectResponse(f"/catalog/authors/{author_id}/edit?msg=saved", status_code=303)
@@ -236,7 +242,6 @@ async def edit_series(
     try:
         await service.update_series(db, auth.account.id, series_id, name=body.name)
     except ConflictError as exc:
-        await db.rollback()
         errors = {"name": f"{exc.title}: “{exc.existing_label}”"}
         return _series_page(request, auth, series, name, errors, 409)
     return RedirectResponse(f"/catalog/series/{series_id}/edit?msg=saved", status_code=303)

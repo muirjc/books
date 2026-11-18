@@ -11,6 +11,8 @@ from typing import Any
 from starlette.routing import Match
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from book_tracker.web.routes.health import HEALTH_PATH
+
 REDACTED = "[REDACTED]"
 SENSITIVE_KEYS = frozenset(
     {
@@ -146,12 +148,14 @@ class RequestLogMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
-            request_logger.info(
-                "request",
-                extra={
-                    "method": scope["method"],
-                    "route": _route_template(scope),
-                    "status": status,
-                    "duration_ms": round((time.perf_counter() - start) * 1000, 2),
-                },
-            )
+            # Successful health checks arrive every 30 seconds; log only failures.
+            if not (scope["path"] == HEALTH_PATH and status == 200):
+                request_logger.info(
+                    "request",
+                    extra={
+                        "method": scope["method"],
+                        "route": _route_template(scope),
+                        "status": status,
+                        "duration_ms": round((time.perf_counter() - start) * 1000, 2),
+                    },
+                )

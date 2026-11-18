@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Tooling
+.coverage
+.coverage.*
+coverage.json
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+generated.json
+
+# Local configuration and secrets
+.env
+.env.*
+.claude/settings.local.json
+
+# Local throwaway database clusters
+.pgdata/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

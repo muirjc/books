@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "macros.html" import described, field_error, error_summary %}
+{% block title %}Edit {{ series.name }}{% endblock %}
+{% block content %}
+<h1>Edit series “{{ series.name }}”</h1>
+<p class="muted">Last edited by {{ series.updated_by.display_name }} on {{ series.updated_at | nice_date }}.</p>
+{{ error_summary(errors) }}
+<form method="post" action="/catalog/series/{{ series.id }}/edit" class="stack narrow" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field">
+    <label for="name">Series name</label>
+    <input id="name" name="name" type="text" required maxlength="200" value="{{ name }}"{{ described(errors, "name") }}>
+    {{ field_error(errors, "name") }}
+  </div>
+  <button type="submit" class="button-primary">Save series</button>
+</form>
+{% endblock %}

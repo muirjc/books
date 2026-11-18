@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "macros.html" import described, field_error, error_summary %}
+{% block title %}Create an account{% endblock %}
+{% block content %}
+<h1>Create an account</h1>
+<p>Children don't need an email address: a username is enough.</p>
+{{ error_summary(errors) }}
+<form method="post" action="/admin/users/new" class="stack narrow" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field">
+    <label for="display_name">Display name</label>
+    <input id="display_name" name="display_name" type="text" required maxlength="100" value="{{ values.get('display_name', '') }}"{{ described(errors, "display_name") }}>
+    {{ field_error(errors, "display_name") }}
+  </div>
+  <div class="field">
+    <label for="login">Username or email address</label>
+    <input id="login" name="login" type="text" required maxlength="255" autocapitalize="none" spellcheck="false" value="{{ values.get('login', '') }}"{{ described(errors, "login") }}>
+    {{ field_error(errors, "login") }}
+  </div>
+  <div class="field">
+    <label for="role">Role</label>
+    <select id="role" name="role"{{ described(errors, "role") }}>
+      <option value="member"{% if values.get('role') != 'admin' %} selected{% endif %}>Member</option>
+      <option value="admin"{% if values.get('role') == 'admin' %} selected{% endif %}>Admin (can manage accounts)</option>
+    </select>
+    {{ field_error(errors, "role") }}
+  </div>
+  <div class="field">
+    <label for="initial_password">Temporary password</label>
+    <p class="hint" id="initial_password-hint">At least 8 characters. They choose their own when they first sign in.</p>
+    <input id="initial_password" name="initial_password" type="text" autocomplete="off" required minlength="8" maxlength="128"{{ described(errors, "initial_password", hint=true) }}>
+    {{ field_error(errors, "initial_password") }}
+  </div>
+  <button type="submit" class="button-primary">Create account</button>
+</form>
+{% endblock %}

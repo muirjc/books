@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "macros.html" import described, field_error, error_summary %}
+{% block title %}Summary of {{ book.title }}{% endblock %}
+{% block content %}
+<h1>Summary of “{{ book.title }}”</h1>
+<p class="muted">One summary is shared by the whole family. Saving a new one keeps the old ones below.</p>
+{{ error_summary(errors) }}
+<form method="post" action="/catalog/books/{{ book.id }}/summary" class="stack" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field">
+    <label for="text">{% if history %}New summary{% else %}Summary{% endif %}</label>
+    <p class="hint" id="text-hint">A short, spoiler-free description in your own words, up to 5,000 characters.</p>
+    <textarea id="text" name="text" required maxlength="5000"{{ described(errors, "text", hint=true) }}>{{ text_value }}</textarea>
+    {{ field_error(errors, "text") }}
+  </div>
+  <button type="submit" class="button-primary">Save summary</button>
+</form>
+
+<h2>History</h2>
+{% if history %}
+<ol class="book-list">
+  {% for summary in history %}
+  <li>
+    {% if summary.is_current %}<span class="badge">Current</span>{% endif %}
+    <p>{{ summary.text }}</p>
+    <p class="muted">Written by {{ summary.created_by.display_name }} on {{ summary.created_at | nice_date }}{% if summary.origin != "manual" %} (AI-assisted){% endif %}</p>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p>No summary yet.</p>
+{% endif %}
+{% endblock %}

@@ -41,17 +41,24 @@ which Spec Kit may overwrite on upgrade.
 
 ## Build & Test
 
-No application code exists yet. Once the project is scaffolded, the CI gates are:
+See [quickstart.md](specs/001-family-reading-list/quickstart.md) for running the app.
 
 ```bash
+uv sync                                          # install from uv.lock
 uv run ruff check . && uv run ruff format --check .
 uv run mypy --strict src
-uv run pytest            # coverage thresholds from Principle V
+uv run pytest --cov --cov-report=json            # unit, integration, contract, migrations
+uv run python scripts/check_coverage.py          # 100% on coverage-critical modules
+uv run playwright install chromium               # once, for the a11y tests
+uv run pytest -m a11y                            # WCAG 2.2 AA, keyboard journeys, phone width
+uv run pytest -m perf                            # 5,000-book performance budgets
 uv run pip-audit
+uv run python -m book_tracker.export_openapi     # generated OpenAPI, for the contract check
 ```
 
-Update this section with the real commands when the first feature is implemented.
-
+Tests need PostgreSQL 16. They use `BOOK_TRACKER_TEST_DATABASE_URL` if set, otherwise a
+testcontainer when Docker is available, otherwise a throwaway cluster from the local
+`initdb` (see `tests/conftest.py`).
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker

@@ -1,0 +1,124 @@
+/* Family Book Tracker: mobile-first, WCAG 2.2 AA (FR-026, FR-030). */
+:root {
+  --text: #1b1f24;
+  --muted: #4a5360;          /* 7.6:1 on white */
+  --bg: #ffffff;
+  --surface: #f4f6f8;
+  --border: #8a94a3;         /* 3.2:1 non-text contrast on white */
+  --primary: #1d4ed8;        /* 6.7:1 on white */
+  --primary-dark: #1e3a8a;
+  --danger: #b42318;         /* 6.0:1 on white */
+  --success-bg: #e7f6ec;
+  --focus: #b45309;
+  --radius: 6px;
+  --target: 44px;            /* minimum touch target */
+  font-size: 100%;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.container { width: 100%; max-width: 60rem; margin: 0 auto; padding: 0 1rem; }
+
+a { color: var(--primary); text-underline-offset: 0.15em; }
+a:hover { color: var(--primary-dark); }
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.skip-link {
+  position: absolute; left: 0.5rem; top: -3rem; padding: 0.75rem 1rem;
+  background: var(--primary); color: #fff; z-index: 10;
+}
+.skip-link:focus { top: 0.5rem; color: #fff; }
+
+.site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.header-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.brand { font-weight: 700; color: var(--text); text-decoration: none; min-height: var(--target); display: inline-flex; align-items: center; }
+.nav-list { display: flex; flex-wrap: wrap; gap: 0 0.75rem; margin: 0; padding: 0; list-style: none; }
+.nav-list a { display: inline-flex; align-items: center; min-height: var(--target); padding: 0 0.25rem; }
+.nav-list a[aria-current="page"] { font-weight: 700; }
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; margin-left: auto; }
+.signed-in-as { color: var(--muted); }
+.inline-form { display: inline; margin: 0; }
+
+main { padding-top: 1rem; padding-bottom: 3rem; }
+main:focus { outline: none; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0.5rem 0 1rem; }
+h2 { font-size: 1.25rem; margin: 1.5rem 0 0.5rem; }
+.muted { color: var(--muted); }
+
+.stack > * + * { margin-top: 1rem; }
+.narrow { max-width: 28rem; }
+
+.field { display: flex; flex-direction: column; gap: 0.25rem; }
+.field label, .legend { font-weight: 600; }
+.hint { color: var(--muted); font-size: 0.95rem; }
+input[type="text"], input[type="password"], input[type="date"], input[type="number"],
+input[type="search"], select, textarea {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.5rem 0.75rem; min-height: var(--target); width: 100%;
+}
+textarea { min-height: 6rem; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border: 2px solid var(--danger); }
+fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 1rem 1rem; margin: 0; }
+legend { font-weight: 600; padding: 0 0.25rem; }
+.checkbox { display: flex; align-items: center; gap: 0.5rem; min-height: var(--target); }
+.checkbox input { width: 1.5rem; height: 1.5rem; flex: none; }  /* 24px: WCAG 2.5.8 */
+
+button, .button {
+  font: inherit; cursor: pointer; border-radius: var(--radius); min-height: var(--target);
+  min-width: var(--target); padding: 0.5rem 1rem; border: 1px solid var(--primary);
+  background: var(--bg); color: var(--primary); display: inline-flex; align-items: center;
+  justify-content: center; gap: 0.25rem; text-decoration: none;
+}
+.button-primary { background: var(--primary); color: #fff; }
+.button-primary:hover { background: var(--primary-dark); color: #fff; }
+.button-danger { border-color: var(--danger); color: var(--danger); }
+.button-link { border: none; background: none; color: var(--primary); text-decoration: underline; padding: 0 0.25rem; }
+.spaced { margin-top: 1rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+
+.field-error { color: var(--danger); font-weight: 600; margin: 0; }
+.error-summary { border: 2px solid var(--danger); border-radius: var(--radius); padding: 0.75rem 1rem; }
+.error-summary p { margin: 0; }
+.notice { background: var(--success-bg); border-left: 4px solid #15803d; padding: 0.75rem 1rem; margin: 0 0 1rem; }
+.conflict { border-left: 4px solid var(--danger); padding: 0.5rem 0.75rem; background: #fdf1f0; }
+
+/* Lists of books */
+.filters { display: grid; gap: 0.75rem; grid-template-columns: 1fr; margin-bottom: 1rem; }
+.book-list { list-style: none; margin: 0; padding: 0; }
+.book-list > li { border-bottom: 1px solid #d5dae1; padding: 0.75rem 0; }
+.book-title { font-weight: 600; font-size: 1.05rem; }
+.book-meta { color: var(--muted); }
+.badge { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 0 0.5rem; font-size: 0.9rem; }
+.pagination { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
+
+.recent-profiles { margin-bottom: 1.5rem; }
+.profile-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* Type-ahead (ARIA combobox) */
+.combobox { position: relative; }
+.suggestions { list-style: none; margin: 0.25rem 0 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.suggestions:empty { display: none; }
+.suggestions [role="option"] { padding: 0.5rem 0.75rem; min-height: var(--target); display: flex; align-items: center; cursor: pointer; }
+.suggestions [role="option"][aria-selected="true"], .suggestions [role="option"]:hover { background: #dbe4ff; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #d5dae1; vertical-align: top; }
+.table-wrap { overflow-x: auto; }
+
+@media (min-width: 40rem) {
+  .filters { grid-template-columns: 2fr 1fr 1fr 1fr; align-items: end; }
+}

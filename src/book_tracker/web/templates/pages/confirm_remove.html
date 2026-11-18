@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Remove {{ entry.book.title }}{% endblock %}
+{% block content %}
+<h1>Remove “{{ entry.book.title }}” from your list?</h1>
+<p>The book stays in the family catalog and on other members' lists. Your status and notes for it will be deleted.</p>
+<form method="post" action="/entries/{{ entry.id }}/remove" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" name="confirm" value="yes" class="button-danger">Remove</button>
+  <a href="/entries/{{ entry.id }}">Cancel</a>
+</form>
+{% endblock %}

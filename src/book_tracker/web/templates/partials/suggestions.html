@@ -1,0 +1,7 @@
+<p class="visually-hidden" role="status">{% if q %}{{ items | length }} suggestion{{ "" if items | length == 1 else "s" }}{% endif %}</p>
+<ul class="suggestions" role="listbox" id="{{ field }}-listbox" aria-label="Suggestions">
+  {%- for item in items %}
+  <li role="option" id="{{ field }}-option-{{ loop.index }}" data-id="{{ item.id }}" data-value="{{ item.value }}" aria-selected="false">{{ item.value }}{% if item.detail %} <span class="muted">— {{ item.detail }}</span>{% endif %}</li>
+  {%- endfor %}
+</ul>
+{% if q and not items %}<p class="muted">No matches. {% if kind == "books" %}Fill in the details below to add a new book.{% else %}A new entry will be created.{% endif %}</p>{% endif %}

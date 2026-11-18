@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block content %}
+<h1>Accounts</h1>
+{% if error %}
+<div class="error-summary" role="alert" tabindex="-1"><p>{{ error }}</p></div>
+{% endif %}
+<p><a class="button button-primary" href="/admin/users/new">Create an account for a family member</a></p>
+<div class="table-wrap">
+<table>
+  <caption class="visually-hidden">Family accounts</caption>
+  <thead>
+    <tr><th scope="col">Name</th><th scope="col">Login</th><th scope="col">Role</th><th scope="col">State</th><th scope="col">Actions</th></tr>
+  </thead>
+  <tbody>
+    {% for account in accounts %}
+    <tr>
+      <th scope="row">{{ account.display_name }}</th>
+      <td>{{ account.login }}</td>
+      <td>{{ "Admin" if account.is_admin else "Member" }}</td>
+      <td>{{ "Active" if account.is_active else "Deactivated" }}{% if account.must_change_password %}<br><span class="muted">Temporary password</span>{% endif %}</td>
+      <td>
+        <div class="actions">
+          <form method="post" action="/admin/users/{{ account.id }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% if account.is_active %}
+            <button type="submit" name="action" value="deactivate" aria-label="Deactivate {{ account.display_name }}">Deactivate</button>
+            {% else %}
+            <button type="submit" name="action" value="reactivate" aria-label="Reactivate {{ account.display_name }}">Reactivate</button>
+            {% endif %}
+            {% if account.is_admin %}
+            <button type="submit" name="action" value="make_member" aria-label="Make {{ account.display_name }} a Member">Make Member</button>
+            {% else %}
+            <button type="submit" name="action" value="make_admin" aria-label="Make {{ account.display_name }} an Admin">Make Admin</button>
+            {% endif %}
+          </form>
+        </div>
+        <form method="post" action="/admin/users/{{ account.id }}/reset-password" class="reset-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% set reset_id = "reset-" ~ account.id %}
+          <label for="{{ reset_id }}">Temporary password for {{ account.display_name }}</label>
+          <input id="{{ reset_id }}" name="temporary_password" type="text" autocomplete="off" minlength="8" maxlength="128"
+                 {% if reset_errors.get(account.id | string) %}aria-invalid="true" aria-describedby="{{ reset_id }}-error"{% endif %}>
+          {% if reset_errors.get(account.id | string) %}<p class="field-error" id="{{ reset_id }}-error">{{ reset_errors.get(account.id | string) }}</p>{% endif %}
+          <button type="submit">Reset password</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

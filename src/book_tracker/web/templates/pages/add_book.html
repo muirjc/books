@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "macros.html" import described, field_error, error_summary %}
+{% block title %}Add a book{% endblock %}
+{% block content %}
+<h1>Add a book</h1>
+{{ error_summary(form.errors) }}
+
+{% if conflict %}
+<div class="conflict" role="alert" id="conflict">
+  {% if conflict.code == "already_on_list" %}
+  <p><strong>Already on your list:</strong> “{{ conflict.existing_label }}”.</p>
+  <div class="actions">
+    <form method="post" action="/entries/{{ conflict.existing_id }}/read-again" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Read again</button>
+    </form>
+    <a href="/entries/{{ conflict.existing_id }}">Open it</a>
+  </div>
+  {% elif conflict.code == "isbn_exists" %}
+  <p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p>
+  <form method="post" action="/books/add" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="status" value="{{ form.status }}">
+    <input type="hidden" name="finished_on" value="{{ form.raw.get('finished_on', '') }}">
+    <input type="hidden" name="notes" value="{{ form.raw.get('notes', '') }}">
+    <button type="submit" name="book_id" value="{{ conflict.existing_id }}">Add “{{ conflict.existing_label }}” to my list instead</button>
+  </form>
+  {% else %}
+  <p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<form method="post" action="/books/add" class="stack" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% with suggest_title=true %}{% include "partials/book_fields.html" %}{% endwith %}
+  <div class="field">
+    <label for="summary">Summary (optional)</label>
+    <p class="hint" id="summary-hint">A short, spoiler-free description. Everyone in the family will see it.</p>
+    <textarea id="summary" name="summary" maxlength="5000"{{ described(form.errors, "summary", hint=true) }}>{{ form.raw.get('summary', '') }}</textarea>
+    {{ field_error(form.errors, "summary") }}
+  </div>
+  {% include "partials/entry_fields.html" %}
+  <button type="submit" class="button-primary">Add to my list</button>
+</form>
+{% endblock %}

@@ -1,0 +1,117 @@
+# CI gates from the constitution ("Development Workflow & Quality Gates"). All jobs are
+# required to merge (configure them as required status checks on the default branch).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy --strict src
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      # Unit, integration (PostgreSQL via testcontainers), contract and migration tests
+      - run: uv run pytest --cov --cov-report=json --cov-report=term
+      - run: uv run python scripts/check_coverage.py
+
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run pytest -m a11y
+
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run pytest -m perf
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      # Accepted exceptions live in .pip-audit-ignore: "<VULN-ID>  # reason; review by YYYY-MM-DD"
+      - run: |
+          ignores=""
+          if [ -f .pip-audit-ignore ]; then
+            for id in $(grep -v '^\s*#' .pip-audit-ignore | awk '{print $1}'); do
+              ignores="$ignores --ignore-vuln $id"
+            done
+          fi
+          uv run pip-audit $ignores
+
+  # Breaking-change check (research R16). The baseline is the generated OpenAPI document
+  # committed at specs/001-family-reading-list/contracts/openapi.generated.json; the test
+  # suite fails if it is out of date. This job compares this change's generated document
+  # with the baseline on the base branch (PR) or the previous commit (push). A deliberate
+  # breaking change needs a spec that declares it and the PR label `breaking-api`.
+  contract:
+    runs-on: ubuntu-latest
+    env:
+      BASELINE: specs/001-family-reading-list/contracts/openapi.generated.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run python -m book_tracker.export_openapi > generated.json
+      - name: Fetch the base baseline
+        id: base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE_SHA" ] && git show "$BASE_SHA:$BASELINE" > base.json 2>/dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No baseline at the base commit; nothing to compare (first API version)."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      # oasdiff pinned to v1.38.0 (looked up 2026-11-18; v1.39.0 was one day old). Bump deliberately.
+      - name: oasdiff breaking
+        if: steps.base.outputs.found == 'true'
+        env:
+          FAIL_ON: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-api') && 'none' || 'ERR' }}
+        run: >
+          docker run --rm -v "$PWD":/w -w /w tufin/oasdiff:v1.38.0 breaking
+          base.json generated.json --fail-on "$FAIL_ON"
+
+  spec-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR links a specs/ directory or is labelled chore/fix
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          if printf '%s' "$BODY" | grep -q 'specs/'; then exit 0; fi
+          for label in $LABELS; do
+            if [ "$label" = "chore" ] || [ "$label" = "fix" ]; then exit 0; fi
+          done
+          echo "PR must link a specs/<feature>/ directory, or be labelled chore or fix with a stated reason."
+          exit 1

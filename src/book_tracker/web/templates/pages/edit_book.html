@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import error_summary %}
+{% block title %}Edit {{ book.title }}{% endblock %}
+{% block content %}
+<h1>Edit “{{ book.title }}”</h1>
+<p class="muted">Changes show on every family member's list. Last edited by {{ book.updated_by.display_name }} on {{ book.updated_at | nice_date }}.</p>
+{{ error_summary(form.errors) }}
+{% if conflict %}
+<div class="conflict" role="alert"><p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p></div>
+{% endif %}
+<form method="post" action="/catalog/books/{{ book.id }}/edit" class="stack" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% with suggest_title=false %}{% include "partials/book_fields.html" %}{% endwith %}
+  <button type="submit" class="button-primary">Save book details</button>
+</form>
+<h2>Related</h2>
+<ul>
+  {% for a in book.authors %}<li><a href="/catalog/authors/{{ a.id }}/edit">Edit author “{{ a.name }}”</a></li>{% endfor %}
+  {% if book.series %}<li><a href="/catalog/series/{{ book.series.id }}/edit">Edit series “{{ book.series.name }}”</a></li>{% endif %}
+  <li><a href="/catalog/books/{{ book.id }}/summary">Summary</a></li>
+</ul>
+{% endblock %}

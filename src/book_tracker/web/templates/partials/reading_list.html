@@ -1,0 +1,34 @@
+{% from "macros.html" import authors_line, series_line %}
+{% if page.total == 0 %}
+{% if filtered %}
+<p>No books on your list match. <a href="/">Show all my books</a>.</p>
+{% else %}
+<p>You haven't added any books yet. <a href="/books/add">Add your first book</a>.</p>
+{% endif %}
+{% else %}
+<p class="muted" id="list-count">{{ page.total }} book{{ "" if page.total == 1 else "s" }}</p>
+<ul class="book-list" aria-describedby="list-count">
+  {% for entry in page.items %}
+  <li>
+    <a class="book-title" href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>
+    <div class="book-meta">
+      {{ authors_line(entry.book) }}
+      {% if entry.book.series %} · <a href="/series/{{ entry.book.series.id }}">{{ series_line(entry.book) }}</a>{% endif %}
+    </div>
+    <div class="book-meta">
+      <span class="badge">{{ STATUS_LABELS[entry.status] }}</span>
+      {% if entry.finished_on %} Finished {{ entry.finished_on | nice_date }}{% endif %}
+      {% if entry.times_read > 1 %} · Read {{ entry.times_read }} times{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% set last_page = ((page.total - 1) // page.page_size) + 1 %}
+{% if last_page > 1 %}
+<nav class="pagination" aria-label="Pages">
+  {% if page.page > 1 %}<a href="/?{{ query_without_page }}page={{ page.page - 1 }}">Previous</a>{% endif %}
+  <span>Page {{ page.page }} of {{ last_page }}</span>
+  {% if page.page < last_page %}<a href="/?{{ query_without_page }}page={{ page.page + 1 }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}

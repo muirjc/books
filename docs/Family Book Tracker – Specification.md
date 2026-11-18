@@ -328,6 +328,8 @@ The default policy denies incoming and allows outgoing. All allowed traffic is l
 
 ### 10.4 Runtime layout (Docker Compose)
 
+The stack is in `deploy/pi/`: `compose.yaml`, `caddy/Caddyfile`, and `.env.example`, the template for the Pi's `.env`.
+
 | Container | Image | Role | Published |
 | --- | --- | --- | --- |
 | proxy | Caddy | HTTPS termination, reverse proxy to `app` | `<pi-ip>:80`, `<pi-ip>:443` |
@@ -340,9 +342,13 @@ The default policy denies incoming and allows outgoing. All allowed traffic is l
 - **Outbound internet:** spec 001 makes no outbound calls. From spec 002 (AI summaries), the app needs outbound HTTPS to the LLM API and to Google Books / Open Library.
 - **Secrets:** they live in a `.env` file on the Pi with mode 600, never committed. That covers the database password, `BOOK_TRACKER_SECRET_KEY`, the first Admin's password, and later the LLM and Google Books keys.
 
-### 10.5 HTTPS (Open)
+### 10.5 HTTPS
 
-The constitution (Principle IX) requires HTTPS here, and the app's `__Host-` session cookie only works over HTTPS. The approach is **not decided**. The options:
+The constitution (Principle IX) requires HTTPS here, and the app's `__Host-` session cookie only works over HTTPS.
+
+**Decided (2026-11-18): option 3, Caddy's internal CA.** The family uses `https://books.local`, or the Pi's IP address where `.local` doesn't resolve; Caddy holds a certificate for both. Caddy's root certificate is installed and trusted once on every device. The CA's keys live in Caddy's data volume, which must be backed up: losing it means trusting a new root on every device.
+
+The options considered:
 
 | Option | For | Against |
 | --- | --- | --- |

@@ -1,0 +1,81 @@
+# Family Book Tracker on the Raspberry Pi (spec sections 10.3-10.5).
+#
+# Run from this directory, next to a .env made from .env.example (mode 600):
+#   docker compose pull && docker compose up -d
+#
+# Docker-published ports bypass ufw, so the boundaries are set here: only the proxy
+# publishes ports, bound to the Pi's LAN address; the app and PostgreSQL are never
+# published; PostgreSQL sits on an internal network with no route out.
+name: books
+
+services:
+  proxy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "${PI_LAN_IP:?set PI_LAN_IP in .env}:80:80"
+      - "${PI_LAN_IP}:443:443"
+    environment:
+      PI_LAN_IP: ${PI_LAN_IP}
+    volumes:
+      # The directory, not the file: editors replace a file when saving, and a single-file
+      # mount keeps pointing at the old one. Apply edits with:
+      #   docker compose exec -w /etc/caddy proxy caddy reload
+      - ./caddy:/etc/caddy:ro
+      # Holds the internal CA's keys. Back it up: losing it means every family device
+      # has to trust a new root certificate.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app:
+    image: ghcr.io/muirjc/books:${BOOKS_TAG:-latest}
+    restart: unless-stopped
+    # Health check: the image's HEALTHCHECK calls GET /healthz.
+    environment:
+      BOOK_TRACKER_ENVIRONMENT: production
+      BOOK_TRACKER_DATABASE_URL: postgresql://books:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/books
+      BOOK_TRACKER_SECRET_KEY: ${BOOK_TRACKER_SECRET_KEY:?set BOOK_TRACKER_SECRET_KEY in .env}
+      # First Admin, created at start-up only if no Admin exists yet.
+      BOOK_TRACKER_ADMIN_LOGIN: ${BOOK_TRACKER_ADMIN_LOGIN:-}
+      BOOK_TRACKER_ADMIN_DISPLAY_NAME: ${BOOK_TRACKER_ADMIN_DISPLAY_NAME:-}
+      BOOK_TRACKER_ADMIN_PASSWORD: ${BOOK_TRACKER_ADMIN_PASSWORD:-}
+    # edge: reachable by the proxy, and outbound HTTPS from spec 002. backend: the database.
+    networks: [edge, backend]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: books
+      POSTGRES_DB: books
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # On the Pi's NVMe SSD (the root filesystem).
+      - type: bind
+        source: ${BOOKS_DATA_DIR:-/srv/books}/postgres
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: true
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "books", "-d", "books"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [backend]
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}

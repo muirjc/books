@@ -31,6 +31,7 @@ from book_tracker.web.cookies import refresh_session_cookie
 from book_tracker.web.routes import admin as web_admin
 from book_tracker.web.routes import auth as web_auth
 from book_tracker.web.routes import catalog as web_catalog
+from book_tracker.web.routes import health as web_health
 from book_tracker.web.routes import readings as web_readings
 from book_tracker.web.routes import suggest as web_suggest
 from book_tracker.web.security import SecurityHeadersMiddleware
@@ -77,6 +78,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(web_admin.router)
     app.include_router(web_catalog.router)
     app.include_router(web_suggest.router)
+    app.include_router(web_health.router)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     # FastAPI's documented way to customise the schema is to replace app.openapi.

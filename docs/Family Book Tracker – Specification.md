@@ -335,7 +335,7 @@ The default policy denies incoming and allows outgoing. All allowed traffic is l
 | db | PostgreSQL 16 | Database, with data on the SSD | No |
 
 - **Images (To build):** CI builds multi-architecture images (`linux/arm64` and `linux/amd64`) with `docker buildx` on each merge to `main` and pushes them to GitHub Container Registry, `ghcr.io/muirjc/books`. If the package is private, the Pi signs in to GHCR with a read-only token.
-- **Restart and health:** all containers use `restart: unless-stopped`. **To build:** the app exposes an unauthenticated `GET /healthz` for the Docker health check, and the container runs 2 uvicorn workers (today it runs 1).
+- **Restart and health:** all containers use `restart: unless-stopped`. The app exposes an unauthenticated `GET /healthz` (200 when it can reach the database, otherwise 503; it answers plain HTTP so the health check needn't go through Caddy), the image's `HEALTHCHECK` calls it, and the container runs 2 uvicorn workers.
 - **Behind the proxy:** the app runs with `BOOK_TRACKER_ENVIRONMENT=production`, so it redirects plain HTTP to HTTPS and sends HSTS. It trusts `X-Forwarded-Proto` from Caddy; that is safe only because the app port is never published.
 - **Outbound internet:** spec 001 makes no outbound calls. From spec 002 (AI summaries), the app needs outbound HTTPS to the LLM API and to Google Books / Open Library.
 - **Secrets:** they live in a `.env` file on the Pi with mode 600, never committed. That covers the database password, `BOOK_TRACKER_SECRET_KEY`, the first Admin's password, and later the LLM and Google Books keys.

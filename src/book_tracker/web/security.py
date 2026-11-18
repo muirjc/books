@@ -12,6 +12,8 @@ from starlette.datastructures import URL, MutableHeaders
 from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from book_tracker.web.routes.health import HEALTH_PATH
+
 CSP = "default-src 'self'; frame-ancestors 'none'"
 HSTS = "max-age=31536000; includeSubDomains"
 
@@ -25,7 +27,8 @@ class SecurityHeadersMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        if self.production and scope.get("scheme") == "http":
+        # The container health check calls the app directly over plain HTTP.
+        if self.production and scope.get("scheme") == "http" and scope["path"] != HEALTH_PATH:
             url = URL(scope=scope).replace(scheme="https")
             await RedirectResponse(str(url), status_code=308)(scope, receive, send)
             return

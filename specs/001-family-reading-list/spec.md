@@ -430,8 +430,10 @@ replaces it; the latest version is shown and the earlier one is retained.
   later. *[doc open question 4]*
 - **Children's accounts**: children use the same screens as adults, with no parental review
   of what they add. *[doc open question 6]*
-- **Hosting**: the choice between cloud and home hosting does not change this spec's
-  behaviour. *[doc open question 5]*
+- **Hosting**: decided in source document v0.2, section 10. The app runs on a Raspberry Pi 5
+  at home, reachable only from the family network. That doesn't change this spec's behaviour;
+  the deployment work (arm64 images, `/healthz`, Compose, HTTPS, backups) is tracked
+  separately. *[doc open question 5]*
 - **Password reset**: an Admin sets a temporary password and tells the member in person;
   there is no emailed reset link, since children may have no email.
 - **Sign-in with Google**: not included; the source document lists it as a later option.

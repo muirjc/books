@@ -94,15 +94,18 @@ hands-on check.
 
 ## Backups (release gate, research R20)
 
-Before the first release, on the target host:
+Before the first release, on the Raspberry Pi (source document section 10.6). The dump runs
+inside the Compose `db` container and writes to the NAS mount. Run it nightly from a systemd
+timer:
 
 ```bash
-# nightly, e.g. from cron or a scheduled container job
-pg_dump -Fc "$BOOK_TRACKER_DATABASE_URL_PLAIN" > /backups/books-$(date +%F).dump
-find /backups -name 'books-*.dump' -mtime +30 -delete
-# restore test (into a scratch database)
-pg_restore --clean --if-exists -d books_restore_test /backups/books-YYYY-MM-DD.dump
+# nightly (systemd timer); /mnt/nas/books-backups is the NAS mount on the Pi
+docker compose exec -T db pg_dump -U books -Fc books > /mnt/nas/books-backups/books-$(date +%F).dump
+find /mnt/nas/books-backups -name 'books-*.dump' -mtime +30 -delete
+# restore test (into a scratch database), at least once before go-live
+docker compose exec -T db createdb -U books books_restore_test
+docker compose exec -T db pg_restore -U books -d books_restore_test < /mnt/nas/books-backups/books-YYYY-MM-DD.dump
 ```
 
-`BOOK_TRACKER_DATABASE_URL_PLAIN` is the database URL without the `+psycopg` driver suffix.
+The encrypted off-site copy (restic) is still to be set up: its destination isn't chosen yet.
 Record the restore test date in the release notes.

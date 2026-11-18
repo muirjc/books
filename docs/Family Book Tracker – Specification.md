@@ -1,6 +1,8 @@
 # Family Book Tracker – Specification
 
-Version 0.1 (draft) · Nov 18, 2026 · @john
+Version 0.2 (draft) · Nov 18, 2026 · @john
+
+Changes in 0.2: section 10 (hosting on a Raspberry Pi) added; open question 5 answered; stack table updated (PostgreSQL only, Raspberry Pi hosting).
 
 ## 1. Overview and scope
 
@@ -244,12 +246,12 @@ If the AI call proves slow, `summary-drafts` can switch to `202 Accepted` plus a
 | Language | Python 3.12+ |
 | Web / API | FastAPI with Pydantic v2 models |
 | UI | Server-rendered Jinja2 templates with HTMX (keeps it one codebase, no separate SPA) |
-| Database | PostgreSQL 16; SQLite acceptable for a single-machine home install |
+| Database | PostgreSQL 16 (SQLite only for throwaway local development, per the constitution) |
 | ORM / migrations | SQLAlchemy 2.0 + Alembic |
 | Auth | Session cookies; `argon2-cffi` for hashing |
 | AI | LLM provider SDK (e.g. Anthropic) behind a `SummaryGenerator` interface; `httpx` for Google Books / Open Library |
 | Testing | pytest, with recorded HTTP fixtures for source adapters and a fake LLM |
-| Hosting | One container (e.g. Azure Container Apps, or a home server / NAS) |
+| Hosting | One app container image on a Raspberry Pi 5 at home, behind Caddy, with PostgreSQL in Docker Compose (see section 10) |
 
 ## 8. Acceptance criteria
 
@@ -271,7 +273,7 @@ If the AI call proves slow, `summary-drafts` can switch to `202 Accepted` plus a
 2. **Summary ownership:** one shared summary per book (current design) or a personal summary per reader? Personal notes already cover individual impressions.
 3. **Re-reads:** should reading the same book twice create two entries? Currently blocked by FR-11; allowing it means dropping that unique constraint and adding a read count or one row per read.
 4. **Pen names:** is a free-text real name enough, or should pen names link to one another (e.g. Nora Roberts and J.D. Robb as the same person)? A self-referencing `real_author_id` can be added later without breaking anything.
-5. **Hosting:** cloud container or a machine at home? This affects sign-in options and backups.
+5. **Hosting:** ~~cloud container or a machine at home?~~ **Answered:** a Raspberry Pi 5 at home, reachable only from the family network (section 10). Two parts are still open there: the HTTPS approach (10.5) and the off-site backup destination (10.6).
 6. **Children's accounts:** do younger readers need a simpler UI or parental review of what they add?
 
 ### Future enhancements
@@ -281,3 +283,81 @@ If the AI call proves slow, `summary-drafts` can switch to `202 Accepted` plus a
 - Family statistics (books per year, favorite authors)
 - "Want to read" lists shared between family members
 - Reading challenges and yearly goals
+
+## 10. Hosting: Raspberry Pi on the home network
+
+The app runs on a Raspberry Pi 5 at home. It is reachable only from the family network and never exposed to the internet.
+
+Items marked **Open** must be decided before go-live; items marked **To build** are not in the application yet.
+
+### 10.1 Hardware
+
+| Item | Choice | Why |
+| --- | --- | --- |
+| Board | Raspberry Pi 5, 4 GB RAM | Ample for 2–10 users and PostgreSQL |
+| Storage | NVMe SSD (128–256 GB) on an M.2 HAT | SD cards wear out and can corrupt the database on power loss |
+| Power | Official 27 W USB-C supply; small UPS optional | Stable power avoids corruption |
+| Cooling | Active cooler, in a case with room for the SSD HAT | Sustained load without throttling |
+| Network | Wired Ethernet | Stable address and connection |
+
+### 10.2 Operating system and naming
+
+- Raspberry Pi OS Lite (64-bit), with no desktop.
+- Hostname `books`, advertised on the network as `books.local` by Avahi (mDNS). Used for SSH and admin access.
+- A DHCP reservation on the router gives the Pi a fixed IPv4 address. It's the fallback where `.local` doesn't resolve (some Android devices).
+- **Home network: 192.168.4.0/22.** This is the prefix the Pi receives from the router's DHCP (shown by `ip -4 addr` on the Pi), and it matches the default range of eero routers. **Check before go-live:** confirm the range in the eero app's network settings (DHCP / NAT; menu names vary by app version). The firewall rules below depend on it being exact.
+
+### 10.3 Firewall (ufw)
+
+The default policy denies incoming and allows outgoing. All allowed traffic is limited to the home network.
+
+| Port | Protocol | Purpose | Source |
+| --- | --- | --- | --- |
+| 22 | TCP | SSH administration | 192.168.4.0/22 |
+| 5353 | UDP | mDNS (`books.local`) | 192.168.4.0/22 |
+| 80, 443 | TCP | Web app via Caddy | 192.168.4.0/22 |
+| 5900 | TCP | VNC, **temporary, for initial setup only** (see below) | 192.168.4.0/22 |
+
+- **VNC is temporary.** Raspberry Pi OS Lite has no desktop, so VNC only works while a desktop and a VNC server are installed for setup. When setup is finished, remove the desktop and the VNC server, and delete the 5900 rule.
+- **IPv4 only.** The rules cover IPv4. Clients connect over IPv4 (`ssh -4`, or `AddressFamily inet` in `~/.ssh/config`), or matching `fe80::/10` rules are added.
+- **Docker-published ports bypass ufw.** Docker inserts its own iptables rules, so the 80/443 rows don't actually filter Caddy's traffic. The real boundaries are:
+  1. only Caddy publishes ports, and binds them to the Pi's LAN address;
+  2. PostgreSQL and the app are never published;
+  3. the router forwards no ports.
+- No port forwarding on the router.
+
+### 10.4 Runtime layout (Docker Compose)
+
+| Container | Image | Role | Published |
+| --- | --- | --- | --- |
+| proxy | Caddy | HTTPS termination, reverse proxy to `app` | `<pi-ip>:80`, `<pi-ip>:443` |
+| app | Book tracker, `linux/arm64` | FastAPI + uvicorn, 2 workers; runs `alembic upgrade head` (and creates the first Admin if missing) before starting | No |
+| db | PostgreSQL 16 | Database, with data on the SSD | No |
+
+- **Images (To build):** CI builds multi-architecture images (`linux/arm64` and `linux/amd64`) with `docker buildx` on each merge to `main` and pushes them to GitHub Container Registry, `ghcr.io/muirjc/books`. If the package is private, the Pi signs in to GHCR with a read-only token.
+- **Restart and health:** all containers use `restart: unless-stopped`. **To build:** the app exposes an unauthenticated `GET /healthz` for the Docker health check, and the container runs 2 uvicorn workers (today it runs 1).
+- **Behind the proxy:** the app runs with `BOOK_TRACKER_ENVIRONMENT=production`, so it redirects plain HTTP to HTTPS and sends HSTS. It trusts `X-Forwarded-Proto` from Caddy; that is safe only because the app port is never published.
+- **Outbound internet:** spec 001 makes no outbound calls. From spec 002 (AI summaries), the app needs outbound HTTPS to the LLM API and to Google Books / Open Library.
+- **Secrets:** they live in a `.env` file on the Pi with mode 600, never committed. That covers the database password, `BOOK_TRACKER_SECRET_KEY`, the first Admin's password, and later the LLM and Google Books keys.
+
+### 10.5 HTTPS (Open)
+
+The constitution (Principle IX) requires HTTPS here, and the app's `__Host-` session cookie only works over HTTPS. The approach is **not decided**. The options:
+
+| Option | For | Against |
+| --- | --- | --- |
+| 1. Own domain + Let's Encrypt via DNS challenge (e.g. `books.<family-domain>` pointing to the Pi's private IP) | Trusted on every device with no setup | Needs a domain and a DNS provider with an API. Caddy must be built with that provider's DNS plugin. Routers with DNS rebinding protection block public names that point at private IPs, so the router may need an exception |
+| 2. Tailscale with MagicDNS certificates | Trusted; adds secure remote access | Every device needs the Tailscale app. Remote access contradicts "reachable only from the family network", so choosing it means changing that goal |
+| 3. Caddy internal CA (`tls internal`) | No domain, no cost | Caddy's root certificate must be installed and trusted on every device, including children's phones and tablets |
+
+The choice also decides the address the family uses (`books.<family-domain>`, a Tailscale name, or `books.local`).
+
+### 10.6 Backups and maintenance
+
+- **Nightly backup:** `pg_dump` (run in the `db` container) on a systemd timer, written to the **NAS** on the home network. 30 days retained.
+- **Off-site copy (Open):** an encrypted copy with restic, 30 days retained. The destination isn't chosen (for example Backblaze B2, S3, or a machine at a relative's house). Keep the restic password somewhere other than the Pi, such as the family password manager; without it the backups can't be restored.
+- **Restore test:** at least once before go-live, into a scratch database. This is the constitution's release gate (spec 001 task T118).
+- **Access:** SSH with keys only; password login disabled.
+- **OS updates:** automatic security updates (`unattended-upgrades`).
+- **App updates:** `docker compose pull && docker compose up -d`. Migrations run when the app starts.
+- **Performance check (To do):** the performance budgets (list pages under 1 s, type-ahead under 0.3 s at p95 with 5,000 books) were measured on a development PC. Re-check them on the Pi with the SSD.

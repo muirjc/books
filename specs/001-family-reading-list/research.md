@@ -254,8 +254,11 @@ not, so a service enforces them inside a transaction:
 ## R20. Backups (release gate)
 
 - **Decision**: no backup code ships in this feature. `quickstart.md` documents a nightly
-  `pg_dump -Fc` with 30-day retention and a restore test for each hosting option. A full
-  backup setup is required before the first release, because the hosting choice is still
-  open (source document, open question 5).
+  `pg_dump -Fc` with 30-day retention and a restore test. A full backup setup is required
+  before the first release.
+- **Updated 2026-11-18**: hosting is now decided (source document section 10: a Raspberry Pi
+  with Docker Compose). The nightly dump runs in the `db` container on a systemd timer and
+  writes to the NAS, with an encrypted restic copy off-site. The off-site destination is
+  still open and blocks go-live, along with the restore test (T118).
 - **Rationale**: backups depend on where the app is hosted. The constitution makes them a
   release gate, not a gate on merging code.

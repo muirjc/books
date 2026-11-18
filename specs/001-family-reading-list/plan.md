@@ -31,8 +31,9 @@ psycopg 3, Alembic, Jinja2, HTMX 2.0.4 (vendored), argon2-cffi, python-multipart
 (contract), pytest-playwright + axe-playwright-python (accessibility); oasdiff in CI
 (container image, not a Python dependency)
 
-**Target Platform**: Single Linux container image; runs on a cloud container host or a home
-server or NAS (hosting is still an open question; it doesn't affect this feature)
+**Target Platform**: Single Linux container image. Production hosting is a Raspberry Pi 5
+(`linux/arm64`) with Docker Compose behind Caddy, per source document section 10. The arm64
+build and hosting setup are follow-up work and don't change this feature
 
 **Project Type**: Web service with server-rendered UI (one deployable)
 

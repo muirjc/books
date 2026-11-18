@@ -334,7 +334,7 @@ The default policy denies incoming and allows outgoing. All allowed traffic is l
 | app | Book tracker, `linux/arm64` | FastAPI + uvicorn, 2 workers; runs `alembic upgrade head` (and creates the first Admin if missing) before starting | No |
 | db | PostgreSQL 16 | Database, with data on the SSD | No |
 
-- **Images (To build):** CI builds multi-architecture images (`linux/arm64` and `linux/amd64`) with `docker buildx` on each merge to `main` and pushes them to GitHub Container Registry, `ghcr.io/muirjc/books`. If the package is private, the Pi signs in to GHCR with a read-only token.
+- **Images:** after the `ci` workflow passes on a merge to `main`, the `images` workflow builds multi-architecture images (`linux/arm64` and `linux/amd64`) with `docker buildx` and pushes them to GitHub Container Registry, `ghcr.io/muirjc/books`, tagged `sha-<7-character commit>` and `latest`. Pull requests build the `linux/amd64` image without pushing it. If the package is private, the Pi signs in to GHCR with a read-only token.
 - **Restart and health:** all containers use `restart: unless-stopped`. The app exposes an unauthenticated `GET /healthz` (200 when it can reach the database, otherwise 503; it answers plain HTTP so the health check needn't go through Caddy), the image's `HEALTHCHECK` calls it, and the container runs 2 uvicorn workers.
 - **Behind the proxy:** the app runs with `BOOK_TRACKER_ENVIRONMENT=production`, so it redirects plain HTTP to HTTPS and sends HSTS. It trusts `X-Forwarded-Proto` from Caddy; that is safe only because the app port is never published.
 - **Outbound internet:** spec 001 makes no outbound calls. From spec 002 (AI summaries), the app needs outbound HTTPS to the LLM API and to Google Books / Open Library.

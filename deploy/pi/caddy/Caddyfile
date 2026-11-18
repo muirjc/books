@@ -1,0 +1,20 @@
+# HTTPS with Caddy's internal CA (spec section 10.5). Family devices trust its root
+# certificate, exported with:
+#   docker compose cp proxy:/data/caddy/pki/authorities/local/root.crt ./books-root.crt
+{
+	# Caddy runs in a container; installing the root into the container's own trust
+	# store is pointless.
+	skip_install_trust
+	# Clients send no SNI when connecting by IP address; use the IP's certificate then.
+	default_sni {$PI_LAN_IP}
+}
+
+# books.local via Avahi; the Pi's IP for devices where .local doesn't resolve.
+# Plain HTTP on :80 is redirected to HTTPS automatically.
+books.local, {$PI_LAN_IP} {
+	tls internal
+	encode zstd gzip
+	# Caddy sets X-Forwarded-Proto/-For; the app trusts them because its port is
+	# never published (spec section 10.4).
+	reverse_proxy app:8000
+}

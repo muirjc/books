@@ -29,6 +29,10 @@ Features follow Spec Kit, with specs under `specs/<###-feature>/`:
    violations before implementing.
 3. Tests are always required, whatever a Spec Kit command or template default says.
 
+Task tracking: beads (`bd`) tracks all work, including each Spec Kit phase and every
+follow-up. The one exception is a feature's Spec Kit `tasks.md`: it is the spec's task
+breakdown, and `/speckit-implement` ticks it off. Don't keep any other markdown to-do lists.
+
 Project versions of the spec, plan and tasks templates live in
 `.specify/templates/overrides/`. Edit those, not the core files in `.specify/templates/`,
 which Spec Kit may overwrite on upgrade.
@@ -41,17 +45,24 @@ which Spec Kit may overwrite on upgrade.
 
 ## Build & Test
 
-No application code exists yet. Once the project is scaffolded, the CI gates are:
+See [quickstart.md](specs/001-family-reading-list/quickstart.md) for running the app.
 
 ```bash
+uv sync                                          # install from uv.lock
 uv run ruff check . && uv run ruff format --check .
 uv run mypy --strict src
-uv run pytest            # coverage thresholds from Principle V
+uv run pytest --cov --cov-report=json            # unit, integration, contract, migrations
+uv run python scripts/check_coverage.py          # 100% on coverage-critical modules
+uv run playwright install chromium               # once, for the a11y tests
+uv run pytest -m a11y                            # WCAG 2.2 AA, keyboard journeys, phone width
+uv run pytest -m perf                            # 5,000-book performance budgets
 uv run pip-audit
+uv run python -m book_tracker.export_openapi     # generated OpenAPI, for the contract check
 ```
 
-Update this section with the real commands when the first feature is implemented.
-
+Tests need PostgreSQL 16. They use `BOOK_TRACKER_TEST_DATABASE_URL` if set, otherwise a
+testcontainer when Docker is available, otherwise a throwaway cluster from the local
+`initdb` (see `tests/conftest.py`).
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker

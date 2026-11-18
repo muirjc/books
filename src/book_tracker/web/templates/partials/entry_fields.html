@@ -1,0 +1,33 @@
+{% from "macros.html" import described, field_error %}
+{% set errs = form.errors if form is defined and form.errors is defined else errors %}
+{% set values = form.raw if form is defined and form.raw is defined else raw %}
+{% set current_status = values.get("status") or (entry.status if entry is defined else "finished") %}
+<div class="field">
+  <label for="status">Status</label>
+  <select id="status" name="status"{{ described(errs, "status") }}>
+    {% for value, label in statuses %}
+    <option value="{{ value }}"{% if value == current_status %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {{ field_error(errs, "status") }}
+</div>
+<div class="field">
+  <label for="finished_on">Date finished (optional)</label>
+  <input id="finished_on" name="finished_on" type="date"
+         value="{{ values.get('finished_on') if 'finished_on' in values else (entry.finished_on or '') if entry is defined else '' }}"{{ described(errs, "finished_on") }}>
+  {{ field_error(errs, "finished_on") }}
+</div>
+{% if entry is defined %}
+<div class="field">
+  <label for="times_read">Times read</label>
+  <input id="times_read" name="times_read" type="number" min="0" max="99" inputmode="numeric"
+         value="{{ values.get('times_read') if 'times_read' in values else entry.times_read }}"{{ described(errs, "times_read") }}>
+  {{ field_error(errs, "times_read") }}
+</div>
+{% endif %}
+<div class="field">
+  <label for="notes">Private notes (optional)</label>
+  <p class="hint" id="notes-hint">Only you can see these.</p>
+  <textarea id="notes" name="notes" maxlength="10000"{{ described(errs, "notes", hint=true) }}>{{ values.get('notes') if 'notes' in values else (entry.notes or '') if entry is defined else '' }}</textarea>
+  {{ field_error(errs, "notes") }}
+</div>

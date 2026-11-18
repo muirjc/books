@@ -1,0 +1,27 @@
+{% macro described(errors, name, hint=false) -%}
+{%- if errors.get(name) %} aria-describedby="{{ name }}-error{% if hint %} {{ name }}-hint{% endif %}" aria-invalid="true"
+{%- elif hint %} aria-describedby="{{ name }}-hint"{% endif -%}
+{%- endmacro %}
+
+{% macro field_error(errors, name) -%}
+{%- if errors.get(name) %}<p class="field-error" id="{{ name }}-error">{{ errors[name] }}</p>{% endif -%}
+{%- endmacro %}
+
+{% macro error_summary(errors) -%}
+{% if errors %}
+<div class="error-summary" role="alert" tabindex="-1" aria-labelledby="error-summary-title">
+  <p id="error-summary-title"><strong>Please fix the following:</strong></p>
+  <ul>
+    {% for name, text in errors.items() %}<li><a href="#{{ name }}">{{ text }}</a></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro authors_line(book) -%}
+{{ book.authors | map(attribute="name") | join(", ") }}
+{%- endmacro %}
+
+{% macro series_line(book) -%}
+{%- if book.series %}{{ book.series.name }}{% if book.series_number is not none %} #{{ book.series_number | series_number }}{% endif %}{% endif -%}
+{%- endmacro %}

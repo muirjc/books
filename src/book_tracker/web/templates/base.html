@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false}'>
+  <title>{% block title %}Family Book Tracker{% endblock %} · Family Book Tracker</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body{% if csrf_token %} hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% endif %}>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/">Family Book Tracker</a>
+      {% if current_user %}
+      <nav aria-label="Main">
+        <ul class="nav-list">
+          <li><a href="/"{% if active == "list" %} aria-current="page"{% endif %}>My books</a></li>
+          <li><a href="/books/add"{% if active == "add" %} aria-current="page"{% endif %}>Add a book</a></li>
+          {% if current_user.is_admin %}
+          <li><a href="/admin/users"{% if active == "admin" %} aria-current="page"{% endif %}>Accounts</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      <div class="account-actions">
+        <span class="signed-in-as">Signed in as <strong>{{ current_user.display_name }}</strong></span>
+        <form method="post" action="/switch-user" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="button-link">Switch user</button>
+        </form>
+        <form method="post" action="/sign-out" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="button-link">Sign out</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+  <main id="main" class="container" tabindex="-1">
+    <div id="messages" aria-live="polite">
+      {% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
+    </div>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

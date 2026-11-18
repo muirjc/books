@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ series.name }}{% endblock %}
+{% block content %}
+<h1>{{ series.name }}</h1>
+<p class="muted">The books from this series on your list, in reading order.</p>
+{% if entries %}
+<ol class="book-list">
+  {% for entry in entries %}
+  <li>
+    <span class="badge">{% if entry.book.series_number is not none %}#{{ entry.book.series_number | series_number }}{% else %}No number{% endif %}</span>
+    <a class="book-title" href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>
+    <span class="book-meta">· {{ STATUS_LABELS[entry.status] }}</span>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p>None of the books in this series are on your list yet.</p>
+{% endif %}
+<p><a href="/catalog/series/{{ series.id }}/edit">Edit series</a> · <a href="/">Back to my books</a></p>
+{% endblock %}

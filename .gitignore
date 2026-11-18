@@ -16,6 +16,7 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 generated.json
+base.json
 
 # Local configuration and secrets
 .env

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}My books{% endblock %}
+{% block content %}
+<h1>My books</h1>
+<p><a class="button button-primary" href="/books/add">Add a book</a></p>
+
+<form method="get" action="/" role="search" aria-label="Search and filter my books" class="filters"
+      hx-get="/" hx-target="#reading-list" hx-push-url="true"
+      hx-trigger="submit, change, input changed delay:300ms from:#q">
+  <div class="field">
+    <label for="q">Search my books</label>
+    <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off">
+  </div>
+  <div class="field">
+    <label for="sort">Sort by</label>
+    <select id="sort" name="sort">
+      {% for value, label in sort_options %}
+      <option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="">Any status</option>
+      {% for value, label in statuses %}
+      <option value="{{ value }}"{% if value == filters.status %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="author_id">Author</label>
+    <select id="author_id" name="author_id">
+      <option value="">Any author</option>
+      {% for id, name in author_options %}
+      <option value="{{ id }}"{% if id | string == filters.author_id %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="series_id">Series</label>
+    <select id="series_id" name="series_id">
+      <option value="">Any series</option>
+      {% for id, name in series_options %}
+      <option value="{{ id }}"{% if id | string == filters.series_id %} selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="actions">
+    <button type="submit">Apply</button>
+    {% if filtered %}<a href="/">Clear</a>{% endif %}
+  </div>
+</form>
+
+<div id="reading-list" aria-live="polite">
+  {% include "partials/reading_list.html" %}
+</div>
+{% endblock %}

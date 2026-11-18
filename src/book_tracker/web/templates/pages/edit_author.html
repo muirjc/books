@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "macros.html" import described, field_error, error_summary %}
+{% block title %}Edit {{ author.name }}{% endblock %}
+{% block content %}
+<h1>Edit author “{{ author.name }}”</h1>
+<p class="muted">Last edited by {{ author.updated_by.display_name }} on {{ author.updated_at | nice_date }}.</p>
+{{ error_summary(errors) }}
+<form method="post" action="/catalog/authors/{{ author.id }}/edit" class="stack narrow" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="field">
+    <label for="name">Name as printed on the book</label>
+    <input id="name" name="name" type="text" required maxlength="200" value="{{ values.name }}"{{ described(errors, "name") }}>
+    {{ field_error(errors, "name") }}
+  </div>
+  <div class="field">
+    <label for="sort_name">Sort name</label>
+    <p class="hint" id="sort_name-hint">For example “Pratchett, Terry”. Leave blank to fill it in from the name.</p>
+    <input id="sort_name" name="sort_name" type="text" maxlength="200" value="{{ values.sort_name }}"{{ described(errors, "sort_name", hint=true) }}>
+    {{ field_error(errors, "sort_name") }}
+  </div>
+  <div class="checkbox">
+    <input id="is_pen_name" name="is_pen_name" type="checkbox" data-enables="real_name"{% if values.is_pen_name %} checked{% endif %}>
+    <label for="is_pen_name">This is a pen name</label>
+  </div>
+  <div class="field">
+    <label for="real_name">Real name (optional)</label>
+    <p class="hint" id="real_name-hint">Only for pen names. Searching by the real name will find this author's books.</p>
+    <input id="real_name" name="real_name" type="text" maxlength="200" value="{{ values.real_name }}"{% if not values.is_pen_name and not errors.get("real_name") %} disabled{% endif %}{{ described(errors, "real_name", hint=true) }}>
+    {{ field_error(errors, "real_name") }}
+  </div>
+  <button type="submit" class="button-primary">Save author</button>
+</form>
+{% endblock %}

@@ -272,10 +272,23 @@ the backup stops with an error rather than writing to the Pi's own disk.
 1. **Mount the NAS share** at `/mnt/nas`, from `/etc/fstab`, so it mounts at boot and
    again after a network outage. Use the line for your NAS's protocol:
 
+   First install restic 0.18.1 from its official release. Debian bookworm's package is
+   0.14, older than the version the scripts are tested with; check the download against
+   the published checksum:
+
    ```bash
-   sudo apt install -y restic
-   sudo mkdir -p /mnt/nas /etc/books
+   v=0.18.1; cd "$(mktemp -d)"
+   curl -fsSLO "https://github.com/restic/restic/releases/download/v$v/restic_${v}_linux_arm64.bz2"
+   curl -fsSLO "https://github.com/restic/restic/releases/download/v$v/SHA256SUMS"
+   grep " restic_${v}_linux_arm64.bz2$" SHA256SUMS | sha256sum -c -     # must print OK
+   bunzip2 "restic_${v}_linux_arm64.bz2"
+   sudo install -m 755 "restic_${v}_linux_arm64" /usr/local/bin/restic
+   restic version
+   sudo mkdir -p /mnt/nas /etc/books && sudo chmod 700 /etc/books
    ```
+
+   Automatic updates don't cover this copy: update it by hand (section 9) when a new
+   restic release comes out.
 
    Then **either** NFS:
 
@@ -289,8 +302,14 @@ the backup stops with an error rather than writing to the Pi's own disk.
 
    ```bash
    sudo apt install -y cifs-utils
-   echo '//nas.local/backups /mnt/nas cifs credentials=/etc/books/nas-credentials,uid=0,gid=0,file_mode=0600,dir_mode=0700,_netdev,x-systemd.automount 0 0' | sudo tee -a /etc/fstab
+   echo '//nas.local/backups /mnt/nas cifs credentials=/etc/books/nas-credentials,uid=0,gid=0,file_mode=0600,dir_mode=0700,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0' | sudo tee -a /etc/fstab
    ```
+
+   Use the NAS's IP address if the Pi can't resolve its name, and reserve that address in
+   the eero app. Check the NAS username exactly (some NAS models show `book_pi` where you
+   might type `book-pi`). A wrong password makes the automount retry, and NAS "auto block"
+   features may then block the Pi: if `journalctl -u mnt-nas.mount` shows "Permission
+   denied", stop it with `sudo systemctl stop mnt-nas.automount` before fixing the account.
 
    and finally `sudo systemctl daemon-reload && sudo mount -a`.
 

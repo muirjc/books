@@ -129,3 +129,73 @@ async def test_imported_book_shows_its_source(
 
 
 _ = author  # re-exported helper used by other page tests
+
+
+# --------------------------------------------------------------------------- user story 3
+
+
+async def _view(client: httpx.AsyncClient, **data: object) -> httpx.Response:
+    token = await ui_csrf(client)
+    return await client.post(
+        f"/import/authors/{KEY}/view",
+        data={"csrf_token": token, **data},
+        headers={"HX-Request": "true", "X-CSRF-Token": ""},
+    )
+
+
+@pytest.mark.ac("002/AC-10")
+@pytest.mark.ac("002/AC-11")
+async def test_sort_filter_and_select_all_keep_ticks(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    book_source.works[KEY] = listing(KEY, [
+        work(1, "Mist One", year=2003), work(2, "Mist Two", year=2001), work(3, "Other", year=2002),
+    ])  # fmt: skip
+    alice, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+
+    fragment = await _view(client, sort="year", q="mist", work=["OL3W"])
+    assert fragment.status_code == 200
+    assert fragment.text.lstrip().startswith('<div id="import-works">')  # a fragment
+    text = fragment.text
+    assert text.index("Mist Two") < text.index("Mist One")  # year order
+    assert "Other</label>" not in text  # filtered out, but still ticked
+    selected = await _view(client, sort="year", q="mist", select="shown")
+    assert 'value="OL1W" id="work-OL1W" checked' in selected.text
+    assert 'value="OL2W" id="work-OL2W" checked' in selected.text
+
+    blank = await _view(client, sort="", q="")  # blank boxes mean "not given"
+    assert blank.status_code == 200 and "Other</label>" in blank.text
+
+    done = await confirm_via_page(client, ["OL1W", "OL2W"])
+    assert "Added 2 books" in done.text
+    titles = await factory.scalar(
+        "SELECT array_agg(b.title ORDER BY b.title) FROM reading_entry e "
+        "JOIN book b ON b.id = e.book_id WHERE e.user_id = :u", u=alice.id,
+    )  # fmt: skip
+    assert titles == ["Mist One", "Mist Two"]
+
+
+@pytest.mark.ac("002/AC-11")
+async def test_select_all_ticks_at_most_500(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    book_source.works[KEY] = listing(KEY, [work(n) for n in range(1, 601)])
+    _, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+    selected = await _view(client, select="shown")
+    assert selected.text.count(" checked>") == 500
+    assert "Only the first 500 shown were ticked" in selected.text
+
+
+@pytest.mark.ac("002/AC-20")
+async def test_truncation_note(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    book_source.works[KEY] = listing(KEY, [work(n) for n in range(1, 2001)], total=2500)
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    assert "Showing the first 2,000 of 2,500 works" in page.text
+    assert "add it by hand" in page.text
+    api = await client.get(f"/api/v1/import/authors/{KEY}/works")
+    assert api.json()["truncated"] is True and api.json()["total"] == 2500

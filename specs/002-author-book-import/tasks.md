@@ -207,12 +207,12 @@ sees only that author's works.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T037 [P] [US2] UI tests in `tests/integration/test_import_author_choice.py`: with `FakeBookSource` returning two candidates, `/import/authors?q=brandon sanderson` lists both with birth/death years, top work and number of works, each linking to its works page, and doesn't redirect; following the second link lists only that author's works (AC-08, FR-002)
-- [ ] T038 [P] [US2] No-match tests in `tests/integration/test_import_author_choice.py`: with no candidates, the page says "No author found" with a link to `/books/add`, the API returns `{"authors": []}`, and nothing is written (AC-09)
+- [X] T037 [P] [US2] UI tests in `tests/integration/test_import_author_choice.py`: with `FakeBookSource` returning two candidates, `/import/authors?q=brandon sanderson` lists both with birth/death years, top work and number of works, each linking to its works page, and doesn't redirect; following the second link lists only that author's works (AC-08, FR-002)
+- [X] T038 [P] [US2] No-match tests in `tests/integration/test_import_author_choice.py`: with no candidates, the page says "No author found" with a link to `/books/add`, the API returns `{"authors": []}`, and nothing is written (AC-09)
 
 ### Implementation for User Story 2
 
-- [ ] T039 [US2] Create `src/book_tracker/web/templates/pages/import_authors.html` (a list of candidates: name, "born … – died …" when present, "best known for <top work>", "<n> works", each a link to `/import/authors/{key}`) and the "No author found" state with a link to `/books/add`; update `src/book_tracker/web/routes/imports.py` to render it for zero or several matches (FR-002). Makes T037, T038 pass
+- [X] T039 [US2] Create `src/book_tracker/web/templates/pages/import_authors.html` (a list of candidates: name, "born … – died …" when present, "best known for <top work>", "<n> works", each a link to `/import/authors/{key}`) and the "No author found" state with a link to `/books/add`; update `src/book_tracker/web/routes/imports.py` to render it for zero or several matches (FR-002). Makes T037, T038 pass
 
 **Checkpoint**: User Stories 1 and 2 both work independently
 
@@ -228,18 +228,18 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T040 [P] [US3] Service tests in `tests/integration/test_imports_service.py`: `list_works` with `q="mist"` keeps only works whose title contains "mist" ignoring case; combined with `sort="year"` the filtered works keep the year order tested in T023; an empty result says so rather than erroring (AC-10, FR-006)
-- [ ] T041 [P] [US3] De-duplication test in `tests/integration/test_imports_service.py` using the `works_duplicates.json` shape through `FakeBookSource`: the two entries appear once, under the id with more editions (AC-12, FR-004)
-- [ ] T042 [P] [US3] Cap test: with a `WorkList` of `total` 2,500 and 2,000 works, the API returns `truncated: true` and `total: 2500`, and the page shows "Showing the first 2,000 of 2,500 works. To add a book beyond these, add it by hand." with a link to `/books/add` (AC-20, FR-020)
-- [ ] T043 [P] [US3] UI tests in `tests/integration/test_import_pages.py`:
+- [X] T040 [P] [US3] Service tests in `tests/integration/test_imports_service.py`: `list_works` with `q="mist"` keeps only works whose title contains "mist" ignoring case; combined with `sort="year"` the filtered works keep the year order tested in T023; an empty result says so rather than erroring (AC-10, FR-006)
+- [X] T041 [P] [US3] De-duplication test in `tests/integration/test_imports_service.py` using the `works_duplicates.json` shape through `FakeBookSource`: the two entries appear once, under the id with more editions (AC-12, FR-004)
+- [X] T042 [P] [US3] Cap test: with a `WorkList` of `total` 2,500 and 2,000 works, the API returns `truncated: true` and `total: 2500`, and the page shows "Showing the first 2,000 of 2,500 works. To add a book beyond these, add it by hand." with a link to `/books/add` (AC-20, FR-020)
+- [X] T043 [P] [US3] UI tests in `tests/integration/test_import_pages.py`:
   - an HTMX `POST /import/authors/{key}/view` with `sort=year`, `q=mist` and two ticked `work` values in the body returns the `#import-works` fragment, sorted and filtered, with those works still ticked;
   - `select=shown` ticks every shown work whose state isn't `ON_MY_LIST`, up to 500, ticks no hidden work, and with 600 shown ticks the first 500 and says so (AC-10, AC-11); blank `sort` and `q` behave as absent (review finding 9);
   - confirming after a filtered select-all adds only those works (US3 independent test).
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Implement title filtering (`q`, case-insensitive substring of the title) in `list_works` in `src/book_tracker/services/imports.py`, applied after state is computed and combined with the sorting already done in T031, and pass `q` through `src/book_tracker/api/imports.py` (FR-006). Makes T040, T041 pass (merging is already done in the adapter by T017; T041 confirms it end to end)
-- [ ] T045 [US3] Add to `src/book_tracker/web/templates/partials/import_works.html` and `web/routes/imports.py`:
+- [X] T044 [US3] Implement title filtering (`q`, case-insensitive substring of the title) in `list_works` in `src/book_tracker/services/imports.py`, applied after state is computed and combined with the sorting already done in T031, and pass `q` through `src/book_tracker/api/imports.py` (FR-006). Makes T040, T041 pass (merging is already done in the adapter by T017; T041 confirms it end to end)
+- [X] T045 [US3] Add to `src/book_tracker/web/templates/partials/import_works.html` and `web/routes/imports.py`:
   - sort select and title filter inputs that re-render `#import-works` via `hx-post` to `/import/authors/{key}/view`, with `hx-include="[name=work]:checked, [name=status]:checked"` so selections travel in the body and survive;
   - a "Select all shown" button (`hx-post` with `select=shown`, at most 500 ticked);
   - a count of ticked works in an `aria-live="polite"` region;

@@ -329,3 +329,42 @@ async def source_cache_clear(app: Any) -> None:
 
 
 _ = uuid  # used in type positions by other tests in this module
+
+
+# --------------------------------------------------------------------------- user story 3
+
+
+@pytest.mark.ac("002/AC-10")
+async def test_title_filter_combines_with_sorting(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    alice = await factory.user("alice")
+    ol.works[KEY] = listing(KEY, [
+        work(1, "Mistborn", year=2006), work(2, "Elantris", year=2005),
+        work(3, "The Well of Ascension (Mistborn 2)", year=2007), work(4, "MISTY", year=None),
+    ])  # fmt: skip
+    view = await _list(app, ol, alice, sort="year", q="  mist ")
+    assert [w.work.title for w in view.works] == [
+        "Mistborn", "The Well of Ascension (Mistborn 2)", "MISTY",
+    ]  # fmt: skip
+    nothing = await _list(app, ol, alice, q="zzz")
+    assert nothing.works == ()
+
+
+@pytest.mark.ac("002/AC-12")
+async def test_merged_works_appear_once(app: Any, ol: FakeBookSource, factory: Factory) -> None:
+    """The adapter merges duplicates (T017); the list shows the merged entry once."""
+    alice = await factory.user("alice")
+    ol.works[KEY] = listing(KEY, [work(102, "Hidden Door", aliases=("OL101W",)), work(103)])
+    view = await _list(app, ol, alice)
+    assert [w.work.source_id for w in view.works] == ["OL103W", "OL102W"]
+
+
+@pytest.mark.ac("002/AC-20")
+async def test_truncated_lists_report_the_total(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    alice = await factory.user("alice")
+    ol.works[KEY] = listing(KEY, [work(n) for n in range(1, 2001)], total=2500)
+    view = await _list(app, ol, alice)
+    assert view.truncated and view.total == 2500 and len(view.works) == 2000

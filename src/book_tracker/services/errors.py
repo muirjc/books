@@ -42,6 +42,20 @@ class ConflictError(ServiceError):
         self.existing_label = existing_label
 
 
+class SourceUnavailable(ServiceError):
+    """Open Library timed out, refused or failed; nothing was changed (spec 002 AC-13)."""
+
+    code = "source_unavailable"
+    title = "The book site couldn't be reached. Try again later, or add the book by hand."
+
+
+class SourceNotFound(NotFoundError):
+    """Open Library has no author with this key (spec 002 AC-23)."""
+
+    code = "author_not_found"
+    title = "No such author on Open Library"
+
+
 class ForbiddenError(ServiceError):
     code = "forbidden"
     title = "You can't do this"

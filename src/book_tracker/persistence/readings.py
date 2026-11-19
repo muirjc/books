@@ -8,6 +8,7 @@ so another member's entry is indistinguishable from one that doesn't exist.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 from datetime import date
 from typing import Any
 
@@ -187,6 +188,17 @@ class ReadingEntryRepository:
             )
         ).scalar_one_or_none()
         return to_reading_entry(row) if row else None
+
+    async def book_ids_on_list(self, book_ids: Collection[uuid.UUID]) -> set[uuid.UUID]:
+        """Which of these catalog books are on the bound user's list (spec 002 FR-005)."""
+        if not book_ids:
+            return set()
+        rows = await self._db.scalars(
+            self._owned()
+            .where(models.ReadingEntry.book_id.in_(list(book_ids)))
+            .with_only_columns(models.ReadingEntry.book_id)
+        )
+        return set(rows)
 
     async def add(
         self,

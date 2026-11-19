@@ -1,0 +1,48 @@
+{
+ "numFound": 3,
+ "start": 0,
+ "docs": [
+  {
+   "key": "/works/OL101W",
+   "title": "The Hidden Door",
+   "first_publish_year": 2001,
+   "author_name": [
+    "Prolific Writer"
+   ],
+   "author_key": [
+    "OL9000001A"
+   ],
+   "edition_count": 3,
+   "isbn": [
+    "9780000000002"
+   ]
+  },
+  {
+   "key": "/works/OL102W",
+   "title": "Hidden Door",
+   "first_publish_year": 2002,
+   "author_name": [
+    "Prolific Writer"
+   ],
+   "author_key": [
+    "OL9000001A"
+   ],
+   "edition_count": 12,
+   "isbn": [
+    "0000000000"
+   ]
+  },
+  {
+   "key": "/works/OL103W",
+   "title": "Another Story",
+   "first_publish_year": 2003,
+   "author_name": [
+    "Prolific Writer"
+   ],
+   "author_key": [
+    "OL9000001A"
+   ],
+   "edition_count": 6
+  }
+ ]
+}

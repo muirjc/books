@@ -1,0 +1,22 @@
+{
+ "numFound": 1,
+ "start": 0,
+ "docs": [
+  {
+   "key": "/works/OL301W",
+   "title": "Written Twice",
+   "first_publish_year": 1991,
+   "author_name": [
+    "Prolific Writer",
+    "Co Author",
+    "Prolific Writer"
+   ],
+   "author_key": [
+    "OL9000001A",
+    "OL9000002A",
+    "OL9000001A"
+   ],
+   "edition_count": 1
+  }
+ ]
+}

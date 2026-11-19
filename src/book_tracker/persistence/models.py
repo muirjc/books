@@ -287,6 +287,56 @@ class BookSummary(Base):
     created_by_user: Mapped[AppUser] = relationship(lazy="joined", innerjoin=True)
 
 
+class BookSourceRef(Base):
+    """Which external record a catalog book was imported from (spec 002 FR-009)."""
+
+    __tablename__ = "book_source_ref"
+    __table_args__ = (
+        CheckConstraint("source IN ('open_library')", name="book_source_ref_source_check"),
+        CheckConstraint(
+            "source <> 'open_library' OR source_work_id ~ '^OL[0-9]+W$'",
+            name="book_source_ref_open_library_id_format",
+        ),
+        UniqueConstraint("source", "source_work_id", name="book_source_ref_source_work_key"),
+        UniqueConstraint("book_id", "source", name="book_source_ref_book_source_key"),
+        Index("book_source_ref_book_id_idx", "book_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    book_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("book.id", ondelete="CASCADE", name="book_source_ref_book_id_fkey"),
+        nullable=False,
+    )
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    source_work_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    imported_by: Mapped[uuid.UUID] = _user_fk("book_source_ref_imported_by_fkey")
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class SourceLookupCache(Base):
+    """Open Library answers reused for 24 hours; outside the catalog (spec 002 FR-017)."""
+
+    __tablename__ = "source_lookup_cache"
+    __table_args__ = (
+        CheckConstraint("source IN ('open_library')", name="source_lookup_cache_source_check"),
+        CheckConstraint(
+            "kind IN ('author_search', 'author_works')", name="source_lookup_cache_kind_check"
+        ),
+        CheckConstraint("expires_at > fetched_at", name="source_lookup_cache_expiry_check"),
+        Index("source_lookup_cache_expires_at_idx", "expires_at"),
+    )
+
+    source: Mapped[str] = mapped_column(String(20), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), primary_key=True)
+    lookup_key: Mapped[str] = mapped_column(String(300), primary_key=True)
+    payload: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 # --------------------------------------------------------------------------- personal
 
 

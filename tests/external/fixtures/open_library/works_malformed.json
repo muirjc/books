@@ -1,0 +1,31 @@
+{
+ "numFound": 3,
+ "start": 0,
+ "docs": [
+  {
+   "key": "/works/OL201W",
+   "author_name": [
+    "Prolific Writer"
+   ],
+   "author_key": [
+    "OL9000001A"
+   ]
+  },
+  {
+   "key": "/works/OL202W",
+   "title": "No Author Listed"
+  },
+  {
+   "key": "/works/OL203W",
+   "title": "A Good One",
+   "first_publish_year": 2013,
+   "author_name": [
+    "Prolific Writer"
+   ],
+   "author_key": [
+    "OL9000001A"
+   ],
+   "edition_count": 1
+  }
+ ]
+}

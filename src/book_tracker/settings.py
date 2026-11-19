@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     admin_login: str | None = None
     admin_display_name: str | None = None
     admin_password: SecretStr | None = None
+    # Spec 002: the only book-data source, and the 10 s budget per member request
+    # (FR-016). Requests identify only the app; there is no contact setting (Principle IX).
+    openlibrary_base_url: str = "https://openlibrary.org"
+    source_timeout_seconds: float = 10.0
 
     @field_validator("database_url")
     @classmethod

@@ -46,7 +46,7 @@ implementation tasks they cover.
 
 **Purpose**: Make the 001-only test and coverage tooling work for more than one feature.
 
-- [ ] T001 In `tests/conftest.py`, change `AC_ID` from `^001/AC-\d{2}$` to `^\d{3}/AC-\d{2}$` and update the error message to "must look like '002/AC-01'"; add a unit test in `tests/unit/test_ac_marker.py` that a `002/AC-01` tag is accepted and `2/AC-1` is rejected (run it first and confirm the 002 case fails)
+- [ ] T001 In `tests/conftest.py`, change `AC_ID` from `^001/AC-\d{2}$` to `^\d{3}/AC-\d{2}$` and update the error message to "must look like '002/AC-01'"; add a unit test in `tests/unit/test_ac_marker.py` that imports the pattern (`from tests.conftest import AC_ID`) and asserts `AC_ID.match("002/AC-01")` and `AC_ID.match("001/AC-35")` succeed while `"2/AC-1"`, `"002/AC-1"` and `"002/FR-01"` don't. Run it before changing the pattern and confirm the `002/AC-01` case fails. Testing the pattern directly avoids needing pytest's `pytester` plugin
 - [ ] T002 [P] In `tests/contract/conftest.py`, replace the single `CONTRACT` path with a `contract(feature: str) -> OpenAPI` helper (cached per feature) that loads `specs/<feature>/contracts/openapi.yaml`; keep the existing fixtures validating against `001-family-reading-list` and add a `contract_002` fixture for `002-author-book-import`. Existing contract tests must still pass unchanged
 - [ ] T003 [P] In `scripts/check_coverage.py`, add `src/book_tracker/services/imports.py` to `CRITICAL_MODULES` and change the docstring to cite both `specs/001-family-reading-list/plan.md` and `specs/002-author-book-import/plan.md` "Coverage-critical modules"
 - [ ] T004 [P] Create `src/book_tracker/sources/__init__.py` and `tests/external/__init__.py`, and the directory `tests/external/fixtures/open_library/`
@@ -128,7 +128,8 @@ holds one copy of each, and no other member's list changed.
   - new books have no series, number or ISBN (AC-14);
   - nothing is written by search or list (AC-03, FR-007);
   - a work already on the list is skipped and reported (AC-17, FR-012);
-  - an expired cache row gives `results_expired`, and a work id not in the cached list gives a validation error (research R8).
+  - an expired cache row gives `results_expired`, and a work id not in the cached list gives a validation error (research R8);
+  - `list_works` with `sort="title"` (the default) orders by normalized title, and with `sort="year"` by first published year, works without a year last, then by title, so the API matches the contract from US1 on (contracts/openapi.yaml).
 - [ ] T024 [P] [US1] Concurrency test in `tests/integration/test_imports_concurrency.py`: two members confirm the same new work at once (two sessions, `asyncio.gather`); afterwards there is one `book`, one `book_source_ref`, and an entry on each member's list (AC-16, SC-003)
 - [ ] T025 [P] [US1] Cross-user tests in `tests/integration/test_imports_isolation.py`: after Alice imports, Ben's list is unchanged, Ben's works list shows those books as `IN_CATALOG` (not `ON_MY_LIST`), and no import endpoint accepts a user id: sending `user_id` in the body is rejected by `additionalProperties: false`. The same for the page routes: when Ben loads `GET /import/authors/{key}`, Alice's imported books show "In the family catalog", never "Already on your list"; when Ben confirms with `POST /import/authors/{key}`, entries are added to Ben's list only, and Alice's list keeps the same entries and statuses (AC-18, Principle I)
 - [ ] T026 [P] [US1] Failure tests in `tests/integration/test_imports_failures.py`: with `FakeBookSource` raising `SourceUnavailable`, the API returns 503 `source_unavailable`, the page shows "The book site couldn't be reached. Try again later, or add the book by hand," with a link to `/books/add`, and nothing is written; other pages still load (AC-13, SC-004)
@@ -159,7 +160,7 @@ holds one copy of each, and no other member's list changed.
 
   The user id always comes from the caller's session argument; there is no other input for it. Must reach 100% line coverage (FR-001, FR-003, FR-005, FR-007 to FR-014, FR-017; research R6–R8, R10). Makes T023–T025 pass
 - [ ] T032 [US1] Add `ResultsExpired` handling to `src/book_tracker/api/errors.py` and a `SourceUnavailable` → 503 `source_unavailable` problem mapping (with the spec's message as `title`) for both the API and `web` error rendering; add both responses to `src/book_tracker/api/responses.py` (FR-016; AC-13)
-- [ ] T033 [US1] Create `src/book_tracker/api/imports.py` with the three operations exactly as in contracts/openapi.yaml (`GET /import/authors`, `GET /import/authors/{author_key}/works` with `sort` and `q` parameters accepted but only `title` sort applied until US3, `POST /me/imports` requiring the CSRF header and `ApiUser`), and include its router in `src/book_tracker/main.py` (FR-001, FR-003, FR-007, FR-013, FR-014). Makes T022, T026 (API part) pass
+- [ ] T033 [US1] Create `src/book_tracker/api/imports.py` with the three operations exactly as in contracts/openapi.yaml (`GET /import/authors`, `GET /import/authors/{author_key}/works` with `sort` (`title` or `year`, both applied from US1) and `q` (accepted; title filtering arrives in US3, until then it is ignored and documented as such in the route's docstring), `POST /me/imports` requiring the CSRF header and `ApiUser`), and include its router in `src/book_tracker/main.py` (FR-001, FR-003, FR-007, FR-013, FR-014). Makes T022, T026 (API part) pass
 - [ ] T034 [US1] Create `src/book_tracker/web/routes/imports.py` and the templates:
   - `src/book_tracker/web/templates/pages/import_search.html`: the search form;
   - `pages/import_works.html`: works table with caption, per-row checkbox and label, state badges, status `<fieldset>` of radio buttons defaulting to Finished, and a confirm button;
@@ -207,7 +208,7 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T040 [P] [US3] Service tests in `tests/integration/test_imports_service.py`: `list_works` with `sort="year"` orders by first published year, with works without a year last, then by title; `sort="title"` orders by normalized title; `q="mist"` keeps only titles containing "mist" ignoring case (AC-10, FR-006)
+- [ ] T040 [P] [US3] Service tests in `tests/integration/test_imports_service.py`: `list_works` with `q="mist"` keeps only works whose title contains "mist" ignoring case; combined with `sort="year"` the filtered works keep the year order tested in T023; an empty result says so rather than erroring (AC-10, FR-006)
 - [ ] T041 [P] [US3] De-duplication test in `tests/integration/test_imports_service.py` using the `works_duplicates.json` shape through `FakeBookSource`: the two entries appear once, under the id with more editions (AC-12, FR-004)
 - [ ] T042 [P] [US3] Cap test: with a `WorkList` of `total` 2,500 and 2,000 works, the API returns `truncated: true` and `total: 2500`, and the page shows "Showing the first 2,000 of 2,500 works. Filter by title to find others." (AC-20, FR-020)
 - [ ] T043 [P] [US3] UI tests in `tests/integration/test_import_pages.py`:
@@ -217,7 +218,7 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Implement sorting (`title`, `year`) and title filtering in `list_works` in `src/book_tracker/services/imports.py`, applied after state is computed, and pass `sort`/`q` through `src/book_tracker/api/imports.py` (FR-006). Makes T040, T041 pass (merging is already done in the adapter by T017; T041 confirms it end to end)
+- [ ] T044 [US3] Implement title filtering (`q`, case-insensitive substring of the title) in `list_works` in `src/book_tracker/services/imports.py`, applied after state is computed and combined with the sorting already done in T031, and pass `q` through `src/book_tracker/api/imports.py` (FR-006). Makes T040, T041 pass (merging is already done in the adapter by T017; T041 confirms it end to end)
 - [ ] T045 [US3] Add to `src/book_tracker/web/templates/partials/import_works.html` and `web/routes/imports.py`:
   - sort select and title filter inputs that re-render `#import-works` via `hx-get`, with `hx-include="[name=work]:checked, [name=status]:checked"` so selections survive;
   - a "Select all shown" button (`hx-get` with `select=shown`);
@@ -235,7 +236,7 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 **Purpose**: Accessibility, performance, coverage, contract and docs across all stories
 
 - [ ] T046 [P] Add the import pages (search, author choice, works list with a fake 30-work list, summary, unreachable message) to `tests/a11y/test_axe_pages.py`, a keyboard journey (search → choose author → tick two works with Space → choose status → confirm, all without a mouse) to `tests/a11y/test_keyboard_journeys.py`, and the works page at phone width (no horizontal scroll) to `tests/a11y/test_responsive.py`; fix any findings in the templates and `src/book_tracker/web/static/css/app.css` (FR-019)
-- [ ] T047 [P] Write `tests/perf/test_import_perf.py` (marker `perf`): with the 5,000-book seed and a warm cache of 300 works for one author, rendering `/import/authors/{key}` and `GET /api/v1/import/authors/{key}/works` each have p95 under 1 s over 30 runs (SC-002); and `POST /api/v1/me/imports` with 200 new works (fresh database each run, 5 runs) finishes in under 5 s in CI, a stand-in for the Pi's 10 s (SC-006)
+- [ ] T047 [P] Write `tests/perf/test_import_perf.py` (marker `perf`): with the 5,000-book seed and a warm cache of 300 works for one author, rendering `/import/authors/{key}` and `GET /api/v1/import/authors/{key}/works` each have p95 under 1 s over 30 runs (SC-002); and `POST /api/v1/me/imports` with 200 new works (fresh database each run, 5 runs) finishes in under 5 s in CI, a stand-in for the Pi's 10 s (SC-006); and the same with the full 2,000 new works (1 run) finishes in under 30 s in CI, a stand-in for the Pi's 60 s (SC-006)
 - [ ] T048 [P] Add a test in `tests/external/test_open_library.py` that records every outgoing request across a full search → works → confirm flow and asserts none contains the member's login, display name, session cookie, notes or status, and that confirm makes no request at all (SC-005, FR-015, research R8)
 - [ ] T049 Run `uv run pytest --cov --cov-report=json && uv run python scripts/check_coverage.py` and bring `services/imports.py` and `persistence/readings.py` to 100% line coverage and the total to at least 85%
 - [ ] T050 Run the full gate list from CLAUDE.md "Build & Test" (`ruff check`, `ruff format --check`, `mypy --strict src`, pytest, `-m a11y`, `-m perf`, `pip-audit`, `export_openapi`) and fix anything that fails
@@ -260,7 +261,7 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 | AC-07 | T023, T028, T031, T035 |
 | AC-08 | T037, T039 |
 | AC-09 | T038, T039 |
-| AC-10 | T040, T043, T044, T045 |
+| AC-10 | T023, T031, T040, T043, T044, T045 |
 | AC-11 | T043, T045 |
 | AC-12 | T008, T041, T015, T017 |
 | AC-13 | T011, T022, T026, T032, T034 |

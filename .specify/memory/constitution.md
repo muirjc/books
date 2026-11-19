@@ -1,6 +1,18 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.0.0 → 1.0.1 (PATCH: clarification), 2026-11-19
+
+Principle III: the caching rule now states the keys for lookups made for an author (spec 002,
+author import), not only for one book. Lookups and drafts for one book are still keyed by
+ISBN or normalized title + author; author lookups are keyed by the source's author id or the
+normalized author name. No principle is added, removed or redefined.
+
+Templates: no change needed.
+Follow-up TODOs: none.
+
+------------------------------------------------------------------------------------------
+
 Version change: (template) → 1.0.0
 Ratification: initial adoption
 
@@ -94,9 +106,11 @@ AI assists; people decide.
 - LLM access MUST sit behind an interface (for example `SummaryGenerator`) so that the
   provider can be swapped and a deterministic fake used in tests.
 - AI calls MUST have a timeout (default 30 s) and a per-user daily generation limit.
-- Source lookups and unaccepted drafts MUST be cached, keyed by ISBN or by normalized
-  title + author. The cache is stored outside the catalog tables and is never shown as
-  catalog content; a cached draft still requires acceptance. An explicit "regenerate"
+- Source lookups and unaccepted drafts MUST be cached. Lookups and drafts for one book are
+  keyed by ISBN or by normalized title + author; lookups for an author are keyed by the
+  source's author identifier or the normalized author name. The cache is stored outside the
+  catalog tables and is never shown as catalog content; a cached draft still requires
+  acceptance. An explicit "regenerate"
   request MUST bypass the cached draft and counts against the daily limit.
 
 *Rationale:* a family catalog is only useful if it is accurate, and AI output can be wrong.
@@ -304,4 +318,4 @@ requirement, not an optional extra.
 - Runtime guidance for AI coding agents (for example `CLAUDE.md` or
   `.github/copilot-instructions.md`) MUST reference this file and MUST NOT contradict it.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-18 | **Last Amended**: 2026-11-18
+**Version**: 1.0.1 | **Ratified**: 2026-11-18 | **Last Amended**: 2026-11-19

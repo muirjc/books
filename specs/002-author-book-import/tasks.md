@@ -46,11 +46,11 @@ implementation tasks they cover.
 
 **Purpose**: Make the 001-only test and coverage tooling work for more than one feature.
 
-- [ ] T001 In `tests/conftest.py`, change `AC_ID` from `^001/AC-\d{2}$` to `^\d{3}/AC-\d{2}$` and update the error message to "must look like '002/AC-01'"; add a unit test in `tests/unit/test_ac_marker.py` that imports the pattern (`from tests.conftest import AC_ID`) and asserts `AC_ID.match("002/AC-01")` and `AC_ID.match("001/AC-35")` succeed while `"2/AC-1"`, `"002/AC-1"` and `"002/FR-01"` don't. Run it before changing the pattern and confirm the `002/AC-01` case fails. Testing the pattern directly avoids needing pytest's `pytester` plugin
-- [ ] T002 [P] In `tests/contract/conftest.py`, replace the single `CONTRACT` path with a `contract(feature: str) -> OpenAPI` helper (cached per feature) that loads `specs/<feature>/contracts/openapi.yaml`; keep the existing fixtures validating against `001-family-reading-list` and add a `contract_002` fixture for `002-author-book-import`. Existing contract tests must still pass unchanged
-- [ ] T003 [P] In `scripts/check_coverage.py`, add `src/book_tracker/services/imports.py` to `CRITICAL_MODULES` and change the docstring to cite both `specs/001-family-reading-list/plan.md` and `specs/002-author-book-import/plan.md` "Coverage-critical modules"
-- [ ] T004 [P] Create `src/book_tracker/sources/__init__.py` and `tests/external/__init__.py`, and the directory `tests/external/fixtures/open_library/`
-- [ ] T005 [P] Add a comment to `deploy/pi/.env.example` that, from spec 002, the app makes outbound HTTPS requests to `openlibrary.org` and needs no setting for it (research R16)
+- [X] T001 In `tests/conftest.py`, change `AC_ID` from `^001/AC-\d{2}$` to `^\d{3}/AC-\d{2}$` and update the error message to "must look like '002/AC-01'"; add a unit test in `tests/unit/test_ac_marker.py` that imports the pattern (`from tests.conftest import AC_ID`) and asserts `AC_ID.match("002/AC-01")` and `AC_ID.match("001/AC-35")` succeed while `"2/AC-1"`, `"002/AC-1"` and `"002/FR-01"` don't. Run it before changing the pattern and confirm the `002/AC-01` case fails. Testing the pattern directly avoids needing pytest's `pytester` plugin
+- [X] T002 [P] In `tests/contract/conftest.py`, replace the single `CONTRACT` path with a `contract(feature: str) -> OpenAPI` helper (cached per feature) that loads `specs/<feature>/contracts/openapi.yaml`; keep the existing fixtures validating against `001-family-reading-list` and add a `contract_002` fixture for `002-author-book-import`. Existing contract tests must still pass unchanged
+- [X] T003 [P] In `scripts/check_coverage.py`, add `src/book_tracker/services/imports.py` to `CRITICAL_MODULES` and change the docstring to cite both `specs/001-family-reading-list/plan.md` and `specs/002-author-book-import/plan.md` "Coverage-critical modules"
+- [X] T004 [P] Create `src/book_tracker/sources/__init__.py` and `tests/external/__init__.py`, and the directory `tests/external/fixtures/open_library/`
+- [X] T005 [P] Add a comment to `deploy/pi/.env.example` that, from spec 002, the app makes outbound HTTPS requests to `openlibrary.org` and needs no setting for it (research R16)
 
 ---
 

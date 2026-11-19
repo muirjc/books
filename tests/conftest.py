@@ -36,7 +36,7 @@ from book_tracker.persistence import models
 from book_tracker.settings import Settings
 
 ROOT = Path(__file__).resolve().parent.parent
-AC_ID = re.compile(r"^001/AC-\d{2}$")
+AC_ID = re.compile(r"^\d{3}/AC-\d{2}$")  # feature number / criterion, e.g. 002/AC-01
 TEST_SECRET = "test-secret-key-that-is-at-least-32-characters-long"
 DEFAULT_PASSWORD = "password123"
 
@@ -50,7 +50,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             for ac_id in marker.args:
                 if not isinstance(ac_id, str) or not AC_ID.match(ac_id):
                     raise pytest.UsageError(
-                        f"{item.nodeid}: ac marker {ac_id!r} must look like '001/AC-01'"
+                        f"{item.nodeid}: ac marker {ac_id!r} must look like '002/AC-01'"
                     )
 
 

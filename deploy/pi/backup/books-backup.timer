@@ -1,0 +1,12 @@
+# Nightly at about 02:30, well before the 04:30 automatic-update reboot window.
+# Persistent: a run missed while the Pi was off happens at the next boot.
+[Unit]
+Description=Nightly Family Book Tracker backup
+
+[Timer]
+OnCalendar=*-*-* 02:30
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

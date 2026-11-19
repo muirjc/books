@@ -301,6 +301,32 @@ async def test_expired_results_are_refused(app: Any, ol: FakeBookSource, factory
     assert excinfo.value.code == "results_expired"
 
 
+async def test_cached_works_never_calls_the_source(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    """The redisplay after a refused confirm reads the cache only (review finding 1)."""
+    alice = await factory.user("alice")
+    ol.works[KEY] = listing(KEY, [work(1, "Alpha"), work(2, "Beta")])
+    await _list(app, ol, alice)
+    calls = list(ol.calls)
+    async with app.state.db.sessionmaker() as db:
+        view = await imports.cached_works(db, alice.id, KEY, NOW, q="bet")
+        expired = await imports.cached_works(db, alice.id, KEY, NOW + timedelta(hours=25))
+    assert view is not None and [w.work.title for w in view.works] == ["Beta"]
+    assert expired is None
+    assert ol.calls == calls
+
+
+@pytest.mark.parametrize("name", ["  ", "\ufdfa" * 12, "\u0390" * 200])
+async def test_search_text_is_checked_after_cleaning(
+    app: Any, ol: FakeBookSource, name: str
+) -> None:
+    async with app.state.db.sessionmaker() as db:
+        with pytest.raises(ValidationFailed):
+            await imports.search_authors(db, ol, name, NOW)
+    assert ol.calls == []
+
+
 async def test_unknown_work_key_is_refused(app: Any, ol: FakeBookSource, factory: Factory) -> None:
     alice = await factory.user("alice")
     ol.works[KEY] = listing(KEY, [work(1)])

@@ -125,6 +125,18 @@ async def test_malformed_works_are_dropped() -> None:
     assert [w.title for w in result.works] == ["A Good One"]
 
 
+async def test_works_and_authors_with_bad_ids_are_dropped() -> None:
+    """One odd id never stops an import: it is dropped, not stored (review finding 4)."""
+    recorder = Recorder({
+        ("/search.json", "OL9000001A"): "works_bad_keys.json",
+        ("/search/authors.json", "Odd"): "authors_bad_keys.json",
+    })  # fmt: skip
+    works = await source(recorder).author_works("OL9000001A")
+    assert [w.source_id for w in works.works] == ["OL301W"]
+    authors = await source(recorder).search_authors("Odd")
+    assert [a.source_id for a in authors] == ["OL31353A"]
+
+
 async def test_repeated_author_is_listed_once() -> None:
     recorder = Recorder({("/search.json", "OL9000001A"): "works_repeated_author.json"})
     result = await source(recorder).author_works("OL9000001A")

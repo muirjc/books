@@ -1,0 +1,9 @@
+{
+ "numFound": 3,
+ "start": 0,
+ "docs": [
+  {"key": "/works/OL301W", "title": "Kept", "author_name": ["Prolific Writer"], "author_key": ["OL9000001A"]},
+  {"key": "/books/OL302M", "title": "An Edition Not A Work", "author_name": ["Prolific Writer"], "author_key": ["OL9000001A"]},
+  {"key": "/works/OLxyzW", "title": "Garbled Id", "author_name": ["Prolific Writer"], "author_key": ["OL9000001A"]}
+ ]
+}

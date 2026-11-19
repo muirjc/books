@@ -26,6 +26,7 @@ from book_tracker.domain.imports import (
     SkipReason,
     SourceRef,
     WorkCandidate,
+    WorkList,
     WorkListing,
     WorkState,
     WorksView,
@@ -43,6 +44,10 @@ IMPORT_LOCK = text("SELECT pg_advisory_xact_lock(hashtext('book_tracker.import')
 REFRESH_BEFORE = timedelta(hours=1)  # a list is never shown with less left (research R8)
 TOO_MANY = f"You can add up to {MAX_WORKS_PER_IMPORT} books at a time"
 NOTHING_TICKED = "Tick at least one book"
+NAME_REQUIRED = "Enter an author's name"
+NOT_IN_LIST = "Some books aren't in this author's list"
+SEARCH_MAX = 200  # characters, after cleaning (contracts: SearchText)
+CACHE_KEY_MAX = 300  # source_lookup_cache.lookup_key
 EXPIRED = "These results are more than a day old. Reload the list and confirm again."
 
 
@@ -60,6 +65,8 @@ async def search_authors(
     """Authors matching ``name`` (FR-001, FR-002); reused for 24 hours (FR-017)."""
     query = clean(name)
     key = normalize_person_name(query)
+    if not query or len(query) > SEARCH_MAX or len(key) > CACHE_KEY_MAX:
+        raise ValidationFailed.single("q", NAME_REQUIRED)  # checked after NFKC (finding 5)
     cached = await source_cache.get_authors(db, key, now)
     if cached is not None:
         return cached.value
@@ -122,6 +129,38 @@ async def list_works(
         listing, fetched_at = fresh, now
     else:
         listing, fetched_at = cached.value, cached.fetched_at
+    return await _works_view(db, user_id, listing, fetched_at, sort=sort, q=q)
+
+
+async def cached_works(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    author_key: str,
+    now: datetime,
+    *,
+    sort: str = "title",
+    q: str | None = None,
+) -> WorksView | None:
+    """Like ``list_works`` from the cache only, or None once it has expired.
+
+    For redisplaying after a refused confirm: that runs under the import lock, so it must
+    not wait on Open Library (review finding 1).
+    """
+    cached = await source_cache.get_works(db, author_key, now)
+    if cached is None:
+        return None
+    return await _works_view(db, user_id, cached.value, cached.fetched_at, sort=sort, q=q)
+
+
+async def _works_view(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    listing: WorkList,
+    fetched_at: datetime,
+    *,
+    sort: str,
+    q: str | None,
+) -> WorksView:
     matches = await _catalog_matches(db, listing.works)
     on_list = await ReadingEntryRepository(db, user_id).book_ids_on_list(set(matches.values()))
     rows: list[WorkListing] = []
@@ -226,7 +265,7 @@ async def confirm_import(
         raise ConflictError("results_expired", EXPIRED)
     by_id = {w.source_id: w for w in cached.value.works}
     if any(k not in by_id for k in keys):
-        raise ValidationFailed.single("work_keys", "Some books aren't in this author's list")
+        raise ValidationFailed.single("work_keys", NOT_IN_LIST)
     selected = [by_id[k] for k in keys]
 
     matches = await _catalog_matches(db, selected)  # afresh, inside the lock

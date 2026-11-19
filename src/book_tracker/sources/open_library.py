@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError, version
@@ -103,13 +104,20 @@ class _WorkSearch(BaseModel):
     docs: list[dict[str, Any]] = []
 
 
+_AUTHOR_ID = re.compile(r"OL[0-9]+A")
+_WORK_ID = re.compile(r"OL[0-9]+W")
+
+
 def _short_key(key: str) -> str:
     return key.rsplit("/", 1)[-1]
 
 
-def _author(doc: _AuthorDoc) -> AuthorCandidate:
+def _author(doc: _AuthorDoc) -> AuthorCandidate | None:
+    source_id = _short_key(doc.key)
+    if not _AUTHOR_ID.fullmatch(source_id):
+        return None  # the pages and the API only accept OL…A ids
     return AuthorCandidate(
-        source_id=_short_key(doc.key),
+        source_id=source_id,
         name=fit(doc.name, NAME_MAX),
         birth_date=doc.birth_date,
         death_date=doc.death_date,
@@ -130,9 +138,12 @@ def _work(doc: _WorkDoc) -> WorkCandidate | None:
             names.append(name)
     if not title or not names:
         return None
+    source_id = _short_key(doc.key)
+    if not _WORK_ID.fullmatch(source_id):
+        return None  # book_source_ref only holds OL…W ids (review finding 4)
     isbns = {i for i in (to_isbn13(raw) for raw in doc.isbn) if i}
     return WorkCandidate(
-        source_id=_short_key(doc.key),
+        source_id=source_id,
         alias_ids=(),
         title=title,
         first_publish_year=doc.first_publish_year,
@@ -196,9 +207,13 @@ class OpenLibrarySource:
         authors: list[AuthorCandidate] = []
         for raw in docs:
             try:
-                authors.append(_author(_AuthorDoc.model_validate(raw)))
+                candidate = _author(_AuthorDoc.model_validate(raw))
             except ValidationError:
+                candidate = None
+            if candidate is None:
                 logger.info("open library author_search: dropped a malformed author")
+            else:
+                authors.append(candidate)
         return authors
 
     async def author_works(

@@ -18,7 +18,7 @@ from book_tracker.auth.dependencies import Authenticated, UiUser, now
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.imports import MAX_WORKS_PER_IMPORT, WorkState, WorksView
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.imports import WorksViewForm
+from book_tracker.schemas.imports import ImportPageForm, WorksViewForm
 from book_tracker.services import imports as service
 from book_tracker.services.errors import (
     ConflictError,
@@ -32,6 +32,11 @@ from book_tracker.web.rendering import is_htmx, render
 router = APIRouter()
 
 _AUTHOR_KEY = re.compile(r"^OL[0-9]+A$")
+_WORK_KEY = re.compile(r"^OL[0-9]+W$")
+BAD_STATUS = "Choose how to add the books: Finished, Reading or Want to read"
+EXPIRED_NOTICE = (
+    "The list had expired, so it was fetched again from Open Library. Tick your books again."
+)
 SELECT_LIMIT_NOTE = (
     f"Only the first {MAX_WORKS_PER_IMPORT} shown were ticked: you can add up to "
     f"{MAX_WORKS_PER_IMPORT} books at a time."
@@ -48,11 +53,17 @@ def _unreachable(request: Request, auth: Authenticated, q: str = "") -> Response
     )
 
 
-def _status(value: object) -> ReadingStatus:
+def _page_form(data: Any) -> tuple[ImportPageForm, str | None]:
+    """The posted status and ticks, validated; on a bad value, the defaults and a message."""
+    raw = {"status": data.get("status") or ReadingStatus.FINISHED.value,
+           "work": [str(v) for v in data.getlist("work")]}  # fmt: skip
     try:
-        return ReadingStatus(str(value))
-    except ValueError:
-        return ReadingStatus.FINISHED
+        return ImportPageForm.model_validate(raw), None
+    except ValidationError as exc:
+        bad_status = any(e["loc"][:1] == ("status",) for e in exc.errors())
+        keys = [k for k in raw["work"] if _WORK_KEY.match(k)]
+        message = BAD_STATUS if bad_status else service.NOT_IN_LIST
+        return ImportPageForm(work=keys), message
 
 
 def _view_form(sort: object, q: object) -> WorksViewForm:
@@ -71,7 +82,9 @@ def _works_context(
     status: ReadingStatus,
     error: str | None = None,
     note: str | None = None,
+    notice: str | None = None,
 ) -> dict[str, Any]:
+    shown = {w.work.source_id for w in view.works}
     return {
         "key": key,
         "view": view,
@@ -80,6 +93,8 @@ def _works_context(
         "status": status.value,
         "error": error,
         "note": note,
+        "notice": notice,
+        "hidden_ticks": sorted(k for k in checked if k not in shown),  # filtered out (finding 2)
         "selectable": [w for w in view.works if w.state is not WorkState.ON_MY_LIST],
         "max_import": MAX_WORKS_PER_IMPORT,
         "active": "import",
@@ -106,16 +121,16 @@ async def import_authors(
     request: Request, auth: UiUser, db: DbSession, source: BookSourceDep, q: str = ""
 ) -> Response:
     query = q.strip()
-    if not query or len(query) > 200:
+    try:
+        authors = await service.search_authors(db, source, query, now(request))
+    except ValidationFailed:
         return render(
             request,
             "pages/import_search.html",
-            {"q": q, "error": "Enter an author's name", "active": "import"},
+            {"q": q, "error": service.NAME_REQUIRED, "active": "import"},
             auth=auth,
             status_code=422,
         )
-    try:
-        authors = await service.search_authors(db, source, query, now(request))
     except SourceUnavailable:
         return _unreachable(request, auth, query)
     if len(authors) == 1:
@@ -137,13 +152,17 @@ async def import_works(
     source: BookSourceDep,
     sort: str = "",
     q: str = "",
+    expired: str = "",
 ) -> Response:
     form = _view_form(sort, q)
     try:
         view = await _load(request, auth, db, source, author_key, form)
     except SourceUnavailable:
         return _unreachable(request, auth)
-    context = _works_context(author_key, view, form, checked=set(), status=ReadingStatus.FINISHED)
+    notice = EXPIRED_NOTICE if expired else None
+    context = _works_context(
+        author_key, view, form, checked=set(), status=ReadingStatus.FINISHED, notice=notice
+    )
     return render(request, "pages/import_works.html", context, auth=auth)
 
 
@@ -154,11 +173,17 @@ async def import_works_view(
     """Re-render the table for sort, filter and "Select all shown"; read-only (R12)."""
     data = await request.form()
     form = _view_form(data.get("sort"), data.get("q"))
+    posted, error = _page_form(data)
     try:
         view = await _load(request, auth, db, source, author_key, form)
     except SourceUnavailable:
         return _unreachable(request, auth)
-    checked = {str(v) for v in data.getlist("work")}
+    checked = set(posted.work)
+    if error:
+        context = _works_context(
+            author_key, view, form, checked=checked, status=posted.status, error=error
+        )
+        return render(request, "pages/import_works.html", context, auth=auth, status_code=422)
     note = None
     if data.get("select") == "shown":
         shown = [w.work.source_id for w in view.works if w.state is not WorkState.ON_MY_LIST]
@@ -168,7 +193,7 @@ async def import_works_view(
             note = SELECT_LIMIT_NOTE
         checked |= set(additions[: max(room, 0)])
     context = _works_context(
-        author_key, view, form, checked=checked, status=_status(data.get("status")), note=note
+        author_key, view, form, checked=checked, status=posted.status, note=note
     )
     template = "partials/import_works.html" if is_htmx(request) else "pages/import_works.html"
     return render(request, template, context, auth=auth)
@@ -176,28 +201,35 @@ async def import_works_view(
 
 @router.post("/import/authors/{author_key}")
 async def import_confirm(
-    author_key: str, request: Request, auth: UiUser, db: DbSession, source: BookSourceDep
+    author_key: str, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     data = await request.form()
-    keys = [str(v) for v in data.getlist("work")]
-    status = _status(data.get("status"))
     form = _view_form(data.get("sort"), data.get("q"))
-    try:
-        result = await service.confirm_import(
-            db, auth.account.id, author_key=author_key, work_keys=keys,
-            status=status, now=now(request),
-        )  # fmt: skip
-    except (ValidationFailed, ConflictError) as exc:
-        message = exc.errors[0].message if isinstance(exc, ValidationFailed) else exc.title
-        code = 422 if isinstance(exc, ValidationFailed) else 409
+    posted, error = _page_form(data)
+    expired = ui_redirect(request, f"/import/authors/{author_key}?expired=1")
+    if error is None:
         try:
-            view = await _load(request, auth, db, source, author_key, form)
-        except SourceUnavailable:
-            return _unreachable(request, auth)
-        context = _works_context(
-            author_key, view, form, checked=set(keys), status=status, error=message
+            result = await service.confirm_import(
+                db, auth.account.id, author_key=author_key, work_keys=posted.work,
+                status=posted.status, now=now(request),
+            )  # fmt: skip
+        except ConflictError:  # results_expired: reload outside the lock (review finding 1)
+            return expired
+        except ValidationFailed as exc:
+            error = exc.errors[0].message
+    if error is not None:
+        # Redisplay from the cache only: this request may hold the import lock (finding 1).
+        if not _AUTHOR_KEY.match(author_key):
+            raise SourceNotFound()
+        view = await service.cached_works(
+            db, auth.account.id, author_key, now(request), sort=form.sort, q=form.q
         )
-        return render(request, "pages/import_works.html", context, auth=auth, status_code=code)
+        if view is None:
+            return expired
+        context = _works_context(
+            author_key, view, form, checked=set(posted.work), status=posted.status, error=error
+        )
+        return render(request, "pages/import_works.html", context, auth=auth, status_code=422)
     return render(
         request,
         "pages/import_summary.html",

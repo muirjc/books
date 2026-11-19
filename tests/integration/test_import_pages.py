@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 import httpx
@@ -134,6 +135,24 @@ _ = author  # re-exported helper used by other page tests
 # --------------------------------------------------------------------------- user story 3
 
 
+_WORK_INPUT = re.compile(r"<input [^>]*>")
+
+
+def submitted(html: str) -> list[str]:
+    """The work ids a browser would send from this HTML: ticked boxes and hidden fields."""
+    keys: list[str] = []
+    for tag in _WORK_INPUT.findall(html):
+        if 'name="work"' not in tag:
+            continue
+        if 'type="hidden"' in tag or (
+            tag.startswith('<input type="checkbox"') and " checked" in tag
+        ):
+            match = re.search(r'value="([^"]+)"', tag)
+            assert match
+            keys.append(match.group(1))
+    return keys
+
+
 async def _view(client: httpx.AsyncClient, **data: object) -> httpx.Response:
     token = await ui_csrf(client)
     return await client.post(
@@ -160,20 +179,22 @@ async def test_sort_filter_and_select_all_keep_ticks(
     text = fragment.text
     assert text.index("Mist Two") < text.index("Mist One")  # year order
     assert "Other</label>" not in text  # filtered out, but still ticked
-    selected = await _view(client, sort="year", q="mist", select="shown")
+    assert submitted(text) == ["OL3W"]  # kept as a hidden field (review finding 2)
+    selected = await _view(client, sort="year", q="mist", select="shown", work=submitted(text))
     assert 'value="OL1W" id="work-OL1W" checked' in selected.text
     assert 'value="OL2W" id="work-OL2W" checked' in selected.text
+    assert sorted(submitted(selected.text)) == ["OL1W", "OL2W", "OL3W"]
 
     blank = await _view(client, sort="", q="")  # blank boxes mean "not given"
     assert blank.status_code == 200 and "Other</label>" in blank.text
 
-    done = await confirm_via_page(client, ["OL1W", "OL2W"])
-    assert "Added 2 books" in done.text
+    done = await confirm_via_page(client, submitted(selected.text))
+    assert "Added 3 books" in done.text
     titles = await factory.scalar(
         "SELECT array_agg(b.title ORDER BY b.title) FROM reading_entry e "
         "JOIN book b ON b.id = e.book_id WHERE e.user_id = :u", u=alice.id,
     )  # fmt: skip
-    assert titles == ["Mist One", "Mist Two"]
+    assert titles == ["Mist One", "Mist Two", "Other"]
 
 
 @pytest.mark.ac("002/AC-11")
@@ -199,3 +220,73 @@ async def test_truncation_note(
     assert "add it by hand" in page.text
     api = await client.get(f"/api/v1/import/authors/{KEY}/works")
     assert api.json()["truncated"] is True and api.json()["total"] == 2500
+
+
+@pytest.mark.ac("002/AC-10")
+async def test_enter_in_the_filter_applies_it_and_ticks_nothing(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """The form's default button is "Apply sort and filter", not "Select all shown"."""
+    stock(book_source)
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    form = page.text[page.text.index('id="import-form"') :]
+    first_submit = re.search(r"<button [^>]*type=\"submit\"[^>]*>([^<]*)</button>", form)
+    assert first_submit and first_submit.group(1) == "Apply sort and filter"
+    assert 'name="select"' not in first_submit.group(0)
+
+
+async def _expire_cache(factory: Factory) -> None:
+    await factory.execute(
+        "UPDATE source_lookup_cache SET fetched_at = fetched_at - interval '2 days', "
+        "expires_at = expires_at - interval '2 days'"
+    )
+
+
+@pytest.mark.ac("002/AC-02")
+async def test_confirm_after_the_results_expire(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """No Open Library call under the import lock; the member gets a fresh list (finding 1)."""
+    stock(book_source)
+    _, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+    await _expire_cache(factory)
+    calls = list(book_source.calls)
+    token = await ui_csrf(client)
+    sent = await client.post(
+        f"/import/authors/{KEY}",
+        data={"csrf_token": token, "status": "finished", "work": "OL1W"},
+        headers={"X-CSRF-Token": ""},
+    )
+    assert sent.status_code == 303
+    assert sent.headers["location"] == f"/import/authors/{KEY}?expired=1"
+    assert book_source.calls == calls  # nothing fetched while confirming
+
+    again = await client.get(sent.headers["location"])
+    assert again.status_code == 200
+    assert "The list had expired" in again.text
+    assert book_source.calls == [*calls, ("author_works", KEY)]
+    done = await confirm_via_page(client, ["OL1W"])  # the reload was kept, so this works
+    assert "Added 1 book" in done.text
+
+
+async def test_confirm_error_redisplays_from_the_cache(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    stock(book_source)
+    _, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+    calls = list(book_source.calls)
+    token = await ui_csrf(client)
+    sent = await client.post(
+        f"/import/authors/{KEY}",
+        content=str(
+            httpx.QueryParams([("csrf_token", token), ("work", "OL1W"), ("work", "OL99W")])
+        ),
+        headers={"Content-Type": "application/x-www-form-urlencoded", "X-CSRF-Token": ""},
+    )
+    assert sent.status_code == 422
+    assert "Some books aren" in sent.text
+    assert 'value="OL1W" id="work-OL1W" checked' in sent.text  # ticks kept
+    assert book_source.calls == calls

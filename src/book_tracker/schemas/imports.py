@@ -91,3 +91,14 @@ class WorksViewForm(BaseModel):
         if isinstance(value, str) and not value.strip():
             return "title" if getattr(info, "field_name", "") == "sort" else None
         return value.strip() if isinstance(value, str) else value
+
+
+class ImportPageForm(BaseModel):
+    """The status and ticks posted by the works page, checked like ``ImportRequest``.
+
+    The counts (none ticked, over 500) are left to the service so the page shows its
+    messages; everything else is refused here (review finding 6).
+    """
+
+    status: ReadingStatus = ReadingStatus.FINISHED
+    work: list[WorkKey] = Field(default_factory=list)

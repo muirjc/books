@@ -3,6 +3,9 @@
 {% block content %}
 <h1>Books by {{ view.author.name }}</h1>
 <p class="muted">From Open Library. Tick the books you want; they go onto your list only.</p>
+{% if notice %}
+<p class="notice" role="status">{{ notice }}</p>
+{% endif %}
 {% if error %}
 <div class="error-summary" role="alert" tabindex="-1"><p><strong>{{ error }}</strong></p></div>
 {% endif %}
@@ -31,10 +34,11 @@
              hx-post="/import/authors/{{ key }}/view" hx-trigger="input changed delay:400ms, search"
              hx-target="#import-works" hx-swap="outerHTML" hx-include="closest form">
     </div>
+    {# First, so Enter in the filter box applies it rather than ticking everything (finding 3). #}
+    <button type="submit" formaction="/import/authors/{{ key }}/view" class="button-link">Apply sort and filter</button>
     <button type="submit" formaction="/import/authors/{{ key }}/view" name="select" value="shown"
             hx-post="/import/authors/{{ key }}/view" hx-target="#import-works" hx-swap="outerHTML"
             hx-include="closest form" hx-vals='{"select": "shown"}'>Select all shown</button>
-    <button type="submit" formaction="/import/authors/{{ key }}/view" class="button-link">Apply sort and filter</button>
   </div>
   {% include "partials/import_works.html" %}
   <button type="submit" class="button-primary">Add ticked books to my list</button>

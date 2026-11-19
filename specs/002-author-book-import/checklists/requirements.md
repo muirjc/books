@@ -37,4 +37,7 @@
   `/api/v1` because the project's spec template and constitution (Principles IV and VII)
   require them. The user stories, requirements and success criteria name no technology.
 - Every FR maps to at least one AC: FR-013 → AC-02, AC-17, AC-18, AC-19; FR-014 → AC-01
-  (any member); FR-020 to FR-025 → AC-20 to AC-25.
+  (any member); FR-010, FR-011 → AC-14, AC-15.
+- Revised during /speckit-plan (2026-11-19): Google Books and the Admin site setting removed
+  (decision books-zl3), and series and ISBNs no longer imported (Open Library's work data
+  lacks them). Re-validated: all items still pass; 20 ACs, 20 FRs (AC-20 and FR-020, the 2,000-work cap, added in planning).

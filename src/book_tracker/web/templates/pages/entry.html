@@ -15,6 +15,7 @@
   <dd>{{ entry.book.isbn_13 }}</dd>
   {% endif %}
 </dl>
+{% include "partials/source_ref.html" %}
 <p class="actions">
   <a href="/catalog/books/{{ entry.book.id }}/edit">Edit book details</a>
 </p>

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from book_tracker.domain import imports as imports_domain
 from book_tracker.domain import models as domain
 from book_tracker.domain.values import format_series_number
 from book_tracker.schemas import catalog as c
+from book_tracker.schemas import imports as i
 from book_tracker.schemas import readings as r
 from book_tracker.schemas.accounts import Account
 from book_tracker.schemas.auth import CurrentUser
@@ -127,3 +129,53 @@ def my_series_view_out(
         series=c.SeriesRef(id=series.id, name=series.name),
         entries=[reading_entry_out(e) for e in entries],
     )
+
+
+# --------------------------------------------------------------------------- spec 002 imports
+
+
+def author_candidate_out(author: imports_domain.AuthorCandidate) -> i.AuthorCandidate:
+    return i.AuthorCandidate(
+        author_key=author.source_id,
+        name=author.name,
+        birth_date=author.birth_date,
+        death_date=author.death_date,
+        top_work=author.top_work,
+        work_count=author.work_count,
+    )
+
+
+def works_view_out(view: imports_domain.WorksView) -> i.WorkList:
+    return i.WorkList(
+        author=author_candidate_out(view.author),
+        works=[
+            i.WorkCandidate(
+                work_key=w.work.source_id,
+                title=w.work.title,
+                first_publish_year=w.work.first_publish_year,
+                author_names=list(w.work.author_names),
+                state=w.state,
+                book_id=w.book_id,
+            )
+            for w in view.works
+        ],
+        total=view.total,
+        truncated=view.truncated,
+        fetched_at=view.fetched_at,
+    )
+
+
+def import_result_out(result: imports_domain.ImportResult) -> i.ImportResult:
+    return i.ImportResult(
+        added=[
+            i.ImportedBook(
+                book_id=b.book_id, title=b.title, entry_id=b.entry_id,
+                new_to_catalog=b.new_to_catalog,
+            )
+            for b in result.added
+        ],
+        skipped=[
+            i.SkippedBook(book_id=s.book_id, title=s.title, reason=s.reason)
+            for s in result.skipped
+        ],
+    )  # fmt: skip

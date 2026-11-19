@@ -12,10 +12,12 @@ from starlette.responses import Response
 
 from book_tracker.auth.dependencies import Authenticated, UiUser
 from book_tracker.domain import models as domain
+from book_tracker.domain.imports import SourceRef
 from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import AuthorUpdate, SeriesWrite, SummaryCreate
 from book_tracker.services import catalog as service
+from book_tracker.services import imports as imports_service
 from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
@@ -62,6 +64,7 @@ def _book_page(
     conflict: ConflictError | None = None,
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
+    source_ref: SourceRef | None = None,
 ) -> Response:
     return render(
         request,
@@ -72,6 +75,7 @@ def _book_page(
             "conflict": conflict,
             "author_conflicts": author_conflicts or {},
             "series_conflict": series_conflict,
+            "source_ref": source_ref,
             "message": _message(request),
         },
         auth=auth,
@@ -84,7 +88,8 @@ async def edit_book_form(
     book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     book = await service.get_book(db, book_id)
-    return _book_page(request, auth, book, _book_form(book))
+    source_ref = await imports_service.source_ref(db, book_id)
+    return _book_page(request, auth, book, _book_form(book), source_ref=source_ref)
 
 
 @router.post("/books/{book_id}/edit")

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Books by {{ view.author.name }}{% endblock %}
+{% block content %}
+<h1>Books by {{ view.author.name }}</h1>
+<p class="muted">From Open Library. Tick the books you want; they go onto your list only.</p>
+{% if error %}
+<div class="error-summary" role="alert" tabindex="-1"><p><strong>{{ error }}</strong></p></div>
+{% endif %}
+<form method="post" action="/import/authors/{{ key }}" class="stack" id="import-form" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <fieldset class="field">
+    <legend>Add the ticked books as</legend>
+    {% for value, label in (("finished", "Finished"), ("reading", "Reading"), ("want_to_read", "Want to read")) %}
+    <label class="inline-choice"><input type="radio" name="status" value="{{ value }}"{% if status == value %} checked{% endif %} id="status-{{ value }}"> {{ label }}</label>
+    {% endfor %}
+  </fieldset>
+  <div class="import-controls">
+    <div class="field">
+      <label for="sort">Sort by</label>
+      <select id="sort" name="sort" hx-post="/import/authors/{{ key }}/view" hx-trigger="change"
+              hx-target="#import-works" hx-swap="outerHTML" hx-include="closest form">
+        <option value="title"{% if form.sort == "title" %} selected{% endif %}>Title</option>
+        <option value="year"{% if form.sort == "year" %} selected{% endif %}>First published</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="filter">Title contains</label>
+      <input type="search" id="filter" name="q" value="{{ form.q or '' }}" maxlength="200"
+             hx-post="/import/authors/{{ key }}/view" hx-trigger="input changed delay:400ms, search"
+             hx-target="#import-works" hx-swap="outerHTML" hx-include="closest form">
+    </div>
+    <button type="submit" formaction="/import/authors/{{ key }}/view" name="select" value="shown"
+            hx-post="/import/authors/{{ key }}/view" hx-target="#import-works" hx-swap="outerHTML"
+            hx-include="closest form" hx-vals='{"select": "shown"}'>Select all shown</button>
+    <button type="submit" formaction="/import/authors/{{ key }}/view" class="button-link">Apply sort and filter</button>
+  </div>
+  {% include "partials/import_works.html" %}
+  <button type="submit" class="button-primary">Add ticked books to my list</button>
+</form>
+{% endblock %}

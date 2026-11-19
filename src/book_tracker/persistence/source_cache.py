@@ -149,5 +149,25 @@ async def put_works(db: AsyncSession, author_key: str, listing: WorkList, now: d
     await _put(db, AUTHOR_WORKS, author_key, payload, now)
 
 
+async def find_author(db: AsyncSession, author_key: str, now: datetime) -> AuthorCandidate | None:
+    """The author as a still-valid cached search described them, if any (research R3)."""
+    row = await db.scalar(
+        select(models.SourceLookupCache)
+        .where(
+            models.SourceLookupCache.source == SOURCE_OPEN_LIBRARY,
+            models.SourceLookupCache.kind == AUTHOR_SEARCH,
+            models.SourceLookupCache.expires_at > now,
+            models.SourceLookupCache.payload.contains([{"source_id": author_key}]),
+        )
+        .limit(1)
+    )
+    if row is None:
+        return None
+    for data in row.payload:
+        if data["source_id"] == author_key:
+            return _author(data)
+    return None  # pragma: no cover - the containment test guarantees a match
+
+
 async def count_rows(db: AsyncSession) -> int:
     return int(await db.scalar(select(func.count()).select_from(models.SourceLookupCache)) or 0)

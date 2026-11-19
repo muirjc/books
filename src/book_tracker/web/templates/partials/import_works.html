@@ -1,0 +1,43 @@
+<div id="import-works">
+  <p aria-live="polite" class="muted" id="import-count">
+    {{ view.works | length }} book{% if view.works | length != 1 %}s{% endif %} shown{% if checked %}, {{ checked | length }} ticked{% endif %}.
+    {% if note %}<strong>{{ note }}</strong>{% endif %}
+  </p>
+  {% if view.truncated %}
+  <p class="notice">Showing the first 2,000 of {{ "{:,}".format(view.total) }} works. To add a book beyond these, <a href="/books/add">add it by hand</a>.</p>
+  {% endif %}
+  {% if view.works %}
+  <div class="table-scroll">
+  <table class="import-table">
+    <caption class="visually-hidden">Books by {{ view.author.name }} on Open Library</caption>
+    <thead>
+      <tr><th scope="col">Add</th><th scope="col">Title</th><th scope="col">First published</th><th scope="col">Authors</th><th scope="col">In the family</th></tr>
+    </thead>
+    <tbody>
+      {% for w in view.works %}
+      {% set wid = w.work.source_id %}
+      <tr>
+        <td>
+          {% if w.state.value == "on_my_list" %}
+          <span class="muted">—</span>
+          {% else %}
+          <input type="checkbox" name="work" value="{{ wid }}" id="work-{{ wid }}"{% if wid in checked %} checked{% endif %}>
+          {% endif %}
+        </td>
+        <td>{% if w.state.value == "on_my_list" %}{{ w.work.title }}{% else %}<label for="work-{{ wid }}">{{ w.work.title }}</label>{% endif %}</td>
+        <td>{{ w.work.first_publish_year or "" }}</td>
+        <td>{{ w.work.author_names | join(", ") }}</td>
+        <td>
+          {% if w.state.value == "on_my_list" %}<span class="badge">Already on your list</span>
+          {% elif w.state.value == "in_catalog" %}<span class="badge">In the family catalog</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>No books match. Try a different filter.</p>
+  {% endif %}
+</div>

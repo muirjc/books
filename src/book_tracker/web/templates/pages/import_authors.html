@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Authors called “{{ q }}”{% endblock %}
+{% block content %}
+<h1>Authors matching “{{ q }}”</h1>
+{% if authors %}
+<p>Several authors on Open Library match. Choose the one you mean.</p>
+<ul class="author-choices">
+  {% for a in authors %}
+  <li>
+    <a href="/import/authors/{{ a.source_id }}"><strong>{{ a.name }}</strong></a>
+    <span class="muted">
+      {%- if a.birth_date or a.death_date %} · {% if a.birth_date %}born {{ a.birth_date }}{% endif %}{% if a.birth_date and a.death_date %} – {% endif %}{% if a.death_date %}died {{ a.death_date }}{% endif %}{% endif %}
+      {%- if a.top_work %} · best known for <cite>{{ a.top_work }}</cite>{% endif %}
+      · {{ a.work_count }} work{% if a.work_count != 1 %}s{% endif %}
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p role="status"><strong>No author found</strong> for “{{ q }}” on Open Library.</p>
+<p><a href="/books/add">Add a book by hand</a> or <a href="/import">search again</a>.</p>
+{% endif %}
+{% endblock %}

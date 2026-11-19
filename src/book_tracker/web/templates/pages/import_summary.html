@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Books added{% endblock %}
+{% block content %}
+<h1>Books added</h1>
+<div aria-live="polite" role="status">
+  <p><strong>Added {{ result.added | length }} book{% if result.added | length != 1 %}s{% endif %} to your list ({{ new_count }} new to the family catalog).</strong></p>
+</div>
+{% if result.added %}
+<ul>
+  {% for b in result.added %}<li><a href="/entries/{{ b.entry_id }}">{{ b.title }}</a></li>{% endfor %}
+</ul>
+{% endif %}
+{% if result.skipped %}
+<h2>Skipped</h2>
+<ul>
+  {% for s in result.skipped %}
+  <li>{{ s.title }}: {% if s.reason.value == "on_list" %}Already on your list{% else %}Same book as another one you ticked{% endif %}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+<p><a href="/">Go to my books</a> · <a href="/import/authors/{{ key }}">Back to this author</a> · <a href="/import">Import another author</a></p>
+{% endblock %}

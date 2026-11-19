@@ -24,6 +24,7 @@ from book_tracker.services.errors import (
     NotFoundError,
     PasswordChangeRequired,
     ServiceError,
+    SourceUnavailable,
     TooManyAttempts,
     ValidationFailed,
     WrongCurrentPassword,
@@ -104,6 +105,8 @@ def _status_for(exc: ServiceError) -> int:
         return 422
     if isinstance(exc, TooManyAttempts):
         return 429
+    if isinstance(exc, SourceUnavailable):
+        return 503
     if isinstance(exc, WrongCurrentPassword):
         return 400
     return 400

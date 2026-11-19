@@ -15,6 +15,7 @@ from book_tracker.api import admin as api_admin
 from book_tracker.api import auth as api_auth
 from book_tracker.api import authors as api_authors
 from book_tracker.api import books as api_books
+from book_tracker.api import imports as api_imports
 from book_tracker.api import me as api_me
 from book_tracker.api import readings as api_readings
 from book_tracker.api import series as api_series
@@ -35,6 +36,7 @@ from book_tracker.web.routes import admin as web_admin
 from book_tracker.web.routes import auth as web_auth
 from book_tracker.web.routes import catalog as web_catalog
 from book_tracker.web.routes import health as web_health
+from book_tracker.web.routes import imports as web_imports
 from book_tracker.web.routes import readings as web_readings
 from book_tracker.web.routes import suggest as web_suggest
 from book_tracker.web.security import SecurityHeadersMiddleware
@@ -101,6 +103,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     api.include_router(api_authors.router)
     api.include_router(api_series.router)
     api.include_router(api_admin.router)
+    api.include_router(api_imports.router)
     app.include_router(api)
 
     app.include_router(web_auth.router)
@@ -109,6 +112,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     app.include_router(web_catalog.router)
     app.include_router(web_suggest.router)
     app.include_router(web_health.router)
+    app.include_router(web_imports.router)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     # FastAPI's documented way to customise the schema is to replace app.openapi.

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Import from Open Library{% endblock %}
+{% block content %}
+<h1>Import from Open Library</h1>
+<p>Find an author on Open Library, tick the books you want, and add them to your list in one go.</p>
+{% if unreachable %}
+{% include "partials/import_unreachable.html" %}
+{% endif %}
+<form method="get" action="/import/authors" class="stack" role="search">
+  <div class="field">
+    <label for="q">Author's name</label>
+    <input type="search" id="q" name="q" value="{{ q }}" maxlength="200" autocomplete="off"
+           {% if error %}aria-invalid="true" aria-describedby="q-error"{% endif %}>
+    {% if error %}<p class="field-error" id="q-error">{{ error }}</p>{% endif %}
+  </div>
+  <button type="submit" class="button-primary">Find author</button>
+</form>
+<p class="muted">Books come from Open Library. You can always <a href="/books/add">add a book by hand</a>.</p>
+{% endblock %}

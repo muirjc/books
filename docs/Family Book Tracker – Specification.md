@@ -340,6 +340,7 @@ The stack is in `deploy/pi/`: `compose.yaml`, `caddy/Caddyfile`, and `.env.examp
 - **Restart and health:** all containers use `restart: unless-stopped`. The app exposes an unauthenticated `GET /healthz` (200 when it can reach the database, otherwise 503; it answers plain HTTP so the health check needn't go through Caddy), the image's `HEALTHCHECK` calls it, and the container runs 2 uvicorn workers.
 - **Behind the proxy:** the app runs with `BOOK_TRACKER_ENVIRONMENT=production`, so it redirects plain HTTP to HTTPS and sends HSTS. It trusts `X-Forwarded-Proto` from Caddy; that is safe only because the app port is never published.
 - **Outbound internet:** spec 001 makes no outbound calls. From spec 002 (AI summaries), the app needs outbound HTTPS to the LLM API and to Google Books / Open Library.
+- **Setup:** step by step in [deploy/pi/README.md](../deploy/pi/README.md).
 - **Secrets:** they live in a `.env` file on the Pi with mode 600, never committed. That covers the database password, `BOOK_TRACKER_SECRET_KEY`, the first Admin's password, and later the LLM and Google Books keys.
 
 ### 10.5 HTTPS

@@ -216,3 +216,38 @@ async def test_requests_carry_nothing_but_the_query() -> None:
         assert "(" not in user_agent()  # no contact address (Principle IX)
         for header in ("cookie", "from", "referer", "authorization"):
             assert header not in request.headers
+
+
+async def test_full_import_sends_nothing_personal(settings: Any, app: Any, factory: Any) -> None:
+    """SC-005, FR-015, research R8: through the real adapter, a member's import sends only
+    the author name and keys; confirming sends nothing at all."""
+    from book_tracker.main import create_app
+    from tests.conftest import make_client as asgi_client
+    from tests.conftest import signed_in
+
+    recorder = Recorder({
+        ("/search/authors.json", "Ursula K. Le Guin"): "authors_single.json",
+        ("/search.json", "OL31353A"): "works_OL1394865A.json",
+    })  # fmt: skip
+    live = create_app(settings, book_source=source(recorder))
+    member = await factory.user("privatekid", display_name="Private Kid")
+    async with asgi_client(live) as client:
+        await signed_in(client, member)
+        await client.get("/api/v1/import/authors", params={"q": "Ursula K. Le Guin"})
+        author_key = fixture("authors_single.json")["docs"][0]["key"]
+        recorder.routes[("/search.json", author_key)] = "works_OL1394865A.json"
+        listed = await client.get(f"/api/v1/import/authors/{author_key}/works")
+        assert listed.status_code == 200, listed.text
+        before = len(recorder.requests)
+        first = listed.json()["works"][0]["work_key"]
+        done = await client.post(
+            "/api/v1/me/imports", json={"author_key": author_key, "work_keys": [first]}
+        )
+        assert done.status_code == 201, done.text
+        assert len(recorder.requests) == before  # confirm made no request
+        session_cookie = client.cookies.get("__Host-session") or ""
+    assert recorder.requests
+    for request in recorder.requests:
+        sent = str(request.url) + " " + " ".join(f"{k}: {v}" for k, v in request.headers.items())
+        for secret in ("privatekid", "Private Kid", str(member.id), session_cookie or "-"):
+            assert secret not in sent

@@ -226,7 +226,8 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
   POST → 303 → GET. There is no flash-message store, and a repeated submit is harmless, since
   books already on the list are skipped.
 - **Accessibility**: a real `<table>` with a checkbox and visible label per row, a caption with
-  counts, the status as a `<fieldset>` of radio buttons, and an `aria-live="polite"` region for
+  counts, the status as a `<select>` like the existing entry form (radio buttons failed the
+  project's 44 px phone target rule during T046), and an `aria-live="polite"` region for
   "N selected" and the result. These are covered by the existing axe-core and keyboard tests.
 - **Alternatives considered**: keeping the selection on the server (no cap, but extra state and
   code); raising the form-field limit (still large requests from phones).

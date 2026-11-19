@@ -70,9 +70,7 @@ def upgrade() -> None:
         sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("source", "kind", "lookup_key", name="source_lookup_cache_pkey"),
-        sa.CheckConstraint(
-            "source IN ('open_library')", name="source_lookup_cache_source_check"
-        ),
+        sa.CheckConstraint("source IN ('open_library')", name="source_lookup_cache_source_check"),
         sa.CheckConstraint(
             "kind IN ('author_search', 'author_works')", name="source_lookup_cache_kind_check"
         ),

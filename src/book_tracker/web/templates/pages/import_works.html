@@ -8,12 +8,14 @@
 {% endif %}
 <form method="post" action="/import/authors/{{ key }}" class="stack" id="import-form" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <fieldset class="field">
-    <legend>Add the ticked books as</legend>
-    {% for value, label in (("finished", "Finished"), ("reading", "Reading"), ("want_to_read", "Want to read")) %}
-    <label class="inline-choice"><input type="radio" name="status" value="{{ value }}"{% if status == value %} checked{% endif %} id="status-{{ value }}"> {{ label }}</label>
-    {% endfor %}
-  </fieldset>
+  <div class="field">
+    <label for="status">Add the ticked books as</label>
+    <select id="status" name="status">
+      {% for value, label in (("finished", "Finished"), ("reading", "Reading"), ("want_to_read", "Want to read")) %}
+      <option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="import-controls">
     <div class="field">
       <label for="sort">Sort by</label>

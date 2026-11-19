@@ -89,6 +89,8 @@ Recommended approach: a pluggable **source adapter** layer.
 
 Amazon or Goodreads adapters can be added later if a permitted access route becomes available; the rest of the design does not change.
 
+In use so far: Open Library, for importing an author's books (spec 002). Google Books is deferred: its branding guidelines forbid reordering or altering its results, which import's combining, sorting and filtering would do (decision books-zl3; follow-up books-395).
+
 ### Flow
 
 1. User enters title and author (ISBN optional) and selects **Generate summary**.
@@ -339,7 +341,7 @@ The stack is in `deploy/pi/`: `compose.yaml`, `caddy/Caddyfile`, and `.env.examp
 - **Images:** after the `ci` workflow passes on a merge to `main`, the `images` workflow builds multi-architecture images (`linux/arm64` and `linux/amd64`) with `docker buildx` and pushes them to GitHub Container Registry, `ghcr.io/muirjc/books`, tagged `sha-<7-character commit>` and `latest`. Pull requests build the `linux/amd64` image without pushing it. If the package is private, the Pi signs in to GHCR with a read-only token.
 - **Restart and health:** all containers use `restart: unless-stopped`. The app exposes an unauthenticated `GET /healthz` (200 when it can reach the database, otherwise 503; it answers plain HTTP so the health check needn't go through Caddy), the image's `HEALTHCHECK` calls it, and the container runs 2 uvicorn workers.
 - **Behind the proxy:** the app runs with `BOOK_TRACKER_ENVIRONMENT=production`, so it redirects plain HTTP to HTTPS and sends HSTS. It trusts `X-Forwarded-Proto` from Caddy; that is safe only because the app port is never published.
-- **Outbound internet:** spec 001 makes no outbound calls. From spec 002 (AI summaries), the app needs outbound HTTPS to the LLM API and to Google Books / Open Library.
+- **Outbound internet:** spec 001 makes no outbound calls. Spec 002 (author import) calls `openlibrary.org` over HTTPS; requests carry only the typed author name, Open Library ids and a User-Agent naming the app (no contact address). The planned AI summary feature will also need the LLM API.
 - **Setup:** step by step in [deploy/pi/README.md](../deploy/pi/README.md).
 - **Secrets:** they live in a `.env` file on the Pi with mode 600, never committed. That covers the database password, `BOOK_TRACKER_SECRET_KEY`, the first Admin's password, and later the LLM and Google Books keys.
 

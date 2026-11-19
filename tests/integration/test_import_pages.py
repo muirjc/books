@@ -54,7 +54,7 @@ async def test_works_page_shows_states_and_status_choice(
     assert "Already on your list" in text and "In the family catalog" in text
     assert 'value="OL1W"' not in text  # no checkbox for a book on my list
     assert 'value="OL2W"' in text and 'value="OL3W"' in text
-    assert 'name="status" value="finished" checked' in text
+    assert '<option value="finished" selected>' in text
 
 
 @pytest.mark.ac("002/AC-02")

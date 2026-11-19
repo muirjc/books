@@ -42,8 +42,10 @@ Caddy, which already allows outbound HTTPS (research R16)
 works list under 5 s at p95 with Open Library answering normally (measured about 1.1 s for
 239 works), and under 1 s from the cache (SC-002)
 
-**Constraints**: Open Library only; at most 1 request/s per app process (2 processes, so 2/s,
-under the 3/s Open Library allows identified clients); 10 s timeout per call (FR-016); requests
+**Constraints**: Open Library only; requests spaced at least 2 s apart per app process (2
+processes, so at most 1/s overall, Open Library's limit for clients without a contact
+address); 10 s per call, including any wait for the limiter (FR-016); a confirm of 200 books
+within 10 s on the Pi (SC-006); requests
 carry only an author name or Open Library ids (FR-015); WCAG 2.2 AA; no custom JavaScript
 
 **Scale/Scope**: one family; up to 2,000 works per author list (FR-020); 3 new API operations
@@ -60,13 +62,13 @@ Complexity Tracking entries.**
 |---|---|---|---|
 | I | Personal data is filtered by session user in the data-access layer, with cross-user tests | Yes | Import endpoints take the user from `current_user` only; no request carries a user id. List state and new entries go through `ReadingEntryRepository(db, user.id)`, whose new `book_ids_on_list` takes no user id. Cross-user tests: Alice's import never reaches Ben's list or his "on my list" marks (AC-18, research R10) |
 | II | Catalog vs personal data placement is stated; no duplication | Yes | Spec Data Ownership table and [data-model.md](data-model.md). Book, authors and `book_source_ref` are catalog; the entry holds only the link and status. The cache is neither and holds no user ids. Authors are reused by case-insensitive name, and books by source id, ISBN or title + first author (research R6) |
-| III | Any AI output is draft-only until accepted, with provenance stored and a manual fallback | Yes | No AI in this feature. Its caching rule is followed for source lookups (24 h, outside the catalog, never shown as catalog content). Imported data follows the same draft-then-confirm rule (FR-007), with provenance in `book_source_ref` (FR-009). Adding by hand stays available when Open Library fails (AC-13) |
+| III | Any AI output is draft-only until accepted, with provenance stored and a manual fallback | Yes | No AI in this feature. Its caching rule is followed for source lookups (24 h, outside the catalog, never shown as catalog content). Author lookups are keyed by Open Library author id or normalized author name, as Principle III allows since constitution 1.0.1. Imported data follows the same draft-then-confirm rule (FR-007), with provenance in `book_source_ref` (FR-009). Adding by hand stays available when Open Library fails (AC-13) |
 | IV | All external sources are permitted APIs behind adapters; excluded domains are blocked | Yes | Open Library's official API, whose terms permit it (research R2), behind the `BookSource` interface (R4). The adapter can reach only the configured Open Library base URL. Google Books was checked and excluded (R1). No LLM web search in this feature |
 | V | Tests are written first; every AC maps to a feature-qualified test | Yes | tasks.md will put tests first. 20 ACs, each tagged `@pytest.mark.ac("002/AC-xx")`; the tag check in `tests/conftest.py` is widened from `001/` to any three-digit feature. Layers: unit (matching rules), integration (constraints, concurrency, cross-user), contract, external (recorded fixtures; CI makes no live calls), a11y and perf |
 | VI | Rules are enforced by DB constraints; migrations are reversible | Yes | Unique (source, source work id) and (book, source), the source and kind CHECKs, the Open Library id format CHECK and the expiry CHECK ([data-model.md](data-model.md)). `0002_author_import` has a downgrade and runs in the upgrade → downgrade → upgrade test. Its downgrade drops `book_source_ref`, so a production downgrade needs a backup first, which is documented in data-model.md |
 | VII | Pydantic v2 models validate all input; every JSON API endpoint has an OpenAPI contract | Yes | [contracts/openapi.yaml](contracts/openapi.yaml) covers the 3 new operations; [contracts/ui-routes.md](contracts/ui-routes.md) covers the pages, which use the same Pydantic models and services. Open Library responses are parsed into Pydantic models in the adapter, then mapped to frozen domain dataclasses; raw dicts never leave `sources/`. `mypy --strict` |
 | VIII | No new deployables or datastores; new dependencies are justified | Yes | Same service and database. The cache is a table, not Redis. No new packages: `httpx.MockTransport` replaces respx or vcrpy |
-| IX | No new personal data beyond the minimum; nothing personal sent to external services; secrets handled correctly | Yes | No new personal data. The importer is recorded as `created_by` and `imported_by`, as for any catalog change. Requests to Open Library carry only the typed author name or Open Library ids. The optional User-Agent contact comes from operator configuration, never from a user (R2). No secrets are added. Logs record call kind, status and duration only (R9) |
+| IX | No new personal data beyond the minimum; nothing personal sent to external services; secrets handled correctly | Yes | No new personal data. The importer is recorded as `created_by` and `imported_by`, as for any catalog change. Requests to Open Library carry only the typed author name or Open Library ids. The User-Agent names only the app and version, with no contact address (R2). No secrets are added. Logs record call kind, status and duration only (R9) |
 
 ### Coverage-critical modules (Principle V)
 
@@ -116,12 +118,13 @@ specs/002-author-book-import/
 migrations/versions/0002_author_import.py      # new: two tables, reversible
 
 src/book_tracker/
-├── settings.py                 # + openlibrary_base_url, openlibrary_contact, source_timeout_seconds
+├── settings.py                 # + openlibrary_base_url, source_timeout_seconds
 ├── main.py                     # + import routers; BookSource on app.state (overridable in tests)
 ├── sources/                    # new package
 │   ├── base.py                 # BookSource protocol, SourceUnavailable
 │   ├── open_library.py         # Open Library adapter (httpx, Pydantic response models)
-│   └── rate_limit.py           # per-process 1 request/s limiter
+│   ├── rate_limit.py           # per-process limiter: 2 s between requests, deadline-aware
+│   └── dependencies.py         # BookSourceDep (keeps auth/dependencies.py unchanged)
 ├── domain/
 │   ├── imports.py              # AuthorCandidate, WorkCandidate, WorkList, WorkState, ImportResult
 │   └── matching.py             # normalize_title, normalize_person_name, isbn10_to_13, merge_duplicate_works
@@ -148,14 +151,14 @@ tests/
 ├── integration/test_imports*.py  # service, constraints, concurrency (AC-16), cross-user (AC-18)
 ├── contract/test_imports_contract.py  # against specs/002-author-book-import/contracts/openapi.yaml
 ├── a11y/                       # + import pages in axe, keyboard and phone-width tests
-└── perf/test_import_perf.py    # 300 works, cache warm, p95 < 1 s
+└── perf/test_import_perf.py    # 300 works, cache warm, p95 < 1 s; 200-work confirm < 5 s
 
 scripts/
 ├── check_coverage.py           # + services/imports.py
 └── record_open_library_fixtures.py  # manual re-capture of fixtures; never run in CI
 
 specs/001-family-reading-list/contracts/openapi.generated.json  # regenerated baseline (CI check)
-deploy/pi/.env.example          # + optional BOOK_TRACKER_OPENLIBRARY_CONTACT
+deploy/pi/.env.example          # + comment: the app calls openlibrary.org (no new setting)
 ```
 
 **Structure Decision**: the existing single project. Adds the `sources/` package the plan
@@ -180,3 +183,6 @@ No entries: every Constitution Check row is "Yes".
   changed.
 - **2,000-work cap** (FR-020, AC-20) and **expired results at confirm** (edge case, research R8)
   added.
+- **After /speckit-analyze** (2026-11-19): no contact address in the User-Agent (finding C1);
+  1 request a second overall (I1); a confirm-time budget, SC-006 (U1); cache keys for author
+  lookups clarified in constitution 1.0.1 (C2).

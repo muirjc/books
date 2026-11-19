@@ -25,18 +25,20 @@ code. Sources checked 2026-11-19.
 ## R2. Open Library terms and limits
 
 - **Decision**: use the public JSON API with a `User-Agent` that names the app; keep to at most
-  one request per second per app process (two processes in production, so at most two a
-  second overall); never bulk-download.
+  1 request a second overall: each of the two app processes spaces its requests at least 2 s
+  apart. Never bulk-download.
 - **Rationale**: the [developer page](https://openlibrary.org/developers/api) gives about 1
   request a second to unidentified clients and about 3 a second to clients that send a
   `User-Agent` with an app name and contact email. It asks for the data dumps, not the API, for
-  bulk downloads. One import needs one or two requests (R3), so 1 a second per process is ample.
-- **Contact in the User-Agent**: the header is `FamilyBookTracker/<version>`, plus
-  `(<contact>)` when `BOOK_TRACKER_OPENLIBRARY_CONTACT` is set. The contact is optional and set
-  by whoever runs the app; the code never adds one, so no family detail leaves the server
-  unless the operator chooses to send a contact address (Principle IX).
-- **Alternatives considered**: no `User-Agent` (lower limit, and Open Library asks for one);
-  a hard-coded project contact (sends an identity the operator didn't choose).
+  bulk downloads. One import needs one to three requests (R3), so 1 a second overall is ample.
+- **User-Agent**: exactly `FamilyBookTracker/<version>`. No contact address is sent: the person
+  running the app would usually supply their own email, and Principle IX forbids requests that
+  identify a family member. Open Library therefore treats the app as unidentified, so the
+  rate stays within its limit of about 1 request a second.
+- **Alternatives considered**: no `User-Agent` (Open Library asks for one); an optional contact
+  address set by the operator (rejected: in practice a parent's address, which identifies a
+  family member; /speckit-analyze finding C1); a hard-coded project contact (sends an
+  identity the operator didn't choose).
 
 ## R3. Open Library endpoints and fields
 
@@ -141,7 +143,9 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
 - **Decision**: each Open Library call is wrapped in `asyncio.timeout(10)` on top of httpx's own
   connect and read timeouts. Timeouts, connection errors, 5xx and 429 responses all raise
   `SourceUnavailable`; the API returns `503` with `code=source_unavailable`, and the page shows
-  the spec's message (AC-13). A per-process async limiter spaces requests at least 1 s apart.
+  the spec's message (AC-13). A per-process async limiter spaces requests at least 2 s apart
+  (R2). Time spent waiting for it counts against the same 10 s: if the wait would end after
+  the deadline, the call fails at once with `SourceUnavailable`.
   Malformed JSON or missing fields in a single work drop that work only, with a log line.
 - **Logging**: kind, HTTP status and duration only; never the session user (Principle IX).
 
@@ -209,5 +213,5 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
 
 - **Decision**: no infrastructure change. The app container is on the Compose `edge` network,
   which has outbound internet; the Pi's ufw allows outgoing traffic. Product spec section 10
-  already says features after 001 need outbound HTTPS. The optional
-  `BOOK_TRACKER_OPENLIBRARY_CONTACT` is documented in `deploy/pi/.env.example`.
+  already says features after 001 need outbound HTTPS. No new setting is needed;
+  `deploy/pi/.env.example` gets a comment saying the app now calls `openlibrary.org`.

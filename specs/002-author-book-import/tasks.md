@@ -50,7 +50,7 @@ implementation tasks they cover.
 - [ ] T002 [P] In `tests/contract/conftest.py`, replace the single `CONTRACT` path with a `contract(feature: str) -> OpenAPI` helper (cached per feature) that loads `specs/<feature>/contracts/openapi.yaml`; keep the existing fixtures validating against `001-family-reading-list` and add a `contract_002` fixture for `002-author-book-import`. Existing contract tests must still pass unchanged
 - [ ] T003 [P] In `scripts/check_coverage.py`, add `src/book_tracker/services/imports.py` to `CRITICAL_MODULES` and change the docstring to cite both `specs/001-family-reading-list/plan.md` and `specs/002-author-book-import/plan.md` "Coverage-critical modules"
 - [ ] T004 [P] Create `src/book_tracker/sources/__init__.py` and `tests/external/__init__.py`, and the directory `tests/external/fixtures/open_library/`
-- [ ] T005 [P] Add `BOOK_TRACKER_OPENLIBRARY_CONTACT` (commented out, optional, with a one-line explanation that it is added to the User-Agent sent to Open Library) to `deploy/pi/.env.example` (research R2, R16)
+- [ ] T005 [P] Add a comment to `deploy/pi/.env.example` that, from spec 002, the app makes outbound HTTPS requests to `openlibrary.org` and needs no setting for it (research R16)
 
 ---
 
@@ -65,14 +65,14 @@ implementation tasks they cover.
 - [ ] T006 Extend `tests/integration/test_migrations.py` so the upgrade → downgrade → upgrade round trip covers `0002_author_import`, and add checks that after upgrade the tables `book_source_ref` and `source_lookup_cache` exist with the named constraints from data-model.md, and after downgrade to `0001_initial` they are gone. Confirm it fails
 - [ ] T007 [P] Write `tests/integration/test_import_constraints.py`: inserting two `book_source_ref` rows with the same (`source`, `source_work_id`) violates `book_source_ref_source_work_key`; two rows for one book and source violate `book_source_ref_book_source_key`; `source_work_id='abc'` violates `book_source_ref_open_library_id_format`; `source='google_books'` violates the source CHECK; a cache row with `expires_at <= fetched_at` violates its CHECK; deleting a book deletes its source ref (Principle VI). Confirm it fails
 - [ ] T008 [P] Write `tests/unit/test_matching.py` for `domain/matching.py`: `normalize_title` (case, NFKC, punctuation, whitespace, leading "The"/"A"/"An" dropped only as a whole word: "The Way of Kings" == "way of kings", "Anathem" unchanged); `normalize_person_name`; `isbn10_to_13` ("0765326353" → "9780765326355", bad check digit → `None`, ISBN-13 passes through after validation); `merge_duplicate_works` keeps the most-editions id, earliest year and union of ISBN-13s (research R6). Confirm it fails
-- [ ] T009 [P] Write `tests/unit/test_rate_limit.py` for `sources/rate_limit.py`: with an injected clock and sleep, two acquisitions 0.2 s apart cause a 0.8 s sleep; acquisitions 1.5 s apart cause none (FR-018). Confirm it fails
+- [ ] T009 [P] Write `tests/unit/test_rate_limit.py` for `sources/rate_limit.py`: with an injected clock and sleep, two acquisitions 0.5 s apart cause a 1.5 s sleep; acquisitions 2.5 s apart cause none; and an acquisition whose wait would end after the caller's deadline raises `SourceUnavailable` at once, without sleeping (FR-016, FR-018; research R2, R9). Confirm it fails
 - [ ] T010 Record the fixtures with a new script `scripts/record_open_library_fixtures.py` (run by hand, never in CI; documented in its docstring; uses the same User-Agent as the adapter and sends only author names and keys) and commit its output to `tests/external/fixtures/open_library/`: `authors_brandon_sanderson.json` (two matches), `authors_single.json` (one match, e.g. "Ursula K. Le Guin"), `authors_none.json` (no match), `works_OL1394865A.json` (the 239-work list, fields as in research R3), and hand-made `works_duplicates.json` (two works with the same title and first author), `works_large_page1.json` / `works_large_page2.json` (`numFound` 2,500), `works_malformed.json` (one work missing `title`, one with `author_name` absent)
 - [ ] T011 Write `tests/external/test_open_library.py` replaying the fixtures with `httpx.MockTransport` (FR-015, FR-016, FR-018, FR-020, SC-005):
   - author search parses key, name, dates, top work and work count;
   - works parsing converts ISBN-10s and drops invalid ISBNs;
   - malformed works are dropped and logged, not fatal;
   - paging stops after 2 pages of 1,000 with `total` = 2,500 and `truncated`;
-  - every request goes only to the configured base URL with only `q`, `author_key`, `fields`, `limit` and `page` parameters, and a `User-Agent` of `FamilyBookTracker/<version>`, or `FamilyBookTracker/<version> (<contact>)` when a contact is set;
+  - every request goes only to the configured base URL with only `q`, `author_key`, `fields`, `limit` and `page` parameters, a `User-Agent` of exactly `FamilyBookTracker/<version>`, and no `From`, `Referer` or `Cookie` header (FR-015, FR-018, research R2);
   - a 503, a 429, a connection error and a read timeout (a transport that sleeps past a 0.1 s test timeout) each raise `SourceUnavailable`.
 
   Confirm it fails
@@ -83,19 +83,19 @@ implementation tasks they cover.
 
 - [ ] T014 Add `BookSourceRef` and `SourceLookupCache` to `src/book_tracker/persistence/models.py` with every constraint and index named exactly as in data-model.md, and write the reversible migration `migrations/versions/0002_author_import.py` (`down_revision = "0001_initial"`; downgrade drops `source_lookup_cache` then `book_source_ref`, with a comment pointing to the backup step in data-model.md). Add both tables to `TABLES` in `tests/conftest.py` so they're truncated between tests. Makes T006, T007 pass
 - [ ] T015 [P] Create `src/book_tracker/domain/imports.py` (frozen, slotted dataclasses `AuthorCandidate`, `WorkCandidate`, `WorkList`, `ImportedBook`, `ImportResult`, and the `WorkState` enum `NEW`/`IN_CATALOG`/`ON_MY_LIST`, fields as in data-model.md) and `src/book_tracker/domain/matching.py`. Makes T008 pass (FR-004, FR-005)
-- [ ] T016 [P] Create `src/book_tracker/sources/rate_limit.py`: an `asyncio.Lock`-guarded limiter that spaces calls at least `min_interval` (default 1.0 s) apart, with injectable clock and sleep. Makes T009 pass (FR-018)
+- [ ] T016 [P] Create `src/book_tracker/sources/rate_limit.py`: an `asyncio.Lock`-guarded limiter that spaces calls at least `min_interval` (default 2.0 s) apart, with injectable clock and sleep, and `acquire(deadline)` that raises `SourceUnavailable` if the wait would end after `deadline`. Makes T009 pass (FR-016, FR-018)
 - [ ] T017 Create `src/book_tracker/sources/base.py` (`BookSource` Protocol with `async search_authors(name: str) -> list[AuthorCandidate]` and `async author_works(author_key: str) -> WorkList`; `SourceUnavailable(Exception)` with a `reason` attribute; `SourceNotFound` for an unknown author key) and `src/book_tracker/sources/open_library.py`: an `OpenLibrarySource` built from settings and an `httpx.AsyncClient`. Requirements:
   - parse responses with private Pydantic models, never passing raw dicts out of `sources/`;
-  - wrap each call in `asyncio.timeout(settings.source_timeout_seconds)`;
+  - give each call one 10 s budget (`settings.source_timeout_seconds`), covering the limiter wait (`acquire(deadline)`) and the request (`asyncio.timeout`);
   - map timeouts, transport errors, 429 and 5xx to `SourceUnavailable`;
   - fetch at most 2 pages of `limit=1000` and merge duplicates with `merge_duplicate_works`;
   - log kind, status and duration only.
 
   Makes T011 pass (FR-015, FR-016, FR-018, FR-020; research R2–R4, R9)
-- [ ] T018 [P] Add to `src/book_tracker/settings.py`: `openlibrary_base_url: str = "https://openlibrary.org"`, `openlibrary_contact: str | None = None`, `source_timeout_seconds: float = 10.0`; add a unit test in `tests/unit/test_settings.py` for the defaults and environment overrides first (FR-016)
+- [ ] T018 [P] Add to `src/book_tracker/settings.py`: `openlibrary_base_url: str = "https://openlibrary.org"`, `source_timeout_seconds: float = 10.0` (no contact setting: research R2); add a unit test in `tests/unit/test_settings.py` for the defaults and environment overrides first (FR-016)
 - [ ] T019 [P] Create `src/book_tracker/persistence/source_cache.py` with `get(db, source, kind, key, now)`, `put(db, source, kind, key, payload, now, ttl=timedelta(hours=24))` (upsert, then delete rows with `expires_at < now`), and JSON (de)serialization of `AuthorCandidate` lists and `WorkList` to and from the `payload` column. Makes T012 pass (FR-017; research R5)
 - [ ] T020 [P] Add `book_ids_on_list(self, book_ids: Collection[uuid.UUID]) -> set[uuid.UUID]` to `ReadingEntryRepository` in `src/book_tracker/persistence/readings.py`, built on `self._owned()` so it is always filtered by the bound user. Makes T013 pass (Principle I)
-- [ ] T021 Create `tests/fakes.py` with `FakeBookSource` (configurable authors, works lists and errors, plus a call log), and wire the source into the app: `create_app` in `src/book_tracker/main.py` sets `app.state.book_source = OpenLibrarySource(settings, client)` and closes the httpx client on shutdown; add a `book_source` fixture in `tests/conftest.py` that swaps in a `FakeBookSource` for the test and restores it afterwards; add a `BookSourceDep` dependency in `src/book_tracker/auth/dependencies.py` or a new `src/book_tracker/sources/dependencies.py` reading `request.app.state.book_source`
+- [ ] T021 Create `tests/fakes.py` with `FakeBookSource` (configurable authors, works lists and errors, plus a call log), and wire the source into the app: `create_app` in `src/book_tracker/main.py` sets `app.state.book_source = OpenLibrarySource(settings, client)` and closes the httpx client on shutdown; add a `book_source` fixture in `tests/conftest.py` that swaps in a `FakeBookSource` for the test and restores it afterwards; add a `BookSourceDep` dependency in a new `src/book_tracker/sources/dependencies.py` reading `request.app.state.book_source`, so `auth/dependencies.py`, which must keep 100% coverage, doesn't change
 
 **Checkpoint**: schema migrated, adapter and cache tested, fake source available: user story work can begin
 
@@ -130,7 +130,7 @@ holds one copy of each, and no other member's list changed.
   - a work already on the list is skipped and reported (AC-17, FR-012);
   - an expired cache row gives `results_expired`, and a work id not in the cached list gives a validation error (research R8).
 - [ ] T024 [P] [US1] Concurrency test in `tests/integration/test_imports_concurrency.py`: two members confirm the same new work at once (two sessions, `asyncio.gather`); afterwards there is one `book`, one `book_source_ref`, and an entry on each member's list (AC-16, SC-003)
-- [ ] T025 [P] [US1] Cross-user tests in `tests/integration/test_imports_isolation.py`: after Alice imports, Ben's list is unchanged, Ben's works list shows those books as `IN_CATALOG` (not `ON_MY_LIST`), and no import endpoint accepts a user id: sending `user_id` in the body is rejected by `additionalProperties: false` (AC-18, Principle I)
+- [ ] T025 [P] [US1] Cross-user tests in `tests/integration/test_imports_isolation.py`: after Alice imports, Ben's list is unchanged, Ben's works list shows those books as `IN_CATALOG` (not `ON_MY_LIST`), and no import endpoint accepts a user id: sending `user_id` in the body is rejected by `additionalProperties: false`. The same for the page routes: when Ben loads `GET /import/authors/{key}`, Alice's imported books show "In the family catalog", never "Already on your list"; when Ben confirms with `POST /import/authors/{key}`, entries are added to Ben's list only, and Alice's list keeps the same entries and statuses (AC-18, Principle I)
 - [ ] T026 [P] [US1] Failure tests in `tests/integration/test_imports_failures.py`: with `FakeBookSource` raising `SourceUnavailable`, the API returns 503 `source_unavailable`, the page shows "The book site couldn't be reached. Try again later, or add the book by hand," with a link to `/books/add`, and nothing is written; other pages still load (AC-13, SC-004)
 - [ ] T027 [P] [US1] UI tests in `tests/integration/test_import_pages.py`:
   - `/import` renders the search form; a non-Admin member can use it (FR-014);
@@ -143,7 +143,7 @@ holds one copy of each, and no other member's list changed.
 
 ### Implementation for User Story 1
 
-- [ ] T029 [P] [US1] Create `src/book_tracker/persistence/imports.py`: `find_books_by_source_ids(db, source, ids) -> dict[str, uuid.UUID]`, `find_books_by_isbns(db, isbns) -> dict[str, uuid.UUID]`, `books_by_first_author_name(db, name) -> list[tuple[uuid.UUID, str]]` (id, title) using `lower(author.name)` and `book_author.position = 1`, `insert_source_ref(db, book_id, source, work_id, actor_id, now)`, and `source_ref_for_book(db, book_id)` (FR-005, FR-009)
+- [ ] T029 [P] [US1] Create `src/book_tracker/persistence/imports.py`: `find_books_by_source_ids(db, source, ids) -> dict[str, uuid.UUID]`, `find_books_by_isbns(db, isbns) -> dict[str, uuid.UUID]`, `books_by_first_author_name(db, name) -> list[tuple[uuid.UUID, str]]` (id, title) using `lower(author.name)` and `book_author.position = 1`, `find_authors_by_names(db, names) -> dict[str, uuid.UUID]` (one query on `lower(name)`), `insert_source_ref(db, book_id, source, work_id, actor_id, now)`, and `source_ref_for_book(db, book_id)` (FR-005, FR-009, SC-006)
 - [ ] T030 [P] [US1] Create `src/book_tracker/schemas/imports.py`: `AuthorCandidateOut`, `AuthorCandidateList`, `WorkCandidateOut`, `WorkList`, `ImportRequest` (`model_config = ConfigDict(extra="forbid")`, `author_key` pattern `^OL[0-9]+A$`, 1–2000 unique `work_keys` matching `^OL[0-9]+W$`, `status: ReadingStatus = FINISHED`), `ImportedBookOut`, `ImportResult`, an `AuthorSearchQuery` form/query model (`q` 1–200 chars), and mappers from domain objects in `src/book_tracker/schemas/mappers.py` (FR-001, FR-003, FR-013; contracts/openapi.yaml)
 - [ ] T031 [US1] Create `src/book_tracker/services/imports.py`:
   - `search_authors(db, source, name, now)`: cache first, then source; cache put.
@@ -155,6 +155,7 @@ holds one copy of each, and no other member's list changed.
     - insert the source ref; on `book_source_ref_source_work_key`, roll back the savepoint and reuse the existing book;
     - then add the entry via `ReadingEntryRepository`, using `readings.apply_status_change` for `times_read` and skipping books already on the list;
     - return an `ImportResult`.
+  - Keep it fast (SC-006): look up existing authors for all selected works in one query (`find_authors_by_names`) and work out catalog matches once for the whole selection; use a savepoint per work only around the inserts. No query may run once per author per work.
 
   The user id always comes from the caller's session argument; there is no other input for it. Must reach 100% line coverage (FR-001, FR-003, FR-005, FR-007 to FR-014, FR-017; research R6–R8, R10). Makes T023–T025 pass
 - [ ] T032 [US1] Add `ResultsExpired` handling to `src/book_tracker/api/errors.py` and a `SourceUnavailable` → 503 `source_unavailable` problem mapping (with the spec's message as `title`) for both the API and `web` error rendering; add both responses to `src/book_tracker/api/responses.py` (FR-016; AC-13)
@@ -234,15 +235,15 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 **Purpose**: Accessibility, performance, coverage, contract and docs across all stories
 
 - [ ] T046 [P] Add the import pages (search, author choice, works list with a fake 30-work list, summary, unreachable message) to `tests/a11y/test_axe_pages.py`, a keyboard journey (search → choose author → tick two works with Space → choose status → confirm, all without a mouse) to `tests/a11y/test_keyboard_journeys.py`, and the works page at phone width (no horizontal scroll) to `tests/a11y/test_responsive.py`; fix any findings in the templates and `src/book_tracker/web/static/css/app.css` (FR-019)
-- [ ] T047 [P] Write `tests/perf/test_import_perf.py` (marker `perf`): with the 5,000-book seed and a warm cache of 300 works for one author, rendering `/import/authors/{key}` and `GET /api/v1/import/authors/{key}/works` each have p95 under 1 s over 30 runs (SC-002)
+- [ ] T047 [P] Write `tests/perf/test_import_perf.py` (marker `perf`): with the 5,000-book seed and a warm cache of 300 works for one author, rendering `/import/authors/{key}` and `GET /api/v1/import/authors/{key}/works` each have p95 under 1 s over 30 runs (SC-002); and `POST /api/v1/me/imports` with 200 new works (fresh database each run, 5 runs) finishes in under 5 s in CI, a stand-in for the Pi's 10 s (SC-006)
 - [ ] T048 [P] Add a test in `tests/external/test_open_library.py` that records every outgoing request across a full search → works → confirm flow and asserts none contains the member's login, display name, session cookie, notes or status, and that confirm makes no request at all (SC-005, FR-015, research R8)
 - [ ] T049 Run `uv run pytest --cov --cov-report=json && uv run python scripts/check_coverage.py` and bring `services/imports.py` and `persistence/readings.py` to 100% line coverage and the total to at least 85%
 - [ ] T050 Run the full gate list from CLAUDE.md "Build & Test" (`ruff check`, `ruff format --check`, `mypy --strict src`, pytest, `-m a11y`, `-m perf`, `pip-audit`, `export_openapi`) and fix anything that fails
 - [ ] T051 [P] Update `docs/Family Book Tracker – Specification.md`:
-  - section 10.4 or "Outbound internet": the app now calls `openlibrary.org` over HTTPS, and the optional `BOOK_TRACKER_OPENLIBRARY_CONTACT` exists;
+  - section 10.4 or "Outbound internet": the app now calls `openlibrary.org` over HTTPS, and requests carry only the app name and version;
   - the "Where the information comes from" table: Open Library is in use for author import, and Google Books is deferred (decision books-zl3, follow-up books-395).
-- [ ] T052 [P] Add a short "Import from Open Library" section to `deploy/pi/README.md` section 9 (Routine maintenance): no setup needed beyond outbound HTTPS; the optional contact setting; what the "couldn't be reached" message means and that it never blocks adding books by hand
-- [ ] T053 Walk through [quickstart.md](quickstart.md) "Manual walk-through" against the real Open Library on a local instance and record the results (pass/fail per step) in the PR description
+- [ ] T052 [P] Add a short "Import from Open Library" section to `deploy/pi/README.md` section 9 (Routine maintenance): no setup needed beyond outbound HTTPS; what the "couldn't be reached" message means and that it never blocks adding books by hand
+- [ ] T053 Walk through [quickstart.md](quickstart.md) "Manual walk-through" against the real Open Library on a local instance and record the results (pass/fail per step) in the PR description; after deploying, time a 200-book confirm on the Pi against the 10 s budget (SC-006)
 
 ---
 
@@ -295,6 +296,7 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 | SC-003 | T024 |
 | SC-004 | T026 |
 | SC-005 | T011, T048 |
+| SC-006 | T029, T031, T047, T053 |
 
 ---
 

@@ -8,8 +8,8 @@ How to check spec 002 end to end. Setup and running the app are as in
 - The app running locally (001 quickstart) with migrations at head, so
   `0002_author_import` is applied: `uv run alembic upgrade head`.
 - Two member accounts, for example `alice` and `ben`.
-- For manual checks against the real site: outbound HTTPS to `openlibrary.org`. Optional:
-  `BOOK_TRACKER_OPENLIBRARY_CONTACT` set to a contact address for the User-Agent (research R2).
+- For manual checks against the real site: outbound HTTPS to `openlibrary.org`. No setting is
+  needed; requests identify only the app (research R2).
 - Automated tests never contact Open Library; they replay the recorded fixtures in
   `tests/external/fixtures/open_library/` (research R14).
 

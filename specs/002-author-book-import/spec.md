@@ -238,8 +238,9 @@ books are added.
 - **FR-017**: Open Library's results for an author MUST be reused for 24 hours, so repeating a
   search within a day does not contact the site again. Reused results are kept apart from the
   catalog and are never shown as catalog content (Constitution Principle III, caching rule).
-- **FR-018**: The system MUST stay within Open Library's published usage limits, and identify
-  itself with a User-Agent as Open Library asks.
+- **FR-018**: The system MUST stay within Open Library's published usage limits (about 1
+  request a second for requests without a contact address), and name itself in a User-Agent
+  that contains no contact address or other detail about the family.
 - **FR-019**: The screens MUST meet WCAG 2.2 AA and work on phone, tablet and desktop, as in
   spec 001.
 - **FR-020**: An author's list MUST show at most 2,000 works, with a note giving the total when
@@ -290,8 +291,9 @@ books are added.
 | Open Library | Official API (author search, author works); no key | Yes: free API for book metadata; asks clients to identify themselves and to use data dumps, not the API, for bulk downloads ([openlibrary.org/developers/api](https://openlibrary.org/developers/api)) | Author name typed by the member; Open Library identifiers |
 
 Open Library is added as an adapter behind the common source-adapter interface
-(Constitution Principle IV). Requests identify the app with a User-Agent, which Open Library
-asks of regular users and which raises its limit from about 1 to about 3 requests a second.
+(Constitution Principle IV). Requests name the app in a User-Agent, as Open Library asks, but
+carry no contact address, since that would identify a family member (Principle IX). Open
+Library's limit for such requests is about 1 a second, which this feature stays within.
 
 Google Books was considered and left out: its branding guidelines say results "may not be
 reordered or otherwise altered" and need a "Powered by Google" badge beside them
@@ -326,6 +328,8 @@ a use that shows its results unaltered.
   seconds, and the rest of the app keeps working normally.
 - **SC-005**: No request to an external site contains anything identifying a family member,
   checked by recorded-request tests on every import path.
+- **SC-006**: Confirming 200 selected books finishes within 10 seconds on the family's server,
+  and confirming the full 2,000 within 60 seconds.
 
 ## Clarifications
 

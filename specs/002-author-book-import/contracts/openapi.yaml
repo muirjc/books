@@ -77,8 +77,9 @@ paths:
       summary: Add selected works to my list, creating catalog books as needed (FR-007 to FR-014)
       description: |
         Works are read from the server's cached list for the author (research R8); nothing
-        is fetched from Open Library. Works already on my list are skipped (AC-17). New books
-        have no series and no ISBN (FR-010, FR-011).
+        is fetched from Open Library. At most 500 works per request (FR-014, AC-21). Works
+        already on my list, and works that resolve to a book already being added, are skipped
+        and reported (AC-17, AC-22). New books have no series and no ISBN (FR-010, FR-011).
       parameters:
         - $ref: "#/components/parameters/CsrfHeader"
       requestBody:
@@ -135,7 +136,8 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
     NotFound:
-      description: Open Library has no author with this key
+      description: |
+        code=author_not_found: Open Library has no author with this key (AC-23)
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -220,7 +222,11 @@ components:
       type: object
       required: [author, works, total, truncated, fetched_at]
       properties:
-        author: { $ref: "#/components/schemas/AuthorCandidate" }
+        author:
+          allOf: [{ $ref: "#/components/schemas/AuthorCandidate" }]
+          description: |
+            From the author search the member came from when available; otherwise from the
+            works response (name and work count only; dates and top work null). Research R3.
         works:
           type: array
           maxItems: 2000
@@ -238,7 +244,7 @@ components:
         work_keys:
           type: array
           minItems: 1
-          maxItems: 2000
+          maxItems: 500
           uniqueItems: true
           items: { type: string, pattern: "^OL[0-9]+W$" }
         status:
@@ -254,17 +260,21 @@ components:
         new_to_catalog: { type: boolean }
     SkippedBook:
       type: object
-      required: [book_id, title]
+      required: [book_id, title, reason]
       properties:
         book_id: { type: string, format: uuid }
         title: { type: string }
+        reason:
+          type: string
+          enum: [on_list, duplicate]
+          description: on_list (already on my list) or duplicate (another selected work is the same book)
     ImportResult:
       type: object
-      required: [added, skipped_on_list]
+      required: [added, skipped]
       properties:
         added:
           type: array
           items: { $ref: "#/components/schemas/ImportedBook" }
-        skipped_on_list:
+        skipped:
           type: array
           items: { $ref: "#/components/schemas/SkippedBook" }

@@ -47,7 +47,8 @@ showing and confirming (research R8). Never read as catalog content. It holds no
   row is written.
 - Payload for `author_search`: a list of author candidates. For `author_works`: the author
   candidate, `total` (Open Library's `numFound`) and the de-duplicated works, each with id,
-  title, first published year, author names in order, and ISBN-13s for matching.
+  alias ids, title, first published year, author names in order, and ISBN-13s for matching.
+  A row with less than 1 hour left is refreshed when the list is shown (research R8).
 
 ## Domain objects (not stored)
 
@@ -56,10 +57,12 @@ Frozen dataclasses in `src/book_tracker/domain/imports.py`:
 | Object | Fields | Notes |
 |---|---|---|
 | `AuthorCandidate` | `source_id`, `name`, `birth_date`, `death_date`, `top_work`, `work_count` | Dates are Open Library's free text, shown as given |
-| `WorkCandidate` | `source_id`, `title`, `first_publish_year`, `author_names` (ordered), `isbn13s` (set), `edition_count` | `isbn13s` used only for matching (FR-011) |
+| `WorkCandidate` | `source_id`, `alias_ids` (other merged work ids), `title`, `first_publish_year`, `author_names` (ordered, no repeats), `isbn13s` (set), `edition_count` | Title and names NFKC-normalized and cut to 300/200 characters (FR-022); `isbn13s` used only for matching (FR-011) |
 | `WorkList` | `author`, `works`, `total`, `truncated` | `truncated` when `total` > 2,000 (FR-020) |
 | `WorkState` | `NEW`, `IN_CATALOG`, `ON_MY_LIST` | Computed per member at display time (FR-005) |
-| `ImportResult` | `added` (book id, title, entry id, new to catalog), `skipped_on_list` (book id, title) | The summary (FR-012) |
+| `ImportedBook` | `book_id`, `title`, `entry_id`, `new_to_catalog` | One added book |
+| `SkippedBook` | `book_id`, `title`, `reason` (`on_list` or `duplicate`) | One skipped work (FR-012, FR-021) |
+| `ImportResult` | `added` (list of `ImportedBook`), `skipped` (list of `SkippedBook`) | The summary (FR-012) |
 
 Value rules in `domain/matching.py`: `normalize_title`, `normalize_person_name`,
 `isbn10_to_13` (returns `None` for an invalid check digit), and `merge_duplicate_works`
@@ -75,7 +78,11 @@ Value rules in `domain/matching.py`: `normalize_title`, `normalize_person_name`,
 | Source link | `book_source_ref` (new) | One row per newly created book; a unique violation means "another member just imported it" → reuse that book (AC-16) |
 | List entry | `reading_entry` (existing, personal) | Through `ReadingEntryRepository(db, session_user)`; chosen status; skipped if already on the list (AC-17, FR-013) |
 
-All steps for one confirm run in one transaction, with a savepoint per work (research R7).
+All steps for one confirm run in one transaction that first takes the advisory lock
+`pg_advisory_xact_lock(hashtext('book_tracker.import'))`, so confirms run one at a time
+(research R7). Book inserts and each reading-entry insert have their own savepoint. Id and
+ISBN lookups pass one array parameter (`= ANY(:ids)`). A confirm holds at most 500 works
+(FR-014).
 
 ## Ownership and access summary
 

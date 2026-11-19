@@ -11,8 +11,9 @@ No custom JavaScript (research R12).
 |---|---|---|---|
 | GET | `/import` | Search form: author name. Linked from "Add a book" and the main navigation | FR-001 |
 | GET | `/import/authors?q=` | Matching authors with birth/death years, best-known title and number of works; with exactly one match, 303 (or `HX-Redirect`) to its works page; with none, "No author found" and a link to `/books/add` | FR-002, AC-08, AC-09 |
-| GET | `/import/authors/{author_key}?sort=&q=` | The works table: title, year, co-authors, state badge ("Already on your list", "In the family catalog"), checkbox (none for books on my list), status radio buttons (default Finished), "Select all shown". Fragment `#import-works` for sort, filter and select-all; `hx-include` keeps ticked boxes | FR-003 to FR-006, FR-020 |
-| POST | `/import/authors/{author_key}` | Confirm: add the ticked works to my list with the chosen status; renders the summary (200), not a redirect (research R12) | FR-007 to FR-013 |
+| GET | `/import/authors/{author_key}` | The works table: title, year, co-authors, state badge ("Already on your list", "In the family catalog"), checkbox (none for books on my list), status radio buttons (default Finished), "Select all shown". Unknown key: "No such author on Open Library" (404) | FR-003 to FR-006, FR-020, AC-23 |
+| POST | `/import/authors/{author_key}/view` | Read-only re-render of fragment `#import-works` for sort, title filter and "Select all shown" (`select=shown`, at most 500 ticked), with the ticked `work` values in the body (research R12). CSRF-checked like every POST; blank `sort` or `q` means absent | FR-006, AC-10, AC-11 |
+| POST | `/import/authors/{author_key}` | Confirm: add the ticked works (at most 500) to my list with the chosen status; renders the summary (200), not a redirect (research R12) | FR-007 to FR-014, FR-021 |
 
 States and messages:
 
@@ -21,8 +22,12 @@ States and messages:
 - **Results expired** at confirm: "These results are more than a day old. Reload the list and
   confirm again." Nothing is added.
 - **Nothing ticked**: the confirm is refused with a field error on the table.
+- **More than 500 ticked**: "You can add up to 500 books at a time." Nothing is added (AC-21).
+- **Who added it**: like every catalog book, an imported book shows "Last edited by <name>";
+  nothing on these pages shows another member's status, dates or notes (research R17).
 - **Summary**: "Added N books to your list (M new to the family catalog)", a list of the books
-  linking to their entries, and any "Already on your list" skips (FR-012). Announced through an
+  linking to their entries, and any skips: "Already on your list", or "Same book as another one you ticked" (FR-012,
+  FR-021). Announced through an
   `aria-live="polite"` region.
 - **Book page** (`/entries/{id}` and the catalog book edit page): an imported book shows
   "Imported from Open Library" with a link to `https://openlibrary.org/works/<id>` (FR-009).

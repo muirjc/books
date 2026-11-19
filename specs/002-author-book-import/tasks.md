@@ -66,7 +66,7 @@ implementation tasks they cover.
 - [ ] T007 [P] Write `tests/integration/test_import_constraints.py`: inserting two `book_source_ref` rows with the same (`source`, `source_work_id`) violates `book_source_ref_source_work_key`; two rows for one book and source violate `book_source_ref_book_source_key`; `source_work_id='abc'` violates `book_source_ref_open_library_id_format`; `source='google_books'` violates the source CHECK; a cache row with `expires_at <= fetched_at` violates its CHECK; deleting a book deletes its source ref (Principle VI). Confirm it fails
 - [ ] T008 [P] Write `tests/unit/test_matching.py` for `domain/matching.py`: `normalize_title` (case, NFKC, punctuation, whitespace, leading "The"/"A"/"An" dropped only as a whole word: "The Way of Kings" == "way of kings", "Anathem" unchanged); `normalize_person_name`; `isbn10_to_13` ("0765326353" → "9780765326355", bad check digit → `None`, ISBN-13 passes through after validation); `merge_duplicate_works` keeps the most-editions id, earliest year and union of ISBN-13s (research R6). Confirm it fails
 - [ ] T009 [P] Write `tests/unit/test_rate_limit.py` for `sources/rate_limit.py`: with an injected clock and sleep, two acquisitions 0.5 s apart cause a 1.5 s sleep; acquisitions 2.5 s apart cause none; and an acquisition whose wait would end after the caller's deadline raises `SourceUnavailable` at once, without sleeping (FR-016, FR-018; research R2, R9). Confirm it fails
-- [ ] T010 Record the fixtures with a new script `scripts/record_open_library_fixtures.py` (run by hand, never in CI; documented in its docstring; uses the same User-Agent as the adapter and sends only author names and keys) and commit its output to `tests/external/fixtures/open_library/`: `authors_brandon_sanderson.json` (two matches), `authors_single.json` (one match, e.g. "Ursula K. Le Guin"), `authors_none.json` (no match), `works_OL1394865A.json` (the 239-work list, fields as in research R3), and hand-made `works_duplicates.json` (two works with the same title and first author), `works_large_page1.json` / `works_large_page2.json` (`numFound` 2,500), `works_malformed.json` (one work missing `title`, one with `author_name` absent)
+- [ ] T010 Record the fixtures with a new script `scripts/record_open_library_fixtures.py` (run by hand, never in CI; documented in its docstring; uses the same User-Agent as the adapter and sends only author names and keys) and commit its output to `tests/external/fixtures/open_library/`: `authors_brandon_sanderson.json` (two matches), `authors_single.json` (one match, e.g. "Ursula K. Le Guin"), `authors_none.json` (no match), `works_OL1394865A.json` (the 239-work list, fields as in research R3), and hand-made `works_duplicates.json` (two works with the same title and first author), `works_large_page1.json` / `works_large_page2.json` (`numFound` 2,500), `works_malformed.json` (one work missing `title`, one with `author_name` absent), `works_unknown_author.json` (`numFound` 0), `works_repeated_author.json` (a work whose `author_name` lists the same person twice) and `works_long_values.json` (a 400-character title and a 250-character name). Trim `authors_single.json` to one author if the live search returns more
 - [ ] T011 Write `tests/external/test_open_library.py` replaying the fixtures with `httpx.MockTransport` (FR-015, FR-016, FR-018, FR-020, SC-005):
   - author search parses key, name, dates, top work and work count;
   - works parsing converts ISBN-10s and drops invalid ISBNs;
@@ -76,13 +76,14 @@ implementation tasks they cover.
   - a 503, a 429, a connection error and a read timeout (a transport that sleeps past a 0.1 s test timeout) each raise `SourceUnavailable`.
 
   Confirm it fails
+  Also (review of PR #9): the works list's author comes from the response (name at the `author_key` position, `work_count` = `numFound`) when no search result is given; `works_unknown_author.json` raises `SourceNotFound`; a repeated author is listed once; titles and names are NFKC-normalized and a 400-character title is cut to 300 and a 250-character name to 200 at a word boundary with "…"; and a two-page list whose second request would exceed the 10 s request budget fails with `SourceUnavailable` (FR-016, FR-020, FR-021, FR-022; research R3, R6, R9).
 - [ ] T012 [P] Write `tests/integration/test_source_cache.py` for `persistence/source_cache.py`: put then get returns the payload; a row past `expires_at` is not returned; putting a row deletes expired rows; a second put for the same key upserts (FR-017). Confirm it fails
 - [ ] T013 [P] Add to `tests/integration/test_reading_isolation.py` (or a new `tests/integration/test_book_ids_on_list.py`): `ReadingEntryRepository(db, alice).book_ids_on_list([b1, b2, b3])` returns only the books on Alice's list, never Ben's, and an empty input returns an empty set (Principle I; this module must stay at 100% coverage). Confirm it fails
 
 ### Implementation
 
 - [ ] T014 Add `BookSourceRef` and `SourceLookupCache` to `src/book_tracker/persistence/models.py` with every constraint and index named exactly as in data-model.md, and write the reversible migration `migrations/versions/0002_author_import.py` (`down_revision = "0001_initial"`; downgrade drops `source_lookup_cache` then `book_source_ref`, with a comment pointing to the backup step in data-model.md). Add both tables to `TABLES` in `tests/conftest.py` so they're truncated between tests. Makes T006, T007 pass
-- [ ] T015 [P] Create `src/book_tracker/domain/imports.py` (frozen, slotted dataclasses `AuthorCandidate`, `WorkCandidate`, `WorkList`, `ImportedBook`, `ImportResult`, and the `WorkState` enum `NEW`/`IN_CATALOG`/`ON_MY_LIST`, fields as in data-model.md) and `src/book_tracker/domain/matching.py`. Makes T008 pass (FR-004, FR-005)
+- [ ] T015 [P] Create `src/book_tracker/domain/imports.py` (frozen, slotted dataclasses `AuthorCandidate`, `WorkCandidate` (with `alias_ids`), `WorkList`, `ImportedBook`, `SkippedBook` (with `reason` `on_list` or `duplicate`), `ImportResult`, and the `WorkState` enum `NEW`/`IN_CATALOG`/`ON_MY_LIST`, fields as in data-model.md) and `src/book_tracker/domain/matching.py`. Makes T008 pass (FR-004, FR-005)
 - [ ] T016 [P] Create `src/book_tracker/sources/rate_limit.py`: an `asyncio.Lock`-guarded limiter that spaces calls at least `min_interval` (default 2.0 s) apart, with injectable clock and sleep, and `acquire(deadline)` that raises `SourceUnavailable` if the wait would end after `deadline`. Makes T009 pass (FR-016, FR-018)
 - [ ] T017 Create `src/book_tracker/sources/base.py` (`BookSource` Protocol with `async search_authors(name: str) -> list[AuthorCandidate]` and `async author_works(author_key: str) -> WorkList`; `SourceUnavailable(Exception)` with a `reason` attribute; `SourceNotFound` for an unknown author key) and `src/book_tracker/sources/open_library.py`: an `OpenLibrarySource` built from settings and an `httpx.AsyncClient`. Requirements:
   - parse responses with private Pydantic models, never passing raw dicts out of `sources/`;
@@ -92,10 +93,12 @@ implementation tasks they cover.
   - log kind, status and duration only.
 
   Makes T011 pass (FR-015, FR-016, FR-018, FR-020; research R2–R4, R9)
+  Also: normalize and cut titles and names as in research R6 (FR-022); remove repeated authors on a work (FR-021); take the author header as in research R3 with no third request; raise `SourceNotFound` for an unknown key; and apply the 10 s budget **per member request** across all calls and limiter waits (`author_works` takes one deadline for both pages).
 - [ ] T018 [P] Add to `src/book_tracker/settings.py`: `openlibrary_base_url: str = "https://openlibrary.org"`, `source_timeout_seconds: float = 10.0` (no contact setting: research R2); add a unit test in `tests/unit/test_settings.py` for the defaults and environment overrides first (FR-016)
 - [ ] T019 [P] Create `src/book_tracker/persistence/source_cache.py` with `get(db, source, kind, key, now)`, `put(db, source, kind, key, payload, now, ttl=timedelta(hours=24))` (upsert, then delete rows with `expires_at < now`), and JSON (de)serialization of `AuthorCandidate` lists and `WorkList` to and from the `payload` column. Makes T012 pass (FR-017; research R5)
 - [ ] T020 [P] Add `book_ids_on_list(self, book_ids: Collection[uuid.UUID]) -> set[uuid.UUID]` to `ReadingEntryRepository` in `src/book_tracker/persistence/readings.py`, built on `self._owned()` so it is always filtered by the bound user. Makes T013 pass (Principle I)
 - [ ] T021 Create `tests/fakes.py` with `FakeBookSource` (configurable authors, works lists and errors, plus a call log), and wire the source into the app: `create_app` in `src/book_tracker/main.py` sets `app.state.book_source = OpenLibrarySource(settings, client)` and closes the httpx client on shutdown; add a `book_source` fixture in `tests/conftest.py` that swaps in a `FakeBookSource` for the test and restores it afterwards; add a `BookSourceDep` dependency in a new `src/book_tracker/sources/dependencies.py` reading `request.app.state.book_source`, so `auth/dependencies.py`, which must keep 100% coverage, doesn't change
+  Also (review finding 3): `create_app(settings, book_source=None)` uses the source it's given; with none, it builds `OpenLibrarySource` only when `settings.environment != "test"`, and under test installs a source whose every call fails. Add a FastAPI lifespan that opens and closes the `httpx.AsyncClient` (research R18). Pass `FakeBookSource` to the app built by `tests/a11y/conftest.py::live_server`. Add a guard test in `tests/unit/test_no_live_calls.py` that patches `OpenLibrarySource.__init__` to fail and builds the app with test settings (Principle V).
 
 **Checkpoint**: schema migrated, adapter and cache tested, fake source available: user story work can begin
 
@@ -116,7 +119,7 @@ holds one copy of each, and no other member's list changed.
 > **Write these tests FIRST and confirm they FAIL for the expected reason before implementation.**
 > Tag each test with its feature-qualified AC ID, e.g. `@pytest.mark.ac("002/AC-01")`.
 
-- [ ] T022 [P] [US1] Contract tests in `tests/contract/test_imports_contract.py` against `contract_002`: `GET /api/v1/import/authors?q=`, `GET /api/v1/import/authors/{key}/works`, and `POST /api/v1/me/imports` responses validate (200, 201, 401, 403 for a missing CSRF header, 409 `results_expired`, 422, 503 `source_unavailable`) (AC-01, AC-02, AC-13)
+- [ ] T022 [P] [US1] Contract tests in `tests/contract/test_imports_contract.py` against `contract_002`: `GET /api/v1/import/authors?q=`, `GET /api/v1/import/authors/{key}/works`, and `POST /api/v1/me/imports` responses validate (200, 201, 401, 403 for a missing CSRF header, 404 `author_not_found`, 409 `results_expired`, 422 including 501 `work_keys`, 503 `source_unavailable`), and `ImportResult.skipped` carries `reason` (AC-01, AC-02, AC-13, AC-21, AC-23)
 - [ ] T023 [P] [US1] Service tests in `tests/integration/test_imports_service.py` for `services/imports.py` with `FakeBookSource`:
   - search returns the author candidates (AC-01);
   - `list_works` returns each work with `NEW`, `IN_CATALOG` or `ON_MY_LIST` (AC-04, AC-17);
@@ -130,8 +133,21 @@ holds one copy of each, and no other member's list changed.
   - a work already on the list is skipped and reported (AC-17, FR-012);
   - an expired cache row gives `results_expired`, and a work id not in the cached list gives a validation error (research R8);
   - `list_works` with `sort="title"` (the default) orders by normalized title, and with `sort="year"` by first published year, works without a year last, then by title, so the API matches the contract from US1 on (contracts/openapi.yaml).
-- [ ] T024 [P] [US1] Concurrency test in `tests/integration/test_imports_concurrency.py`: two members confirm the same new work at once (two sessions, `asyncio.gather`); afterwards there is one `book`, one `book_source_ref`, and an entry on each member's list (AC-16, SC-003)
+  Also (review of PR #9):
+  - two selected works that resolve to one catalog book add it once and report the other as `duplicate`; a work listing an author twice adds the author once; the rest of the selection is still added (AC-22, FR-021);
+  - an author whose stored name differs from Open Library's only by Unicode form (precomposed vs decomposed accent) is reused, not duplicated (AC-05, FR-022);
+  - a 400-character title is stored cut to 300 (FR-022);
+  - a book matched through any of a merged work's `alias_ids` is `IN_CATALOG` (research R6);
+  - a cache row with under 1 hour left is refreshed when the list is shown (research R8);
+  - 501 selected works are refused with "You can add up to 500 books at a time" and nothing is added (AC-21, FR-014);
+  - an unknown author key gives `SourceNotFound` (AC-23).
+- [ ] T024 [P] [US1] Concurrency tests in `tests/integration/test_imports_concurrency.py` (AC-16, SC-003; research R7):
+  - **Deterministic race:** Alice lists the works; then, in a separate session, Ben's confirm of the same new work commits; then Alice confirms. Afterwards there is one `book`, one `book_source_ref` and an entry on each list, and Alice's summary says the book wasn't new to the catalog.
+  - **Serialized confirms:** a session holding `pg_advisory_xact_lock(hashtext('book_tracker.import'))` makes a confirm wait until it commits (assert the confirm doesn't finish while the lock is held).
+  - **No deadlock:** two confirms with overlapping new co-authors in opposite orders, via `asyncio.gather`, both succeed.
+  - **Backstop:** with the lock bypassed (a test-only flag), a `book_source_ref_source_work_key` violation rolls back that work's savepoint and reuses the existing book.
 - [ ] T025 [P] [US1] Cross-user tests in `tests/integration/test_imports_isolation.py`: after Alice imports, Ben's list is unchanged, Ben's works list shows those books as `IN_CATALOG` (not `ON_MY_LIST`), and no import endpoint accepts a user id: sending `user_id` in the body is rejected by `additionalProperties: false`. The same for the page routes: when Ben loads `GET /import/authors/{key}`, Alice's imported books show "In the family catalog", never "Already on your list"; when Ben confirms with `POST /import/authors/{key}`, entries are added to Ben's list only, and Alice's list keeps the same entries and statuses (AC-18, Principle I)
+  Cover every import endpoint explicitly (Principle I): `GET /api/v1/import/authors/{key}/works` as Ben shows Alice's books as `in_catalog`, and `POST /api/v1/me/imports` as Ben adds only to Ben's list, as well as the page routes.
 - [ ] T026 [P] [US1] Failure tests in `tests/integration/test_imports_failures.py`: with `FakeBookSource` raising `SourceUnavailable`, the API returns 503 `source_unavailable`, the page shows "The book site couldn't be reached. Try again later, or add the book by hand," with a link to `/books/add`, and nothing is written; other pages still load (AC-13, SC-004)
 - [ ] T027 [P] [US1] UI tests in `tests/integration/test_import_pages.py`:
   - `/import` renders the search form; a non-Admin member can use it (FR-014);
@@ -145,7 +161,8 @@ holds one copy of each, and no other member's list changed.
 ### Implementation for User Story 1
 
 - [ ] T029 [P] [US1] Create `src/book_tracker/persistence/imports.py`: `find_books_by_source_ids(db, source, ids) -> dict[str, uuid.UUID]`, `find_books_by_isbns(db, isbns) -> dict[str, uuid.UUID]`, `books_by_first_author_name(db, name) -> list[tuple[uuid.UUID, str]]` (id, title) using `lower(author.name)` and `book_author.position = 1`, `find_authors_by_names(db, names) -> dict[str, uuid.UUID]` (one query on `lower(name)`), `insert_source_ref(db, book_id, source, work_id, actor_id, now)`, and `source_ref_for_book(db, book_id)` (FR-005, FR-009, SC-006)
-- [ ] T030 [P] [US1] Create `src/book_tracker/schemas/imports.py`: `AuthorCandidateOut`, `AuthorCandidateList`, `WorkCandidateOut`, `WorkList`, `ImportRequest` (`model_config = ConfigDict(extra="forbid")`, `author_key` pattern `^OL[0-9]+A$`, 1–2000 unique `work_keys` matching `^OL[0-9]+W$`, `status: ReadingStatus = FINISHED`), `ImportedBookOut`, `ImportResult`, an `AuthorSearchQuery` form/query model (`q` 1–200 chars), and mappers from domain objects in `src/book_tracker/schemas/mappers.py` (FR-001, FR-003, FR-013; contracts/openapi.yaml)
+  Pass id and ISBN sets as one array parameter (`= ANY(:ids)`), never an expanded `IN (...)`, and match source refs on a work's id or any of its `alias_ids` (research R6, review finding 6); test with 5,000 ISBNs.
+- [ ] T030 [P] [US1] Create `src/book_tracker/schemas/imports.py`: `AuthorCandidateOut`, `AuthorCandidateList`, `WorkCandidateOut`, `WorkList`, `ImportRequest` (`model_config = ConfigDict(extra="forbid")`, `author_key` pattern `^OL[0-9]+A$`, 1–500 unique `work_keys` matching `^OL[0-9]+W$`, `status: ReadingStatus = FINISHED`), `ImportedBookOut`, `SkippedBookOut` (with `reason`), `ImportResult` (`added`, `skipped`), an `AuthorSearchQuery` form/query model (`q` 1–200 chars), a `WorksViewForm` for the page routes that treats blank `sort` and `q` as absent (review finding 9), and mappers from domain objects in `src/book_tracker/schemas/mappers.py` (FR-001, FR-003, FR-013; contracts/openapi.yaml)
 - [ ] T031 [US1] Create `src/book_tracker/services/imports.py`:
   - `search_authors(db, source, name, now)`: cache first, then source; cache put.
   - `list_works(db, source, user_id, author_key, now)`: cache first, then source. Compute each work's state via `persistence/imports.py` and `ReadingEntryRepository(db, user_id).book_ids_on_list`.
@@ -159,7 +176,8 @@ holds one copy of each, and no other member's list changed.
   - Keep it fast (SC-006): look up existing authors for all selected works in one query (`find_authors_by_names`) and work out catalog matches once for the whole selection; use a savepoint per work only around the inserts. No query may run once per author per work.
 
   The user id always comes from the caller's session argument; there is no other input for it. Must reach 100% line coverage (FR-001, FR-003, FR-005, FR-007 to FR-014, FR-017; research R6–R8, R10). Makes T023–T025 pass
-- [ ] T032 [US1] Add `ResultsExpired` handling to `src/book_tracker/api/errors.py` and a `SourceUnavailable` → 503 `source_unavailable` problem mapping (with the spec's message as `title`) for both the API and `web` error rendering; add both responses to `src/book_tracker/api/responses.py` (FR-016; AC-13)
+  Also (review of PR #9; research R7): `confirm_import` first takes `pg_advisory_xact_lock(hashtext('book_tracker.import'))`, then works out matches afresh inside the lock; removes duplicate targets (reported as `duplicate`) and repeated author ids; inserts each new book with its source ref in a savepoint; inserts each reading entry in its own savepoint, treating `reading_entry_user_book_key` as "already on the list"; refuses more than 500 works (FR-014); and `list_works` refreshes a cache row with under 1 hour left (research R8). (FR-021, FR-022)
+- [ ] T032 [US1] Map `ConflictError` with code `results_expired` to 409 in `src/book_tracker/api/errors.py` (the existing conflict handler may already do this; confirm with T022), `SourceNotFound` → 404 `author_not_found` ("No such author on Open Library"), and add a `SourceUnavailable` → 503 `source_unavailable` problem mapping (with the spec's message as `title`) for both the API and `web` error rendering; add both responses to `src/book_tracker/api/responses.py` (FR-016; AC-13)
 - [ ] T033 [US1] Create `src/book_tracker/api/imports.py` with the three operations exactly as in contracts/openapi.yaml (`GET /import/authors`, `GET /import/authors/{author_key}/works` with `sort` (`title` or `year`, both applied from US1) and `q` (accepted; title filtering arrives in US3, until then it is ignored and documented as such in the route's docstring), `POST /me/imports` requiring the CSRF header and `ApiUser`), and include its router in `src/book_tracker/main.py` (FR-001, FR-003, FR-007, FR-013, FR-014). Makes T022, T026 (API part) pass
 - [ ] T034 [US1] Create `src/book_tracker/web/routes/imports.py` and the templates:
   - `src/book_tracker/web/templates/pages/import_search.html`: the search form;
@@ -169,6 +187,7 @@ holds one copy of each, and no other member's list changed.
   - the unreachable message with a link to `/books/add`.
 
   `/import/authors?q=` redirects straight to the works page when there's exactly one match; its multi-match chooser is completed in US2, so until then it lists the names as links. Route rules as in contracts/ui-routes.md. Include the router in `main.py` and add "Import from Open Library" to the main navigation in `src/book_tracker/web/templates/base.html` and a link on `pages/add_book.html` (FR-001, FR-003, FR-005, FR-012, FR-013, FR-019). Makes T026 (page part), T027 pass
+  Also: add the read-only `POST /import/authors/{key}/view` route (CSRF-checked) that re-renders `#import-works` from the ticked `work` values in the body (research R12; built out in US3); show "No such author on Open Library" for an unknown key (AC-23); show "You can add up to 500 books at a time" when more are ticked (AC-21); and list skips as "Already on your list" or "Same book as another one you ticked" in the summary (FR-012, FR-021).
 - [ ] T035 [US1] Show "Imported from Open Library" with a link to `https://openlibrary.org/works/<id>` on `src/book_tracker/web/templates/pages/entry.html` and `pages/edit_book.html`, reading the ref through `persistence/imports.source_ref_for_book` via the catalog service (FR-009). Makes T028 pass
 - [ ] T036 [US1] Regenerate the committed OpenAPI baseline: `uv run python -m book_tracker.export_openapi > specs/001-family-reading-list/contracts/openapi.generated.json`, check that `tests/contract/test_generated_baseline.py` passes, and check that the diff only adds the three operations and their schemas (no breaking change)
 
@@ -210,18 +229,18 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 
 - [ ] T040 [P] [US3] Service tests in `tests/integration/test_imports_service.py`: `list_works` with `q="mist"` keeps only works whose title contains "mist" ignoring case; combined with `sort="year"` the filtered works keep the year order tested in T023; an empty result says so rather than erroring (AC-10, FR-006)
 - [ ] T041 [P] [US3] De-duplication test in `tests/integration/test_imports_service.py` using the `works_duplicates.json` shape through `FakeBookSource`: the two entries appear once, under the id with more editions (AC-12, FR-004)
-- [ ] T042 [P] [US3] Cap test: with a `WorkList` of `total` 2,500 and 2,000 works, the API returns `truncated: true` and `total: 2500`, and the page shows "Showing the first 2,000 of 2,500 works. Filter by title to find others." (AC-20, FR-020)
+- [ ] T042 [P] [US3] Cap test: with a `WorkList` of `total` 2,500 and 2,000 works, the API returns `truncated: true` and `total: 2500`, and the page shows "Showing the first 2,000 of 2,500 works. To add a book beyond these, add it by hand." with a link to `/books/add` (AC-20, FR-020)
 - [ ] T043 [P] [US3] UI tests in `tests/integration/test_import_pages.py`:
-  - an HTMX request to `/import/authors/{key}?sort=year&q=mist` with two ticked `work` values returns the `#import-works` fragment, sorted and filtered, with those works still ticked;
-  - `select=shown` ticks every shown work whose state isn't `ON_MY_LIST` and ticks no hidden work (AC-10, AC-11);
+  - an HTMX `POST /import/authors/{key}/view` with `sort=year`, `q=mist` and two ticked `work` values in the body returns the `#import-works` fragment, sorted and filtered, with those works still ticked;
+  - `select=shown` ticks every shown work whose state isn't `ON_MY_LIST`, up to 500, ticks no hidden work, and with 600 shown ticks the first 500 and says so (AC-10, AC-11); blank `sort` and `q` behave as absent (review finding 9);
   - confirming after a filtered select-all adds only those works (US3 independent test).
 
 ### Implementation for User Story 3
 
 - [ ] T044 [US3] Implement title filtering (`q`, case-insensitive substring of the title) in `list_works` in `src/book_tracker/services/imports.py`, applied after state is computed and combined with the sorting already done in T031, and pass `q` through `src/book_tracker/api/imports.py` (FR-006). Makes T040, T041 pass (merging is already done in the adapter by T017; T041 confirms it end to end)
 - [ ] T045 [US3] Add to `src/book_tracker/web/templates/partials/import_works.html` and `web/routes/imports.py`:
-  - sort select and title filter inputs that re-render `#import-works` via `hx-get`, with `hx-include="[name=work]:checked, [name=status]:checked"` so selections survive;
-  - a "Select all shown" button (`hx-get` with `select=shown`);
+  - sort select and title filter inputs that re-render `#import-works` via `hx-post` to `/import/authors/{key}/view`, with `hx-include="[name=work]:checked, [name=status]:checked"` so selections travel in the body and survive;
+  - a "Select all shown" button (`hx-post` with `select=shown`, at most 500 ticked);
   - a count of ticked works in an `aria-live="polite"` region;
   - the truncation note (FR-006, FR-020).
 
@@ -236,7 +255,8 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 **Purpose**: Accessibility, performance, coverage, contract and docs across all stories
 
 - [ ] T046 [P] Add the import pages (search, author choice, works list with a fake 30-work list, summary, unreachable message) to `tests/a11y/test_axe_pages.py`, a keyboard journey (search → choose author → tick two works with Space → choose status → confirm, all without a mouse) to `tests/a11y/test_keyboard_journeys.py`, and the works page at phone width (no horizontal scroll) to `tests/a11y/test_responsive.py`; fix any findings in the templates and `src/book_tracker/web/static/css/app.css` (FR-019)
-- [ ] T047 [P] Write `tests/perf/test_import_perf.py` (marker `perf`): with the 5,000-book seed and a warm cache of 300 works for one author, rendering `/import/authors/{key}` and `GET /api/v1/import/authors/{key}/works` each have p95 under 1 s over 30 runs (SC-002); and `POST /api/v1/me/imports` with 200 new works (fresh database each run, 5 runs) finishes in under 5 s in CI, a stand-in for the Pi's 10 s (SC-006); and the same with the full 2,000 new works (1 run) finishes in under 30 s in CI, a stand-in for the Pi's 60 s (SC-006)
+  Also (review findings 1 and 3): these tests run against the live uvicorn server with `FakeBookSource` injected (T021), so no Open Library call is made. Add one test that ticks 500 works and confirms through the live server, proving the request fits uvicorn/h11's header limit and Starlette's 1,000-field form limit (AC-21, SC-006).
+- [ ] T047 [P] Write `tests/perf/test_import_perf.py` (marker `perf`): with the 5,000-book seed and a warm cache of 300 works for one author, rendering `/import/authors/{key}` and `GET /api/v1/import/authors/{key}/works` each have p95 under 1 s over 30 runs (SC-002); and `POST /api/v1/me/imports` with 200 new works (fresh database each run, 5 runs) finishes in under 5 s in CI, a stand-in for the Pi's 10 s (SC-006); and the same with the maximum 500 new works (1 run) finishes in under 12 s in CI, a stand-in for the Pi's 25 s (SC-006)
 - [ ] T048 [P] Add a test in `tests/external/test_open_library.py` that records every outgoing request across a full search → works → confirm flow and asserts none contains the member's login, display name, session cookie, notes or status, and that confirm makes no request at all (SC-005, FR-015, research R8)
 - [ ] T049 Run `uv run pytest --cov --cov-report=json && uv run python scripts/check_coverage.py` and bring `services/imports.py` and `persistence/readings.py` to 100% line coverage and the total to at least 85%
 - [ ] T050 Run the full gate list from CLAUDE.md "Build & Test" (`ruff check`, `ruff format --check`, `mypy --strict src`, pytest, `-m a11y`, `-m perf`, `pip-audit`, `export_openapi`) and fix anything that fails
@@ -272,6 +292,9 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 | AC-18 | T013, T025, T020, T031 |
 | AC-19 | T023, T027, T031, T034 |
 | AC-20 | T011, T042, T017, T045 |
+| AC-21 | T022, T023, T030, T031, T034, T046 |
+| AC-22 | T010, T011, T023, T017, T031, T034 |
+| AC-23 | T010, T011, T022, T023, T017, T032, T034 |
 | FR-001 | T030, T031, T033, T034 |
 | FR-002 | T037, T039 |
 | FR-003 | T029, T030, T031, T033, T034 |
@@ -285,13 +308,15 @@ chooses "Select all shown" and confirms; only the shown, selectable works are ad
 | FR-011 | T011, T017, T023, T031 |
 | FR-012 | T023, T027, T031, T034 |
 | FR-013 | T025, T030, T031, T033, T034 |
-| FR-014 | T027, T033 |
+| FR-014 | T023, T027, T030, T031, T033 |
 | FR-015 | T011, T017, T048 |
 | FR-016 | T011, T017, T018, T026, T032 |
 | FR-017 | T012, T019, T031 |
 | FR-018 | T009, T011, T016, T017 |
 | FR-019 | T034, T046 |
 | FR-020 | T011, T017, T042, T045 |
+| FR-021 | T011, T017, T023, T031, T034 |
+| FR-022 | T011, T017, T023 |
 | SC-001 | T053 |
 | SC-002 | T047 |
 | SC-003 | T024 |

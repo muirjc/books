@@ -133,8 +133,8 @@ books are added.
 - **AC-10**: **Given** an author's book list, **When** the member sorts it by title or by first
   published year, or filters it by text in the title, **Then** the list updates to match.
 - **AC-11**: **Given** a filtered list, **When** the member chooses "Select all shown", **Then**
-  every shown book that is not already on the member's list is ticked, and no hidden book
-  is.
+  every shown book that is not already on the member's list is ticked, up to 500, and no
+  hidden book is; when more than 500 are shown, the first 500 are ticked and a note says so.
 - **AC-12**: **Given** the site lists several entries for one work (editions or the same title
   twice), **When** the list is shown, **Then** each work appears once.
 
@@ -159,14 +159,27 @@ books are added.
 - **A selected book disappears from the site** between listing and confirming. The book is
   added from what was listed; nothing is fetched again at confirm time.
 - **Personal records.** Imported books go onto the importing member's list only, taken from
-  the session. Other members' lists are unchanged, and nothing shows them what is on the
-  importer's list (Constitution Principle I). *(AC-18)*
+  the session. Other members' lists are unchanged. As for every catalog change since spec 001,
+  a book shows who added it ("Last edited by"), so other members can tell someone imported it;
+  the importer's status, dates, times read and notes are never shown to anyone else
+  (Constitution Principle I). *(AC-18)*
+- **Two selected works turn out to be one catalog book** (for example both match it by ISBN),
+  or Open Library lists the same author twice on a work. The book is added once and the
+  author once; the extra work is reported as a skipped duplicate. One odd entry never stops
+  the rest of the import. *(AC-22)*
+- **More than 500 books ticked.** The confirm is refused with "You can add up to 500 books at a
+  time," and nothing is added; the member confirms in batches. *(AC-21)*
+- **An author key Open Library doesn't know** (for example from an old link). The page says
+  "No such author on Open Library," and nothing changes. *(AC-23)*
 - **A ticked book is already on the member's list** by the time they confirm (for example
   added in another tab). It is skipped and listed in the summary as already on the list.
 - **An author with thousands of entries** (for example Shakespeare). The list shows the first
-  2,000 and says how many there are in all; the title filter narrows it. *(AC-20)*
+  2,000 and says how many there are in all; the title filter narrows those 2,000. Works beyond
+  them can't be imported from this list and are added by hand. *(AC-20)*
 - **The listed results expire** (after 24 hours) before the member confirms. Nothing is
-  added; they are asked to reload the list, so no book is imported from stale data.
+  added; they are asked to reload the list, so no book is imported from stale data. A list is
+  never shown with less than an hour left, so this needs a page left open for an hour or
+  more.
 
 - **AC-13**: **Given** the site times out or returns an error, **When** the member searches or
   loads an author's books, **Then** they see "The book site couldn't be reached. Try again
@@ -180,7 +193,17 @@ books are added.
   imports finish, **Then** the catalog holds that book once and both members see it as
   imported.
 - **AC-20**: **Given** an author with more than 2,000 works on Open Library, **When** their
-  books are listed, **Then** the first 2,000 are shown with a note giving the total.
+  books are listed, **Then** the first 2,000 are shown with a note giving the total and saying
+  that works beyond them can be added by hand.
+- **AC-21**: **Given** more than 500 books ticked, **When** the member confirms, **Then** they
+  see "You can add up to 500 books at a time," and nothing is added.
+- **AC-22**: **Given** a selection in which two works resolve to the same catalog book, or a
+  work lists the same author twice, **When** the member confirms, **Then** every other book
+  is added, the book is added once with the author once, and the summary lists the extra work
+  as a skipped duplicate.
+- **AC-23**: **Given** an author key that Open Library doesn't know, **When** the member opens
+  that author's works, **Then** they see "No such author on Open Library," and nothing
+  changes.
 
 ## Requirements *(mandatory)*
 
@@ -226,15 +249,16 @@ books are added.
   the session, never onto another member's list. The member MUST choose one status for the
   selection (Want to read, Reading or Finished; default Finished, as in spec 001). A book
   already on their list MUST be skipped, never duplicated or changed (spec 001 FR-017).
-- **FR-014**: Every member MUST be able to import, whatever their role. No cap applies to the
-  number of books per import.
+- **FR-014**: Every member MUST be able to import, whatever their role. One confirm MUST add at
+  most 500 books; more are added by confirming again.
 
 **Working with the site**
 
 - **FR-015**: Requests to Open Library MUST contain only the author name or Open Library's own
   identifiers: nothing about the member or the family (Constitution Principle IX).
-- **FR-016**: A search or book-list request that gets no answer within 10 seconds MUST stop and
-  show the "couldn't be reached" message; the rest of the app MUST keep working.
+- **FR-016**: A search or book-list request that gets no answer within 10 seconds, counting
+  every call to Open Library it makes, MUST stop and show the "couldn't be reached" message;
+  the rest of the app MUST keep working.
 - **FR-017**: Open Library's results for an author MUST be reused for 24 hours, so repeating a
   search within a day does not contact the site again. Reused results are kept apart from the
   catalog and are never shown as catalog content (Constitution Principle III, caching rule).
@@ -244,7 +268,12 @@ books are added.
 - **FR-019**: The screens MUST meet WCAG 2.2 AA and work on phone, tablet and desktop, as in
   spec 001.
 - **FR-020**: An author's list MUST show at most 2,000 works, with a note giving the total when
-  Open Library has more.
+  Open Library has more and saying that the rest can be added by hand.
+- **FR-021**: One odd entry MUST NOT stop an import: works that resolve to a book already being
+  added are skipped and reported, and an author listed twice on a work is added once.
+- **FR-022**: Titles and author names from Open Library MUST be stored in the same normalized
+  form used for matching, and cut to fit the catalog's limits (300 characters for a title, 200
+  for a name).
 
 ### Key Entities *(include if feature involves data)*
 
@@ -329,7 +358,7 @@ a use that shows its results unaltered.
 - **SC-005**: No request to an external site contains anything identifying a family member,
   checked by recorded-request tests on every import path.
 - **SC-006**: Confirming 200 selected books finishes within 10 seconds on the family's server,
-  and confirming the full 2,000 within 60 seconds.
+  and confirming the maximum of 500 within 25 seconds.
 
 ## Clarifications
 
@@ -347,6 +376,10 @@ a use that shows its results unaltered.
   and no one else's. New books also enter the shared catalog, because a list entry always
   points at a catalog book.
 - Q: Who can import? → A: Any member.
+- Review of PR #9 (2026-11-19): Q: How large can one import be? → A: At most 500 books per
+  confirm, because larger forms exceed the web server's form and header limits; import more by
+  confirming again. Q: May other members see who imported a book? → A: Yes, as for every
+  catalog change since spec 001; never the importer's status, dates or notes.
 
 ## Assumptions
 
@@ -359,8 +392,9 @@ a use that shows its results unaltered.
   them as in spec 001.
 - **Network**: the app's host (the Raspberry Pi) has outbound HTTPS to the approved sites.
   The product specification already lists this for features after 001.
-- **Limits**: no per-member daily limit and no cap per import (FR-014), because no AI cost is
-  involved; the 24-hour reuse of results and the sites' own limits keep traffic low.
+- **Limits**: no per-member daily limit, because no AI cost is involved; at most 500 books per
+  confirm (FR-014) for the web server's form limits; the 24-hour reuse of results and Open
+  Library's own limits keep traffic low.
 - **Status at import**: one status for the whole selection, defaulting to Finished as when
   adding a book by hand (spec 001). Dates finished and notes are added afterwards on each
   entry as usual.

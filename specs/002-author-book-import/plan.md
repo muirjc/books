@@ -44,12 +44,14 @@ works list under 5 s at p95 with Open Library answering normally (measured about
 
 **Constraints**: Open Library only; requests spaced at least 2 s apart per app process (2
 processes, so at most 1/s overall, Open Library's limit for clients without a contact
-address); 10 s per call, including any wait for the limiter (FR-016); a confirm of 200 books
-within 10 s on the Pi (SC-006); requests
-carry only an author name or Open Library ids (FR-015); WCAG 2.2 AA; no custom JavaScript
+address); 10 s per member request, across all its Open Library calls and limiter waits
+(FR-016); at most 500 books per confirm, which keeps forms under Starlette's 1,000-field and
+h11's 16 KiB limits (FR-014); a confirm of 200 books within 10 s and 500 within 25 s on the
+Pi (SC-006); confirms serialized by an advisory lock (research R7); requests carry only an
+author name or Open Library ids (FR-015); WCAG 2.2 AA; no custom JavaScript
 
-**Scale/Scope**: one family; up to 2,000 works per author list (FR-020); 3 new API operations
-and 4 UI routes
+**Scale/Scope**: one family; up to 2,000 works per author list (FR-020) and 500 per confirm
+(FR-014); 3 new API operations and 5 UI routes
 
 ## Constitution Check
 
@@ -60,11 +62,11 @@ Complexity Tracking entries.**
 
 | # | Gate | Yes / No | How |
 |---|---|---|---|
-| I | Personal data is filtered by session user in the data-access layer, with cross-user tests | Yes | Import endpoints take the user from `current_user` only; no request carries a user id. List state and new entries go through `ReadingEntryRepository(db, user.id)`, whose new `book_ids_on_list` takes no user id. Cross-user tests: Alice's import never reaches Ben's list or his "on my list" marks (AC-18, research R10) |
+| I | Personal data is filtered by session user in the data-access layer, with cross-user tests | Yes | Import endpoints take the user from `current_user` only; no request carries a user id. List state and new entries go through `ReadingEntryRepository(db, user.id)`, whose new `book_ids_on_list` takes no user id. Cross-user tests on every import endpoint, API and pages: Alice's import never reaches Ben's list or his "on my list" marks (AC-18, research R10). Importers are visible as for any catalog change; list contents never are (research R17) |
 | II | Catalog vs personal data placement is stated; no duplication | Yes | Spec Data Ownership table and [data-model.md](data-model.md). Book, authors and `book_source_ref` are catalog; the entry holds only the link and status. The cache is neither and holds no user ids. Authors are reused by case-insensitive name, and books by source id, ISBN or title + first author (research R6) |
 | III | Any AI output is draft-only until accepted, with provenance stored and a manual fallback | Yes | No AI in this feature. Its caching rule is followed for source lookups (24 h, outside the catalog, never shown as catalog content). Author lookups are keyed by Open Library author id or normalized author name, as Principle III allows since constitution 1.0.1. Imported data follows the same draft-then-confirm rule (FR-007), with provenance in `book_source_ref` (FR-009). Adding by hand stays available when Open Library fails (AC-13) |
 | IV | All external sources are permitted APIs behind adapters; excluded domains are blocked | Yes | Open Library's official API, whose terms permit it (research R2), behind the `BookSource` interface (R4). The adapter can reach only the configured Open Library base URL. Google Books was checked and excluded (R1). No LLM web search in this feature |
-| V | Tests are written first; every AC maps to a feature-qualified test | Yes | tasks.md will put tests first. 20 ACs, each tagged `@pytest.mark.ac("002/AC-xx")`; the tag check in `tests/conftest.py` is widened from `001/` to any three-digit feature. Layers: unit (matching rules), integration (constraints, concurrency, cross-user), contract, external (recorded fixtures; CI makes no live calls), a11y and perf |
+| V | Tests are written first; every AC maps to a feature-qualified test | Yes | tasks.md will put tests first. 23 ACs, each tagged `@pytest.mark.ac("002/AC-xx")`; the tag check in `tests/conftest.py` is widened from `001/` to any three-digit feature. Layers: unit (matching rules), integration (constraints, concurrency, cross-user), contract, external (recorded fixtures), a11y and perf. No app built under test can call Open Library: `create_app` installs a failing source in tests and the a11y live server gets `FakeBookSource`, with a guard test (research R14) |
 | VI | Rules are enforced by DB constraints; migrations are reversible | Yes | Unique (source, source work id) and (book, source), the source and kind CHECKs, the Open Library id format CHECK and the expiry CHECK ([data-model.md](data-model.md)). `0002_author_import` has a downgrade and runs in the upgrade → downgrade → upgrade test. Its downgrade drops `book_source_ref`, so a production downgrade needs a backup first, which is documented in data-model.md |
 | VII | Pydantic v2 models validate all input; every JSON API endpoint has an OpenAPI contract | Yes | [contracts/openapi.yaml](contracts/openapi.yaml) covers the 3 new operations; [contracts/ui-routes.md](contracts/ui-routes.md) covers the pages, which use the same Pydantic models and services. Open Library responses are parsed into Pydantic models in the adapter, then mapped to frozen domain dataclasses; raw dicts never leave `sources/`. `mypy --strict` |
 | VIII | No new deployables or datastores; new dependencies are justified | Yes | Same service and database. The cache is a table, not Redis. No new packages: `httpx.MockTransport` replaces respx or vcrpy |
@@ -138,7 +140,7 @@ src/book_tracker/
 ├── schemas/imports.py          # Pydantic API + form models for the 3 operations
 ├── api/imports.py              # /import/authors, /import/authors/{key}/works, /me/imports
 └── web/
-    ├── routes/imports.py       # /import pages (contracts/ui-routes.md)
+    ├── routes/imports.py       # /import pages and the read-only /view re-render (contracts/ui-routes.md)
     └── templates/pages/import_*.html, partials/import_works.html
 
 tests/
@@ -150,7 +152,7 @@ tests/
 │   └── test_open_library.py    # adapter parsing, errors, timeout, truncation
 ├── integration/test_imports*.py  # service, constraints, concurrency (AC-16), cross-user (AC-18)
 ├── contract/test_imports_contract.py  # against specs/002-author-book-import/contracts/openapi.yaml
-├── a11y/                       # + import pages in axe, keyboard and phone-width tests
+├── a11y/                       # + import pages; FakeBookSource injected into live_server; 500-work confirm through uvicorn
 └── perf/test_import_perf.py    # 300 works, cache warm, p95 < 1 s; 200-work confirm < 5 s
 
 scripts/
@@ -186,3 +188,10 @@ No entries: every Constitution Check row is "Yes".
 - **After /speckit-analyze** (2026-11-19): no contact address in the User-Agent (finding C1);
   1 request a second overall (I1); a confirm-time budget, SC-006 (U1); cache keys for author
   lookups clarified in constitution 1.0.1 (C2).
+- **After the AI review of PR #9** (2026-11-19): at most 500 books per confirm (maintainer's
+  choice; FR-014, AC-21); the importer is visible as for any catalog change (maintainer's
+  choice; research R17); one odd entry never stops an import (FR-021, AC-22); unknown author
+  keys (AC-23); stored names and titles normalized and cut to fit (FR-022); confirms
+  serialized by an advisory lock (R7); author header without a third request and a 10 s budget
+  per member request (R3, R9); array parameters for large ISBN sets (R6); no live calls from
+  any app under test (R14); an HTTP-client lifespan (R18).

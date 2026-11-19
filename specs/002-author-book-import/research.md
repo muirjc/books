@@ -54,6 +54,13 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
   Open Library [asks of API users](https://blog.openlibrary.org/2025/01/16/api-search-json-performance-tuning/).
 - **Paging and cap**: request up to two pages of 1,000 and stop; `numFound` gives the total for
   the "showing the first 2,000 of N" note (FR-020).
+- **Author details for the works list** (review finding 5): taken from the cached
+  `author_search` row that the member came from when it has this key; otherwise from the works
+  response itself: the name at the position of `author_key` in a work's `author_name`, and
+  `work_count` = `numFound`, with dates and best-known title left blank. No third request.
+- **Unknown author key**: `numFound` 0 with no work naming that key raises `SourceNotFound`,
+  which the API returns as 404 and the page shows as "No such author on Open Library"
+  (contracts/openapi.yaml).
 - **Series**: search returns no series fields. The work record (`/works/<id>.json`) has none
   either. Series appear only on some editions, as free text, often translated (for example
   "Mistborn", "The Mistborn Saga", "Fills de la boira") and without a number. Fetching editions
@@ -95,14 +102,24 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
 - **Normalized title**: lower case, Unicode NFKC, punctuation removed, whitespace collapsed,
   a leading "the", "a" or "an" dropped. **Normalized name**: lower case, NFKC, whitespace
   collapsed.
+- **Stored values agree with matching** (review finding 8): titles and author names from Open
+  Library are NFKC-normalized and whitespace-collapsed in the adapter before they reach the
+  service, so the database's `lower(name)` uniqueness and the Python matching see the same
+  text. Titles longer than 300 characters and names longer than 200 (the catalog's column
+  sizes) are cut at a word boundary with "…"; values that are empty after normalizing drop the
+  work, with a log line.
 - **Duplicates within Open Library's list** (AC-12): works with the same normalized title and
   normalized first author are merged into one. The merged entry keeps the work with the most
-  editions as its identifier, the earliest first published year, and the union of ISBNs.
-- **Already in the catalog** (AC-04, AC-15), checked in this order: a `book_source_ref` with the
-  work's Open Library id; any catalog `isbn_13` among the work's ISBNs (ISBN-10s converted to
-  ISBN-13); or a catalog book whose first author's name equals the work's first author
-  (normalized) and whose normalized title is equal. The last check runs in Python over the
-  catalog books by that author: at most a few hundred rows for one family.
+  editions as its identifier, **every merged work id as `alias_ids`** (review finding 10), the
+  earliest first published year, and the union of ISBNs. Authors listed twice on one work are
+  reduced to one, keeping the first position (review finding 2).
+- **Already in the catalog** (AC-04, AC-15), checked in this order: a `book_source_ref` whose
+  work id is the work's id or any of its `alias_ids`; any catalog `isbn_13` among the work's
+  ISBNs (ISBN-10s converted to ISBN-13); or a catalog book whose first author's name equals the
+  work's first author (normalized) and whose normalized title is equal. The last check runs in
+  Python over the catalog books by that author: at most a few hundred rows for one family.
+  Id and ISBN sets are passed as one PostgreSQL array parameter (`= ANY(:ids)`), not an
+  expanded `IN (...)`, so thousands of ISBNs stay one bind parameter (review finding 6).
 - **Already on my list** (AC-17): for the matched catalog book ids, one query through
   `ReadingEntryRepository.book_ids_on_list(ids)`, which is bound to the session user (R10).
 - **Alternatives considered**: a database index on a normalized title (no DB uniqueness on
@@ -111,27 +128,45 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
 
 ## R7. Importing on confirm (FR-007 to FR-013)
 
-- **Decision**: one transaction per confirm. For each selected work, inside a savepoint:
-  find or create each author (reusing `catalog_service.create_author`; an `author_exists`
-  conflict means "use the existing one"), create the book with `created_by` = the importer,
-  then insert its `book_source_ref`. Then add the reading entry through
-  `ReadingEntryRepository` with the chosen status, skipping books already on the list.
-- **Concurrency** (AC-16): `book_source_ref` is unique on (`source`, `source_work_id`). If two
-  members import the same new work at once, the second insert fails, its savepoint rolls back
-  (removing its just-created book), and the existing book is used instead. Authors already rely
-  on the case-insensitive unique index from spec 001 (research R9 there).
+- **Decision**: one transaction per confirm, **serialized by a transaction-level advisory
+  lock** (`pg_advisory_xact_lock(hashtext('book_tracker.import'))`) taken first, so only one
+  confirm runs at a time across both app processes (review finding 4). Inside the lock:
+  1. Read the cached works (R8) and work out catalog matches afresh, so a book another member
+     imported a moment ago is found and reused.
+  2. Resolve every selected work to a target: an existing catalog book or "new". Remove
+     duplicate targets (two works matching one catalog book): the book is added once and the
+     others are reported as skipped duplicates (review finding 2).
+  3. Look up all needed authors in one query; create missing ones with
+     `catalog_service.create_author` (an `author_exists` conflict means "use the existing
+     one"). Author ids for a book are de-duplicated, keeping order.
+  4. For each new book, in a savepoint: create it (title and author ids only, `created_by` =
+     the importer) and insert its `book_source_ref`.
+  5. Add each reading entry through `ReadingEntryRepository`, **each in its own savepoint** as
+     spec 001's `add_entry` does; a `reading_entry_user_book_key` violation means "already on
+     the list" and is reported as a skip, never a 500.
+- **Concurrency** (AC-16): with confirms serialized, two members importing the same new work
+  can't race or deadlock; the second finds the first's book in step 1. The unique constraint on
+  `book_source_ref` (`source`, `source_work_id`) stays as the database's guarantee
+  (Principle VI) if the lock is ever bypassed: a violation there rolls back that work's
+  savepoint and the existing book is reused.
+- **Cost**: confirms are rare (a family of 2–10) and take seconds (SC-006), so serializing them
+  costs nothing noticeable; reads, listing and browsing don't take the lock.
 - **Status**: one status for the whole selection; `times_read` comes from the existing
   `apply_status_change` rule, so Finished gives 1 and the others 0.
 - **Alternatives considered**: one transaction per book (a failure half-way leaves a partial
-  import with no summary); advisory locks (the unique constraint is simpler and is enforced by
-  the database, Principle VI).
+  import with no summary); relying on the unique constraint alone (the review showed two
+  members' confirms can deadlock on shared new co-authors, and PostgreSQL's deadlock error is
+  not an integrity error); sorted lock ordering (works, but harder to test than one lock).
 
 ## R8. Draft state between listing and confirming
 
 - **Decision**: the confirm request sends only the Open Library author key, the selected work
   ids and the status. The server reads the works from the cached `author_works` row. If that row
   has expired, the confirm is refused with `results_expired` and the member reloads the list.
-  A work id that isn't in the cached list is a validation error.
+  A work id that isn't in the cached list is a validation error. When the works list is
+  shown from a cache row with less than 1 hour left, it is fetched again and the row
+  refreshed, so a list on screen always has at least an hour to be confirmed (review
+  finding 11).
 - **Rationale**: titles and authors come from the server's own copy of Open Library's answer,
   not from the browser, so provenance (FR-009) can't be forged. Nothing is fetched at confirm
   time, matching the spec's edge case.
@@ -140,12 +175,14 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
 
 ## R9. Timeouts, errors and rate limiting (FR-016, FR-018)
 
-- **Decision**: each Open Library call is wrapped in `asyncio.timeout(10)` on top of httpx's own
-  connect and read timeouts. Timeouts, connection errors, 5xx and 429 responses all raise
+- **Decision**: the 10 s budget is **per member request** (a search, or loading one author's
+  works), covering every Open Library call it makes and every wait for the rate limiter
+  (review finding 6). A works list needs at most two calls 2 s apart, about 5 s in the worst
+  case measured. Each call also has httpx's own connect and read timeouts. Timeouts, connection errors, 5xx and 429 responses all raise
   `SourceUnavailable`; the API returns `503` with `code=source_unavailable`, and the page shows
   the spec's message (AC-13). A per-process async limiter spaces requests at least 2 s apart
-  (R2). Time spent waiting for it counts against the same 10 s: if the wait would end after
-  the deadline, the call fails at once with `SourceUnavailable`.
+  (R2). If a wait would end after the request's deadline, the call fails at once with
+  `SourceUnavailable`.
   Malformed JSON or missing fields in a single work drop that work only, with a log line.
 - **Logging**: kind, HTTP status and duration only; never the session user (Principle IX).
 
@@ -172,16 +209,27 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
 
 - **Decision**: three pages: search (`/import`), author choice (`/import/authors?q=`, which
   goes straight to the works page when there's exactly one match) and works
-  (`/import/authors/{key}`). Sorting and the title filter re-render the works table through
-  HTMX, with `hx-include` carrying the ticked boxes so ticks survive. "Select all shown" is an
-  HTMX request that re-renders with every shown, selectable work ticked. No custom script, only
-  the vendored HTMX already used by spec 001.
+  (`/import/authors/{key}`). Sorting, the title filter and "Select all shown" re-render the
+  works table with **`hx-post`** to `/import/authors/{key}/view`, carrying the ticked boxes in
+  the request body, not the URL, so ticks survive without long URLs (review finding 1). The
+  view is read-only but still CSRF-checked, like every POST. No custom script, only the vendored
+  HTMX already used by spec 001.
+- **At most 500 books per confirm** (maintainer's decision on review finding 1): a request
+  ticking more than 500 is refused with "You can add up to 500 books at a time" and nothing is
+  added; "Select all shown" ticks at most 500 and says so. 500 ticked works plus the status and
+  CSRF token stay well under Starlette's 1,000-field form limit and h11's 16 KiB header limit
+  (both verified in code), and a confirm of 500 fits SC-006. More books are imported by
+  confirming again.
+- **Blank inputs**: an empty sort or filter box is treated as absent, not as a validation error
+  (review finding 9).
 - **Confirm**: `POST /import/authors/{key}` renders the summary page directly (200) rather than
   POST → 303 → GET. There is no flash-message store, and a repeated submit is harmless, since
   books already on the list are skipped.
 - **Accessibility**: a real `<table>` with a checkbox and visible label per row, a caption with
   counts, the status as a `<fieldset>` of radio buttons, and an `aria-live="polite"` region for
   "N selected" and the result. These are covered by the existing axe-core and keyboard tests.
+- **Alternatives considered**: keeping the selection on the server (no cap, but extra state and
+  code); raising the form-field limit (still large requests from phones).
 
 ## R13. Provenance (FR-009, AC-07)
 
@@ -198,8 +246,13 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
   the live API, trimmed to the requested fields. Tests replay them with `httpx.MockTransport`.
   `scripts/record_open_library_fixtures.py` re-captures them by hand when Open Library's format
   changes; CI never calls Open Library. Fixtures cover: a single match, several matches, no
-  match, a 239-work list, a list with duplicate works, a list over 2,000, a 503, a timeout, and
-  malformed data.
+  match, an unknown author key, a 239-work list, a list with duplicate works and a repeated
+  author, a list over 2,000, very long titles, a 503, a timeout, and malformed data.
+- **No live calls from any app in tests** (review finding 3): `create_app(settings,
+  book_source=None)` uses the given source; with none, it builds `OpenLibrarySource` only
+  outside `environment="test"`, and in tests installs a source that fails every call. The
+  accessibility tests' live server (`tests/a11y/conftest.py`), which builds its own app, passes
+  `FakeBookSource`. A guard test asserts that no `OpenLibrarySource` is built under test.
 - **Alternatives considered**: respx or vcrpy (new dependencies; `MockTransport` ships with
   httpx).
 
@@ -215,3 +268,19 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
   which has outbound internet; the Pi's ufw allows outgoing traffic. Product spec section 10
   already says features after 001 need outbound HTTPS. No new setting is needed;
   `deploy/pi/.env.example` gets a comment saying the app now calls `openlibrary.org`.
+
+## R17. Who added a book is visible (review finding 12)
+
+- **Decision** (maintainer, 2026-11-19): accept and state it. Catalog books have always shown
+  who created and last edited them (spec 001: "Last edited by <name>"). An imported book shows
+  who imported it, so another member can tell that someone added it, and roughly what they
+  read. What stays private is everything on the list itself: status, dates, times read and
+  notes (Principle I). The spec's edge case says this plainly.
+- **Alternatives considered**: hiding the importer on imported books (differs from every other
+  catalog change, and needs template and test changes).
+
+## R18. App lifecycle for the HTTP client (review finding 13)
+
+- **Decision**: `create_app` gains a FastAPI lifespan that opens the `httpx.AsyncClient` used by
+  `OpenLibrarySource` and closes it on shutdown. The accessibility live server runs with
+  `lifespan="off"` and an injected `FakeBookSource`, so it needs no client.

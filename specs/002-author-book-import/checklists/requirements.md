@@ -41,3 +41,7 @@
 - Revised during /speckit-plan (2026-11-19): Google Books and the Admin site setting removed
   (decision books-zl3), and series and ISBNs no longer imported (Open Library's work data
   lacks them). Re-validated: all items still pass; 20 ACs, 20 FRs (AC-20 and FR-020, the 2,000-work cap, added in planning).
+- Revised after the AI review of PR #9 (2026-11-19): 500-book cap per confirm (FR-014,
+  AC-21), the importer is visible as for any catalog change (edge case, R17), one odd entry
+  never stops an import (FR-021, AC-22), unknown author key (AC-23), stored names and titles
+  normalized and cut to fit (FR-022). Re-validated: all items pass; 23 ACs, 22 FRs.

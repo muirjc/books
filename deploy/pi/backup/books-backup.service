@@ -8,6 +8,9 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/books/backup.env
+# systemd gives the service no $HOME, so point restic at a cache it can keep between runs.
+CacheDirectory=books-backup
+Environment=RESTIC_CACHE_DIR=/var/cache/books-backup
 ExecStart=/opt/books/repo/deploy/pi/backup/books-backup.sh
 Nice=10
 IOSchedulingClass=idle

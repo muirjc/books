@@ -327,6 +327,18 @@ async def test_search_text_is_checked_after_cleaning(
     assert ol.calls == []
 
 
+async def test_author_name_of_200_characters(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    """Finding 4: the derived sort name used to be 201 characters and failed the import."""
+    alice = await factory.user("alice")
+    name = ("Word " * 40).strip()[:199] + "Z"
+    ol.works[KEY] = listing(KEY, [work(1, "Long", (name,)), work(2, "Short")])
+    await _list(app, ol, alice)
+    result = await _confirm(app, alice, ["OL1W", "OL2W"])
+    assert len(result.added) == 2
+
+
 async def test_unknown_work_key_is_refused(app: Any, ol: FakeBookSource, factory: Factory) -> None:
     alice = await factory.user("alice")
     ol.works[KEY] = listing(KEY, [work(1)])

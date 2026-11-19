@@ -108,6 +108,12 @@ _AUTHOR_ID = re.compile(r"OL[0-9]+A")
 _WORK_ID = re.compile(r"OL[0-9]+W")
 
 
+def _optional(value: str | None) -> str | None:
+    """Free text shown as given, without control characters (JSONB refuses NUL)."""
+    text = fit(value, TITLE_MAX) if value else ""
+    return text or None
+
+
 def _short_key(key: str) -> str:
     return key.rsplit("/", 1)[-1]
 
@@ -119,8 +125,8 @@ def _author(doc: _AuthorDoc) -> AuthorCandidate | None:
     return AuthorCandidate(
         source_id=source_id,
         name=fit(doc.name, NAME_MAX),
-        birth_date=doc.birth_date,
-        death_date=doc.death_date,
+        birth_date=_optional(doc.birth_date),
+        death_date=_optional(doc.death_date),
         top_work=fit(doc.top_work, TITLE_MAX) if doc.top_work else None,
         work_count=doc.work_count,
     )

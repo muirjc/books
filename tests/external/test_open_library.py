@@ -137,6 +137,17 @@ async def test_works_and_authors_with_bad_ids_are_dropped() -> None:
     assert [a.source_id for a in authors] == ["OL31353A"]
 
 
+async def test_control_characters_from_the_site_are_removed() -> None:
+    recorder = Recorder({
+        ("/search.json", "OL9000001A"): "works_control_chars.json",
+        ("/search/authors.json", "Odd"): "authors_control_chars.json",
+    })  # fmt: skip
+    work = (await source(recorder).author_works("OL9000001A")).works[0]
+    assert work.title == "Nul Title" and work.author_names == ("Prolific Writer",)
+    found = (await source(recorder).search_authors("Odd"))[0]
+    assert "\x00" not in f"{found.name}{found.birth_date}{found.death_date}{found.top_work}"
+
+
 async def test_repeated_author_is_listed_once() -> None:
     recorder = Recorder({("/search.json", "OL9000001A"): "works_repeated_author.json"})
     result = await source(recorder).author_works("OL9000001A")

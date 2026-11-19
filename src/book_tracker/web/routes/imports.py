@@ -7,7 +7,9 @@ JavaScript: HTMX re-renders the works table, and every form also works without i
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from pydantic import ValidationError
@@ -31,8 +33,9 @@ from book_tracker.web.rendering import is_htmx, render
 
 router = APIRouter()
 
-_AUTHOR_KEY = re.compile(r"^OL[0-9]+A$")
-_WORK_KEY = re.compile(r"^OL[0-9]+W$")
+# Used with fullmatch: Python's "$" also matches before a final newline (second review, 2).
+_AUTHOR_KEY = re.compile(r"OL[0-9]+A")
+_WORK_KEY = re.compile(r"OL[0-9]+W")
 BAD_STATUS = "Choose how to add the books: Finished, Reading or Want to read"
 EXPIRED_NOTICE = (
     "The list had expired, so it was fetched again from Open Library. Tick your books again."
@@ -61,9 +64,28 @@ def _page_form(data: Any) -> tuple[ImportPageForm, str | None]:
         return ImportPageForm.model_validate(raw), None
     except ValidationError as exc:
         bad_status = any(e["loc"][:1] == ("status",) for e in exc.errors())
-        keys = [k for k in raw["work"] if _WORK_KEY.match(k)]
+        keys = [k for k in raw["work"] if _WORK_KEY.fullmatch(k)]
         message = BAD_STATUS if bad_status else service.NOT_IN_LIST
         return ImportPageForm(work=keys), message
+
+
+def _check_author_key(key: str) -> None:
+    if not _AUTHOR_KEY.fullmatch(key):
+        raise SourceNotFound()
+
+
+def _ticks(view: WorksView, keys: Iterable[str]) -> set[str]:
+    """The posted ticks that are in this list, as each work's own id (second review, 1).
+
+    An id that has left the list is dropped, so it can't come back as a hidden field the
+    member can neither see nor untick; a merged id becomes the work it was merged into.
+    """
+    return {view.lead_ids[k] for k in keys if k in view.lead_ids}
+
+
+def _works_url(key: str, form: WorksViewForm) -> str:
+    query = {k: v for k, v in (("sort", form.sort), ("q", form.q)) if v and v != "title"}
+    return f"/import/authors/{key}" + (f"?{urlencode(query)}" if query else "")
 
 
 def _view_form(sort: object, q: object) -> WorksViewForm:
@@ -84,6 +106,7 @@ def _works_context(
     note: str | None = None,
     notice: str | None = None,
 ) -> dict[str, Any]:
+    checked = _ticks(view, checked)
     shown = {w.work.source_id for w in view.works}
     return {
         "key": key,
@@ -104,8 +127,7 @@ def _works_context(
 async def _load(
     request: Request, auth: Authenticated, db: Any, source: Any, key: str, form: WorksViewForm
 ) -> WorksView:
-    if not _AUTHOR_KEY.match(key):
-        raise SourceNotFound()
+    _check_author_key(key)
     return await service.list_works(
         db, source, auth.account.id, key, now(request), sort=form.sort, q=form.q
     )
@@ -174,11 +196,16 @@ async def import_works_view(
     data = await request.form()
     form = _view_form(data.get("sort"), data.get("q"))
     posted, error = _page_form(data)
+    if is_htmx(request) and error:
+        # HTMX drops 4xx/5xx responses, so send the browser to the page (second review, 5).
+        return ui_redirect(request, _works_url(author_key, form))
     try:
         view = await _load(request, auth, db, source, author_key, form)
     except SourceUnavailable:
+        if is_htmx(request):
+            return ui_redirect(request, _works_url(author_key, form))
         return _unreachable(request, auth)
-    checked = set(posted.work)
+    checked = _ticks(view, posted.work)
     if error:
         context = _works_context(
             author_key, view, form, checked=checked, status=posted.status, error=error
@@ -203,6 +230,7 @@ async def import_works_view(
 async def import_confirm(
     author_key: str, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
+    _check_author_key(author_key)  # before the import lock (second review, finding 6)
     data = await request.form()
     form = _view_form(data.get("sort"), data.get("q"))
     posted, error = _page_form(data)
@@ -219,8 +247,6 @@ async def import_confirm(
             error = exc.errors[0].message
     if error is not None:
         # Redisplay from the cache only: this request may hold the import lock (finding 1).
-        if not _AUTHOR_KEY.match(author_key):
-            raise SourceNotFound()
         view = await service.cached_works(
             db, auth.account.id, author_key, now(request), sort=form.sort, q=form.q
         )

@@ -36,7 +36,7 @@ from book_tracker.persistence import imports as store
 from book_tracker.persistence import source_cache
 from book_tracker.persistence.readings import ReadingEntryRepository
 from book_tracker.services import catalog as catalog_service
-from book_tracker.services.errors import ConflictError, ValidationFailed
+from book_tracker.services.errors import ConflictError, SourceUnavailable, ValidationFailed
 from book_tracker.services.readings import apply_status_change
 from book_tracker.sources.base import BookSource
 
@@ -122,13 +122,18 @@ async def list_works(
 ) -> WorksView:
     """The author's works with their state for this member (FR-003 to FR-006, FR-020)."""
     cached = await source_cache.get_works(db, author_key, now)
-    if cached is None or cached.expires_at - now < REFRESH_BEFORE:
-        author = await source_cache.find_author(db, author_key, now)
-        fresh = await source.author_works(author_key, author)
-        await source_cache.put_works(db, author_key, fresh, now)
-        listing, fetched_at = fresh, now
-    else:
-        listing, fetched_at = cached.value, cached.fetched_at
+    if cached is not None and cached.expires_at - now >= REFRESH_BEFORE:
+        return await _works_view(db, user_id, cached.value, cached.fetched_at, sort=sort, q=q)
+    author = await source_cache.find_author(db, author_key, now)
+    try:
+        listing = await source.author_works(author_key, author)
+    except SourceUnavailable:
+        if cached is None:
+            raise
+        # Still valid for under an hour, so show it rather than fail (second review, 5).
+        return await _works_view(db, user_id, cached.value, cached.fetched_at, sort=sort, q=q)
+    await source_cache.put_works(db, author_key, listing, now)
+    fetched_at = now
     return await _works_view(db, user_id, listing, fetched_at, sort=sort, q=q)
 
 
@@ -182,7 +187,13 @@ async def _works_view(
         total=listing.total,
         truncated=listing.truncated,
         fetched_at=fetched_at,
+        lead_ids=_lead_ids(listing.works),
     )
+
+
+def _lead_ids(works: Iterable[WorkCandidate]) -> dict[str, str]:
+    """Any id of a listed work, merged ones included, → that work's own id (research R6)."""
+    return {i: w.source_id for w in works for i in w.all_ids}
 
 
 # --------------------------------------------------------------------------- confirming
@@ -263,10 +274,10 @@ async def confirm_import(
     cached = await source_cache.get_works(db, author_key, now)
     if cached is None:
         raise ConflictError("results_expired", EXPIRED)
-    by_id = {w.source_id: w for w in cached.value.works}
+    by_id = {i: w for w in cached.value.works for i in w.all_ids}  # merged ids too
     if any(k not in by_id for k in keys):
         raise ValidationFailed.single("work_keys", NOT_IN_LIST)
-    selected = [by_id[k] for k in keys]
+    selected = list({by_id[k].source_id: by_id[k] for k in keys}.values())
 
     matches = await _catalog_matches(db, selected)  # afresh, inside the lock
     new_works = [w for w in selected if w.source_id not in matches]

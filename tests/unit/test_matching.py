@@ -8,6 +8,7 @@ import pytest
 
 from book_tracker.domain.imports import WorkCandidate
 from book_tracker.domain.matching import (
+    clean,
     fit,
     isbn10_to_13,
     merge_duplicate_works,
@@ -103,3 +104,10 @@ def test_merge_duplicate_works() -> None:
 def test_merge_keeps_different_first_authors_apart() -> None:
     works = [_work("OL1W", "Untitled", "A", 2000, 1), _work("OL2W", "Untitled", "B", 2000, 1)]
     assert len(merge_duplicate_works(works)) == 2
+
+
+def test_clean_drops_control_characters() -> None:
+    """PostgreSQL text and JSONB refuse NUL (second review, finding 3)."""
+    assert clean("ann\x00 author\x07") == "ann author"
+    assert clean("tab\tand\nnewline") == "tab and newline"
+    assert "\x00" not in fit("a\x00b", 10)

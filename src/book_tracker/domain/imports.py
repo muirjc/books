@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import enum
 import uuid
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 
 SOURCE_OPEN_LIBRARY = "open_library"
@@ -71,6 +72,8 @@ class WorksView:
     total: int
     truncated: bool
     fetched_at: datetime
+    # Every id in the whole list, before filtering, merged ids included → the work's own id.
+    lead_ids: Mapping[str, str] = field(default_factory=dict)
 
 
 class SkipReason(enum.StrEnum):

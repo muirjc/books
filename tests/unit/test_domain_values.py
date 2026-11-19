@@ -68,3 +68,10 @@ def test_default_sort_name() -> None:
     assert default_sort_name("J.K. Rowling") == "Rowling, J.K."
     assert default_sort_name("Ursula K. Le Guin") == "Guin, Ursula K. Le"
     assert default_sort_name("Homer") == "Homer"
+
+
+def test_default_sort_name_fits_the_column() -> None:
+    """ "Last, First" is a character longer than the name (second review, finding 4)."""
+    name = ("Word " * 40).strip()[:199] + "Z"  # 200 characters with spaces
+    assert len(name) == 200
+    assert len(default_sort_name(name)) <= 200

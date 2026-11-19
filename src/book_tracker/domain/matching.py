@@ -19,8 +19,14 @@ _PUNCTUATION = re.compile(r"[^\w\s]", re.UNICODE)
 
 
 def clean(value: str) -> str:
-    """NFKC with whitespace collapsed: the form stored in the catalog."""
-    return " ".join(unicodedata.normalize("NFKC", value).split())
+    """NFKC with whitespace collapsed and control characters dropped: the stored form.
+
+    PostgreSQL text and JSONB refuse NUL, so it must never get as far as a query.
+    """
+    text = " ".join(unicodedata.normalize("NFKC", value).split())
+    if any(unicodedata.category(c) == "Cc" for c in text):
+        text = " ".join("".join(c for c in text if unicodedata.category(c) != "Cc").split())
+    return text
 
 
 def fit(value: str, limit: int) -> str:

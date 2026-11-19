@@ -48,6 +48,19 @@ jobs:
       - run: uv sync --frozen
       - run: uv run pytest -m perf
 
+  # Pi backup and restore scripts against the real Compose services (spec 10.6, T118).
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      BOOKS_REQUIRE_DEPLOY_TESTS: "1"   # fail, don't skip, if Docker or restic is missing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update -q && sudo apt-get install -y -q restic shellcheck
+      - run: shellcheck -s sh deploy/pi/backup/*.sh docker/entrypoint.sh
+      - run: uv sync --frozen
+      - run: uv run pytest -m deploy
+
   audit:
     runs-on: ubuntu-latest
     steps:

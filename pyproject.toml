@@ -67,8 +67,9 @@ markers = [
     "ac(id): links a test to a spec acceptance criterion, e.g. 001/AC-01",
     "a11y: browser accessibility tests (Playwright + axe-core)",
     "perf: performance budget tests",
+    "deploy: Pi backup/restore scripts against the real Compose services (needs Docker and restic)",
 ]
-addopts = "-m 'not perf and not a11y'"
+addopts = "-m 'not perf and not a11y and not deploy'"
 
 [tool.coverage.run]
 source = ["src/book_tracker"]

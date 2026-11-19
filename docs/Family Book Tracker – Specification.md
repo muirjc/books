@@ -364,7 +364,7 @@ The choice also decides the address the family uses (`books.<family-domain>`, a 
 - **Nightly backup:** `pg_dump` (run in the `db` container) on a systemd timer, written to the **NAS** on the home network. 30 days retained.
 - **Encrypted copy:** each night, after the dump, restic backs up the dump and Caddy's CA keys (the `caddy-data` volume) to an encrypted restic repository on the **NAS**, 30 days retained (`restic forget --keep-daily 30 --prune`). Keep the restic password somewhere other than the Pi, such as the family password manager; without it the backups can't be restored.
 - **Off-site copy (decided 2026-11-18):** at least monthly, copy the NAS's restic repository to a **USB drive kept away from home** (for example at work or a relative's house), then run `restic check` against the copy. The repository is encrypted, so the drive is safe to leave elsewhere. Two drives used in turn mean one is always away while the other is being updated. Cloud storage (for example Backblaze B2) was considered and not chosen; a disaster at home loses at most the time since the last USB copy.
-- **Restore test:** at least once before go-live, into a scratch database. This is the constitution's release gate (spec 001 task T118).
+- **Restore test:** at least once before go-live, into a scratch database (`deploy/pi/backup/books-restore.sh check`; the scripts and the systemd timer are in `deploy/pi/backup/`, set up in the runbook's section 10). This is the constitution's release gate (spec 001 task T118).
 - **Access:** SSH with keys only; password login disabled.
 - **OS updates:** automatic security updates (`unattended-upgrades`).
 - **App updates:** `docker compose pull && docker compose up -d`. Migrations run when the app starts.

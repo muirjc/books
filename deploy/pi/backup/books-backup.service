@@ -1,0 +1,13 @@
+# Install: see deploy/pi/README.md, section 10 (Backups).
+[Unit]
+Description=Family Book Tracker nightly backup (spec section 10.6)
+Requires=docker.service
+After=docker.service network-online.target remote-fs.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/books/backup.env
+ExecStart=/opt/books/repo/deploy/pi/backup/books-backup.sh
+Nice=10
+IOSchedulingClass=idle

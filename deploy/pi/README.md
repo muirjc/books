@@ -220,7 +220,9 @@ admin user.
       (for example `nmap -4 -p 1-10000 <reserved-ip>`).
 - [ ] The app works at `https://books.local` and `https://<reserved-ip>` on a device that
       trusts the root certificate.
-- [ ] Backups run and a restore has been tested (tasks books-buh.9, books-euq.6, books-euq.9).
+- [ ] The nightly backup has run and `books-restore.sh check` passes (section 10).
+- [ ] The restic password is in the family password manager.
+- [ ] The first USB copy is made and stored away from home (task books-euq.11).
 
 ## 9. Routine maintenance
 
@@ -235,7 +237,7 @@ docker image prune -f
 **Roll back** by pinning an older image, `BOOKS_TAG=sha-<7-char commit>` in `.env`, then
 `docker compose up -d`. Image tags are listed under the repository's **Packages** on
 GitHub. A rollback across a database migration may not work; restore the backup taken
-before the update instead.
+before the update instead (section 10).
 
 **Update Docker** (not covered by automatic updates), when convenient:
 
@@ -250,3 +252,109 @@ sudo apt update && sudo apt install --only-upgrade docker-ce docker-ce-cli conta
 personal access token with only `read:packages`, run
 `echo <token> | docker login ghcr.io -u muirjc --password-stdin` once, and note the
 token's expiry date here so it gets renewed.
+
+## 10. Backups
+
+Each night at about 02:30, `books-backup.timer` runs
+[`backup/books-backup.sh`](backup/books-backup.sh). It:
+
+1. dumps the database;
+2. writes a plain copy of the dump to the NAS (`dumps/`, 30 days kept);
+3. puts the dump and Caddy's CA keys into an encrypted restic repository on the NAS
+   (30 daily snapshots kept);
+4. checks the repository, and writes the time to `last-success` on the NAS.
+
+The CA's private keys never reach the NAS unencrypted. If the NAS share isn't mounted,
+the backup stops with an error rather than writing to the Pi's own disk.
+
+### Set up (once)
+
+1. **Mount the NAS share** at `/mnt/nas`, from `/etc/fstab`, so it mounts at boot and
+   again after a network outage. Use the line for your NAS's protocol:
+
+   ```bash
+   sudo apt install -y restic
+   sudo mkdir -p /mnt/nas /etc/books
+   ```
+
+   Then **either** NFS:
+
+   ```bash
+   sudo apt install -y nfs-common
+   echo 'nas.local:/volume1/backups /mnt/nas nfs _netdev,x-systemd.automount 0 0' | sudo tee -a /etc/fstab
+   ```
+
+   **or** SMB, with `username=...` and `password=...` lines in
+   `/etc/books/nas-credentials` (mode 600):
+
+   ```bash
+   sudo apt install -y cifs-utils
+   echo '//nas.local/backups /mnt/nas cifs credentials=/etc/books/nas-credentials,uid=0,gid=0,file_mode=0600,dir_mode=0700,_netdev,x-systemd.automount 0 0' | sudo tee -a /etc/fstab
+   ```
+
+   and finally `sudo systemctl daemon-reload && sudo mount -a`.
+
+   Replace `nas.local` and the share path with your NAS's. Create a folder for the app
+   on the share, with the marker file that proves the share is mounted:
+
+   ```bash
+   sudo mkdir -p /mnt/nas/books && sudo touch /mnt/nas/books/.books-backup-target
+   ```
+
+2. **Settings and the restic password:**
+
+   ```bash
+   sudo install -m 600 /opt/books/repo/deploy/pi/backup/backup.env.example /etc/books/backup.env
+   openssl rand -base64 32 | sudo tee /etc/books/restic-password >/dev/null
+   sudo chmod 600 /etc/books/restic-password
+   sudo cat /etc/books/restic-password     # save it in the family password manager now
+   ```
+
+   Edit `/etc/books/backup.env` if your paths differ. **Without the restic password the
+   encrypted backups can't be restored**, so it must exist somewhere other than the Pi.
+
+3. **Create the repository and install the timer:**
+
+   ```bash
+   sudo sh -c 'set -a; . /etc/books/backup.env; set +a; restic init'
+   sudo cp /opt/books/repo/deploy/pi/backup/books-backup.service \
+           /opt/books/repo/deploy/pi/backup/books-backup.timer /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now books-backup.timer
+   sudo systemctl start books-backup.service     # a first backup now
+   journalctl -u books-backup -n 20              # ends with "books-backup: done"
+   ```
+
+### Restore test (release gate, before go-live)
+
+Restore the latest backup into a scratch database. The live data isn't touched:
+
+```bash
+sudo sh -c 'set -a; . /etc/books/backup.env; set +a;
+  /opt/books/repo/deploy/pi/backup/books-restore.sh check'
+```
+
+It prints row counts for the restored copy next to the live database's, and ends with
+`Restore check passed.` Repeat it now and then, for example after each USB copy.
+
+### Restoring for real
+
+Load the settings the same way (`sudo sh -c 'set -a; . /etc/books/backup.env; set +a; ...'`),
+then run `books-restore.sh` with one of:
+
+| Situation | Command |
+| --- | --- |
+| Database lost or damaged | `database --yes` restores the latest snapshot. It stops the app, replaces the database, and starts the app again |
+| A particular night | add `--snapshot <id>`; list them with `restic snapshots` |
+| No restic password to hand | `database --yes --dump /mnt/nas/books/dumps/books-<time>.dump` uses a plain dump from the NAS |
+| Caddy's data volume lost (devices show certificate warnings) | `caddy-ca --yes` puts the old CA back, so devices that trusted it trust it again |
+
+On a new Pi, set it up with sections 1–7 first, then restore.
+
+### Keeping an eye on it
+
+- `systemctl list-timers books-backup.timer` shows the last and next run.
+- `/mnt/nas/books/last-success` holds the time of the last good run. If it's more than a
+  day or two old, check `journalctl -u books-backup`.
+- Before an app update you might want to roll back, take a backup first:
+  `sudo systemctl start books-backup.service`.

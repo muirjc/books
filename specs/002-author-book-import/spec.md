@@ -226,7 +226,7 @@ books are added.
   (ignoring capitalization, punctuation and a leading "The", "A" or "An") and the same first
   author.
 - **FR-006**: The member MUST be able to sort the list by title or first published year,
-  filter it by title text, and select all shown books at once.
+  filter it by title text, and select all shown books at once (up to 500, FR-014).
 
 **Importing**
 
@@ -244,7 +244,7 @@ books are added.
   used only for matching (FR-005) and are not stored.
 - **FR-012**: After an import, the member MUST see a summary: how many books were added to
   their list, how many of those were new to the catalog, and which were skipped because they
-  were already on their list.
+  were already on their list or were the same book as another selected work (FR-021).
 - **FR-013**: Selected books MUST go onto the importing member's list only, identified from
   the session, never onto another member's list. The member MUST choose one status for the
   selection (Want to read, Reading or Finished; default Finished, as in spec 001). A book

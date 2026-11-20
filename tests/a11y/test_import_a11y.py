@@ -106,3 +106,24 @@ async def test_500_books_confirm_through_the_real_server(
         "SELECT count(*) FROM reading_entry WHERE user_id = :u", u=seeded.ben.id
     )
     assert count == 500
+
+
+async def test_works_columns_are_the_same_for_every_author(
+    ui: UI, seeded: Seeded, ol: FakeBookSource
+) -> None:
+    """Column widths don't depend on what each author's titles and co-authors are."""
+    ol.works["OL2A"] = listing("OL2A", [
+        work(n, f"A Very Long Title For Book {n}, Being The Complete And Unabridged Edition "
+                "With Notes, Appendices And A Foreword", tuple(f"Co-Author Number {i}"
+                                                               for i in range(6)), year=None)
+        for n in range(100, 110)
+    ])  # fmt: skip
+    await ui.page.set_viewport_size({"width": 1024, "height": 768})
+    await ui.sign_in(seeded.alice)
+    widths = []
+    for key in (KEY, "OL2A"):
+        await ui.go(f"/import/authors/{key}")
+        widths.append(await ui.page.eval_on_selector_all(
+            ".import-table thead th", "ths => ths.map(th => Math.round(th.offsetWidth))"
+        ))  # fmt: skip
+    assert widths[0] == widths[1], widths

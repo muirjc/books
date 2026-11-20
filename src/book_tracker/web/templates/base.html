@@ -26,7 +26,7 @@
         </ul>
       </nav>
       <div class="account-actions">
-        <span class="signed-in-as">Signed in as <strong>{{ current_user.display_name }}</strong></span>
+        <span class="signed-in-as"><span class="signed-in-label">Signed in as </span><strong>{{ current_user.display_name }}</strong></span>
         <form method="post" action="/switch-user" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="button-link">Switch user</button>

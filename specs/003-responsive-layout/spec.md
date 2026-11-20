@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-20
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "Responsive layout (bead books-bf1): scale each screen to the device it is shown on. Take advantage of the larger screen on a laptop and size appropriately for iPad and iPhone. Today every page sits in a 960px column with one breakpoint at 640px, forms are one field per row at every width, and the nav wraps to two rows on iPad. Cover My books (more columns and rows on laptop, compact rows on iPhone), the book entry and add-book forms (two columns on laptop, short fields side by side on tablet), the Open Library import table, navigation, and keep WCAG 2.2 AA (44px targets, no sideways scroll at 360px, 200% text zoom)."
 

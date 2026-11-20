@@ -15,11 +15,9 @@
       {{ authors_line(entry.book) }}
       {% if entry.book.series %} · <a href="/series/{{ entry.book.series.id }}">{{ series_line(entry.book) }}</a>{% endif %}
     </div>
-    <div class="book-meta">
-      <span class="badge">{{ STATUS_LABELS[entry.status] }}</span>
-      {% if entry.finished_on %} Finished {{ entry.finished_on | nice_date }}{% endif %}
-      {% if entry.times_read > 1 %} · Read {{ entry.times_read }} times{% endif %}
-    </div>
+    <div class="book-status"><span class="badge">{{ STATUS_LABELS[entry.status] }}</span></div>
+    <div class="book-finished">{% if entry.finished_on %}Finished {{ entry.finished_on | nice_date }}{% endif %}</div>
+    <div class="book-times">{% if entry.times_read > 1 %}Read {{ entry.times_read }} times{% endif %}</div>
   </li>
   {% endfor %}
 </ul>

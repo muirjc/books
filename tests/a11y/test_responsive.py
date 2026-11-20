@@ -67,7 +67,8 @@ async def test_phone_width_admin(ui: UI, seeded: Seeded) -> None:
 
 
 ROW_TOPS = """() => [...document.querySelectorAll('.book-list > li')].map(li =>
-  [...li.children].map(c => Math.round(c.getBoundingClientRect().top)))"""
+  [...li.children].filter(c => c.getBoundingClientRect().height > 0)
+    .map(c => Math.round(c.getBoundingClientRect().top)))"""
 
 
 async def test_my_books_one_line_per_book(ui: UI, seeded: Seeded) -> None:

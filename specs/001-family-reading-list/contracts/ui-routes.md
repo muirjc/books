@@ -4,6 +4,9 @@ Server-rendered pages (Jinja2 + HTMX). These pages are not part of the OpenAPI c
 (Constitution Principle VII). Their form and query input is validated by the same Pydantic
 models as the JSON API, and they call the same services.
 
+Page layout at phone, tablet and laptop widths is fixed by
+[spec 003's layout contract](../../003-responsive-layout/contracts/ui-layout.md).
+
 Every POST carries the CSRF token: a hidden `csrf_token` field, or the `X-CSRF-Token`
 header that HTMX sends from `hx-headers` on `<body>`. HTMX requests (with the `HX-Request`
 header) get an HTML fragment back; other requests get a full page or a redirect

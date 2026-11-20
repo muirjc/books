@@ -102,6 +102,22 @@
     input.removeAttribute("aria-activedescendant");
   });
 
+  // ------------------------------------------------------------------ phone filter fold
+  // Spec 003 FR-007: on a phone, "Sort and filter" folds My books' filters away. The CSS
+  // only folds them under html.js, so without JavaScript they all stay visible.
+  document.documentElement.classList.add("js");
+  document.querySelectorAll(".filters-toggle").forEach(function (toggle) {
+    toggle.hidden = false;
+  });
+  document.addEventListener("click", function (event) {
+    var toggle = event.target.closest && event.target.closest(".filters-toggle");
+    if (!toggle) return;
+    var form = toggle.closest("[data-fold]");
+    var open = toggle.getAttribute("aria-expanded") !== "true";
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (form) form.setAttribute("data-fold", open ? "open" : "closed");
+  });
+
   // ------------------------------------------------------------------ toggles
   // A checkbox with data-enables="<id>" enables or disables that field (pen name → real name).
   function syncToggle(box) {

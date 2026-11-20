@@ -23,7 +23,7 @@ description: "Task list for spec 003, responsive layout"
 
 ## Phase 1: Setup
 
-- [ ] T001 Create `tests/a11y/test_layout_003.py` with:
+- [X] T001 Create `tests/a11y/test_layout_003.py` with:
   - the `a11y` marker;
   - width constants `PHONE=(390, 844)`, `SMALL=(360, 740)`, `IPAD=(820, 1180)`,
     `IPAD_MINI=(768, 1024)`, `LAPTOP_MIN=(1024, 768)` and `LAPTOP=(1440, 900)`;
@@ -32,7 +32,7 @@ description: "Task list for spec 003, responsive layout"
     viewport;
   - a fixture `many_books` that seeds alice with 30 books, some with series, finished
     dates and times read greater than 1, reusing `seeded` from `tests/a11y/conftest.py`.
-- [ ] T002 [P] Create `tests/integration/test_layout_markup.py` with the `member` / `alice`
+- [X] T002 [P] Create `tests/integration/test_layout_markup.py` with the `member` / `alice`
   fixtures (as in `tests/integration/test_catalog_pages.py`) and an `entries` helper that
   adds books with finished dates and times read.
 
@@ -42,13 +42,13 @@ description: "Task list for spec 003, responsive layout"
 
 **Purpose**: one set of breakpoints for every story (FR-001, FR-014).
 
-- [ ] T003 **guard** In `tests/a11y/test_layout_003.py`, write `test_no_sideways_scroll_at_every_width`.
+- [X] T003 **guard** In `tests/a11y/test_layout_003.py`, write `test_no_sideways_scroll_at_every_width`.
   - It covers every signed-in page in `test_responsive.py`'s list, plus the import pages and
     admin users.
   - It runs at all six widths and uses `tests.a11y.test_responsive.check` (no sideways
     scroll, target sizes).
   - Tags: (AC-19, AC-20).
-- [ ] T004 Refactor `src/book_tracker/web/static/css/app.css` to the two em breakpoints:
+- [X] T004 Refactor `src/book_tracker/web/static/css/app.css` to the two em breakpoints:
   - Replace the `40rem`, `40.0625rem` and `max-width: 40rem` queries with mobile-first
     `@media (min-width: 40em)` and `@media (min-width: 64em)` sections, keeping today's
     behaviour.
@@ -68,14 +68,14 @@ folded filters.
 
 ### Tests (write first, see them fail)
 
-- [ ] T005 [P] [US1] In `tests/integration/test_layout_markup.py`, write
+- [X] T005 [P] [US1] In `tests/integration/test_layout_markup.py`, write
   `test_list_rows_have_five_cells`.
   - Each `li` holds `.book-title`, `.book-meta`, `.book-status`, `.book-finished` and
     `.book-times`, in that order.
   - `.book-finished` reads "Finished 12 Mar 2026"; `.book-times` reads "Read 3 times", and is
     empty when the count is 1.
   - Tags: (AC-01, AC-03, AC-04).
-- [ ] T006 [P] [US1] In `tests/integration/test_layout_markup.py`, write
+- [X] T006 [P] [US1] In `tests/integration/test_layout_markup.py`, write
   `test_filter_fold_state`.
   - `/` renders `data-fold="closed"`; `/?status=reading`, `/?q=x` and `/?sort=author` render
     `data-fold="open"`.
@@ -84,17 +84,17 @@ folded filters.
   - A hidden `button.filters-toggle` has `aria-controls="filter-extra"` and `aria-expanded`
     matching the fold state.
   - Tags: (AC-05, AC-06).
-- [ ] T007 [US1] In `tests/a11y/test_layout_003.py`, write `test_my_books_laptop`.
+- [X] T007 [US1] In `tests/a11y/test_layout_003.py`, write `test_my_books_laptop`.
   - At LAPTOP, each row's five cells share one line (finished and times visible).
   - The list is more than 1,200 px wide.
   - The filter fields and Apply share one line.
   - `visible_rows` ≥ 12 with `many_books`.
   - Tags: (AC-01, AC-02, SC-001).
-- [ ] T008 [US1] In `tests/a11y/test_layout_003.py`, write `test_my_books_tablet`.
+- [X] T008 [US1] In `tests/a11y/test_layout_003.py`, write `test_my_books_tablet`.
   - At IPAD and IPAD_MINI, title, meta and status share one line.
   - `.book-times` is hidden.
   - Tag: (AC-03).
-- [ ] T009 [US1] In `tests/a11y/test_layout_003.py`, write `test_my_books_phone`.
+- [X] T009 [US1] In `tests/a11y/test_layout_003.py`, write `test_my_books_phone`.
   - At PHONE, each row spans at most two lines (title on the first; meta and status share
     the second).
   - Finished and times are hidden.
@@ -106,20 +106,20 @@ folded filters.
 
 ### Implementation
 
-- [ ] T010 [US1] `src/book_tracker/web/templates/partials/reading_list.html`: render the five
+- [X] T010 [US1] `src/book_tracker/web/templates/partials/reading_list.html`: render the five
   cells per row (contract ui-layout.md, My books) (FR-005, FR-006).
-- [ ] T011 [US1] Change the list route and filter form:
+- [X] T011 [US1] Change the list route and filter form:
   - `src/book_tracker/web/routes/readings.py`: pass `filters_open` (a non-default sort, or
     any of q, status, author_id, series_id).
   - `src/book_tracker/web/templates/pages/list.html`: add `data-fold`, the `#filter-extra`
     wrapper and the hidden `button.filters-toggle` (FR-007).
-- [ ] T012 [US1] `src/book_tracker/web/static/js/app.js`:
+- [X] T012 [US1] `src/book_tracker/web/static/js/app.js`:
   - add `js` to `<html>`;
   - unhide `.filters-toggle`;
   - on click, flip `data-fold` and `aria-expanded`.
 
   (FR-007, R5)
-- [ ] T013 [US1] Add the My books styles to `src/book_tracker/web/static/css/app.css`:
+- [X] T013 [US1] Add the My books styles to `src/book_tracker/web/static/css/app.css`:
   - row grid areas per size, with hidden cells (R4);
   - phone fold rules under `.js`;
   - toggle hidden from 40em;
@@ -138,16 +138,16 @@ readable line length.
 
 ### Tests
 
-- [ ] T014 [P] [US2] In `tests/a11y/test_layout_003.py`, write `test_page_width`.
+- [X] T014 [P] [US2] In `tests/a11y/test_layout_003.py`, write `test_page_width`.
   - At LAPTOP, `main.container` content is at least 1,200 px wide and centred.
   - At 2,560 × 1,440, it is 1,320 px wide or less and centred.
   - Tag: (AC-07, SC-003).
-- [ ] T015 [P] [US2] In `tests/a11y/test_layout_003.py`, write `test_header_rows`.
+- [X] T015 [P] [US2] In `tests/a11y/test_layout_003.py`, write `test_header_rows`.
   - At LAPTOP_MIN and LAPTOP, for alice and for the admin, the brand, every nav link and the
     account action buttons share one line.
   - At IPAD_MINI and IPAD, all nav links share one line.
   - Tags: (AC-08, AC-09).
-- [ ] T016 [P] [US2] In `tests/a11y/test_layout_003.py`, write `test_readable_line_length`.
+- [X] T016 [P] [US2] In `tests/a11y/test_layout_003.py`, write `test_readable_line_length`.
   - At LAPTOP, paragraphs in `main` on sign in, a book's summary page and the entry page are
     at most 75 characters wide, measured with `ch` against computed font size.
   - Single text inputs on change password are at most 40rem wide.
@@ -155,13 +155,13 @@ readable line length.
 
 ### Implementation
 
-- [ ] T017 [US2] Add to `src/book_tracker/web/static/css/app.css`:
+- [X] T017 [US2] Add to `src/book_tracker/web/static/css/app.css`:
   - laptop `.container` max-width of 82.5rem with 1.5rem padding;
   - `main p, .hint, .notice` max-width of 75ch;
   - stacked text inputs max-width of 40rem.
 
   (FR-002, FR-013)
-- [ ] T018 [US2] Change the header:
+- [X] T018 [US2] Change the header:
   - `src/book_tracker/web/templates/base.html`: wrap the "Signed in as" words in a span that
     is visually hidden at laptop width.
   - `app.css`, tablet header: brand and account actions on row 1, nav full width with
@@ -178,7 +178,7 @@ readable line length.
 
 ### Tests
 
-- [ ] T019 [P] [US3] In `tests/integration/test_layout_markup.py`, write
+- [X] T019 [P] [US3] In `tests/integration/test_layout_markup.py`, write
   `test_form_groups_and_pairs`.
   - On `/books/add` and `/entries/{id}`, `.form-columns` holds exactly two groups in order:
     book fields, then reading fields.
@@ -187,14 +187,14 @@ readable line length.
   - The DOM order of all inputs is unchanged from today: the titles, authors, series,
     number and ISBN, then the reading fields.
   - Tags: (AC-11, AC-12, AC-13, AC-15).
-- [ ] T020 [US3] In `tests/a11y/test_layout_003.py`, write `test_book_forms_by_size`.
+- [X] T020 [US3] In `tests/a11y/test_layout_003.py`, write `test_book_forms_by_size`.
   - At LAPTOP, on a book's page and Add a book, the two groups sit side by side (the same
     top, the reading group to the right) and the submit is below both.
   - The book page form's height is at most 60% of its height at PHONE.
   - At IPAD, series and number share a line, and status and date share a line.
   - At PHONE, every `.field` is on its own line.
   - Tags: (AC-11, AC-12, AC-13, AC-14, SC-004).
-- [ ] T021 [US3] **guard** In `tests/a11y/test_layout_003.py`, write
+- [X] T021 [US3] **guard** In `tests/a11y/test_layout_003.py`, write
   `test_book_form_focus_order_and_rotation`.
   - At LAPTOP, pressing Tab from the title visits the book fields, then status, finished,
     times read and notes, then Save.
@@ -204,20 +204,20 @@ readable line length.
 
 ### Implementation
 
-- [ ] T022 [US3] Change the form templates:
+- [X] T022 [US3] Change the form templates:
   - `src/book_tracker/web/templates/partials/book_fields.html`: wrap the series and number
     fields in `<div class="field-row">`.
   - `src/book_tracker/web/templates/partials/entry_fields.html`: wrap the status and date
     finished fields in `<div class="field-row">`.
 
   (FR-010)
-- [ ] T023 [US3] Wrap the two form groups in `<div class="form-columns">`:
+- [X] T023 [US3] Wrap the two form groups in `<div class="form-columns">`:
   - `src/book_tracker/web/templates/pages/entry.html`: Book details and My reading.
   - `src/book_tracker/web/templates/pages/add_book.html`: `<div>` book fields + summary,
     then `<div>` reading fields.
 
   The submit stays after the wrapper (FR-009, FR-012).
-- [ ] T024 [US3] Add the form layout to `src/book_tracker/web/static/css/app.css`:
+- [X] T024 [US3] Add the form layout to `src/book_tracker/web/static/css/app.css`:
   - tablet: `.field-row` as a 2-column grid;
   - laptop: `.form-columns` as a 3fr / 2fr grid with a 2rem gap;
   - phone: single column.
@@ -232,11 +232,11 @@ readable line length.
 
 ### Tests
 
-- [ ] T025 [US4] In `tests/a11y/test_layout_003.py`, write `test_import_laptop`.
+- [X] T025 [US4] In `tests/a11y/test_layout_003.py`, write `test_import_laptop`.
   - At LAPTOP, the import controls (fields and buttons) share one line.
   - The works table is as wide as `main` content, within 2 px.
   - Tag: (AC-17).
-- [ ] T026 [US4] **guard** In `tests/a11y/test_layout_003.py`, write
+- [X] T026 [US4] **guard** In `tests/a11y/test_layout_003.py`, write
   `test_import_columns_same_per_author`.
   - At IPAD and LAPTOP, header widths match for two very different authors (as in
     `test_works_columns_are_the_same_for_every_author`).
@@ -244,7 +244,7 @@ readable line length.
 
 ### Implementation
 
-- [ ] T027 [US4] Change the import styles in `src/book_tracker/web/static/css/app.css`:
+- [X] T027 [US4] Change the import styles in `src/book_tracker/web/static/css/app.css`:
   - laptop: `.import-controls` set to `flex-wrap: nowrap`, fields `flex: 1 1 0`, buttons
     `flex: none`;
   - keep the fixed table columns from 40em.
@@ -255,23 +255,23 @@ readable line length.
 
 ## Phase 7: Accessibility and polish (cross-cutting)
 
-- [ ] T028 [P] In `tests/a11y/test_layout_003.py`, write `test_axe_by_size`.
+- [X] T028 [P] In `tests/a11y/test_layout_003.py`, write `test_axe_by_size`.
   - Run `assert_no_axe_violations` on sign in, My books, Add a book, a book's page and an
     author's works, at PHONE, IPAD and LAPTOP.
   - Tag: (AC-21).
-- [ ] T029 [P] In `tests/a11y/test_layout_003.py`, write `test_200_percent_text`.
+- [X] T029 [P] In `tests/a11y/test_layout_003.py`, write `test_200_percent_text`.
   - Use a new browser context with a 640 × 450 viewport and `device_scale_factor=2`.
   - The main pages show the tablet layout: list rows on one line with times hidden, and the
     nav on one line.
   - `check()` passes, and no element in `main` overflows its parent box.
   - Tags: (AC-22, FR-014).
-- [ ] T030 Run the full gates:
+- [X] T030 Run the full gates:
   - `ruff check`, `ruff format --check`, `mypy --strict src`;
   - `pytest --cov` with `check_coverage.py`;
   - `pytest -m a11y` and `pytest -m perf` (SC-006, FR-016, FR-017).
-- [ ] T031 Take screenshots at PHONE, IPAD and LAPTOP of My books, a book's page and the
+- [X] T031 Take screenshots at PHONE, IPAD and LAPTOP of My books, a book's page and the
   import works page into the scratchpad, and review them. Fix anything that looks broken.
-- [ ] T032 Final steps:
+- [X] T032 Final steps:
   - Update `specs/001-family-reading-list/contracts/ui-routes.md`, adding a line that points
     to `specs/003-responsive-layout/contracts/ui-layout.md` for layout.
   - Mark the tasks done.

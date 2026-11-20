@@ -34,6 +34,8 @@
 
 <form method="post" action="/books/add" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="form-columns">
+  <div class="stack">
   {% with suggest_title=true %}{% include "partials/book_fields.html" %}{% endwith %}
   <div class="field">
     <label for="summary">Summary (optional)</label>
@@ -41,7 +43,11 @@
     <textarea id="summary" name="summary" maxlength="5000"{{ described(form.errors, "summary", hint=true) }}>{{ form.raw.get('summary', '') }}</textarea>
     {{ field_error(form.errors, "summary") }}
   </div>
+  </div>
+  <div class="stack">
   {% include "partials/entry_fields.html" %}
+  </div>
+  </div>
   <button type="submit" class="button-primary">Add to my list</button>
 </form>
 {% endblock %}

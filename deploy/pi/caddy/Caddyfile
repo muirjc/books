@@ -7,6 +7,12 @@
 	skip_install_trust
 	# Clients send no SNI when connecting by IP address; use the IP's certificate then.
 	default_sni {$PI_LAN_IP}
+	# HTTP/1.1 and HTTP/2 only. Only TCP 443 is published, so an advertised HTTP/3
+	# (UDP 443) can't be reached, and Safari on iOS then reports "The network connection
+	# was lost" instead of falling back.
+	servers {
+		protocols h1 h2
+	}
 }
 
 # books.local via Avahi; the Pi's IP for devices where .local doesn't resolve.

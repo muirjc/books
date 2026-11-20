@@ -1,24 +1,39 @@
 {% extends "base.html" %}
-{% from "macros.html" import authors_line, series_line, error_summary %}
+{% from "macros.html" import error_summary %}
 {% block title %}{{ entry.book.title }}{% endblock %}
 {% block content %}
 <h1>{{ entry.book.title }}</h1>
-<dl class="book-details">
-  <dt>Author{% if entry.book.authors | length > 1 %}s{% endif %}</dt>
-  <dd>{% for a in entry.book.authors %}{{ a.name }}{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</dd>
-  {% if entry.book.series %}
-  <dt>Series</dt>
-  <dd><a href="/series/{{ entry.book.series.id }}">{{ series_line(entry.book) }}</a></dd>
-  {% endif %}
-  {% if entry.book.isbn_13 %}
-  <dt>ISBN</dt>
-  <dd>{{ entry.book.isbn_13 }}</dd>
-  {% endif %}
-</dl>
 {% include "partials/source_ref.html" %}
-<p class="actions">
-  <a href="/catalog/books/{{ entry.book.id }}/edit">Edit book details</a>
-</p>
+{{ error_summary(all_errors) }}
+{% if conflict %}
+<div class="conflict" role="alert"><p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p></div>
+{% endif %}
+<form method="post" action="/entries/{{ entry.id }}" class="stack" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <section aria-labelledby="book-details-heading" class="stack">
+    <h2 id="book-details-heading">Book details</h2>
+    <p class="hint">Changes here show on every family member's list.</p>
+    {% with form=book_form, suggest_title=false %}{% include "partials/book_fields.html" %}{% endwith %}
+  </section>
+  <section aria-labelledby="my-reading-heading" class="stack">
+    <h2 id="my-reading-heading">My reading</h2>
+    <p class="hint">Only you see these.</p>
+    {% include "partials/entry_fields.html" %}
+  </section>
+  <button type="submit" class="button-primary">Save</button>
+</form>
+<div class="actions spaced">
+  {% if entry.status == "finished" %}
+  <form method="post" action="/entries/{{ entry.id }}/read-again" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Read again</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/entries/{{ entry.id }}/remove" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button-danger">Remove from my list</button>
+  </form>
+</div>
 
 <section aria-labelledby="summary-heading">
   <h2 id="summary-heading">Summary</h2>
@@ -31,25 +46,12 @@
   <p><a href="/catalog/books/{{ entry.book.id }}/summary">{% if entry.book.current_summary %}Write a new summary{% else %}Write a summary{% endif %}</a></p>
 </section>
 
-<section aria-labelledby="my-reading-heading">
-  <h2 id="my-reading-heading">My reading</h2>
-  {{ error_summary(errors) }}
-  <form method="post" action="/entries/{{ entry.id }}" class="stack" novalidate>
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    {% include "partials/entry_fields.html" %}
-    <button type="submit" class="button-primary">Save</button>
-  </form>
-  <div class="actions spaced">
-    {% if entry.status == "finished" %}
-    <form method="post" action="/entries/{{ entry.id }}/read-again" class="inline-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit">Read again</button>
-    </form>
-    {% endif %}
-    <form method="post" action="/entries/{{ entry.id }}/remove" class="inline-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="button-danger">Remove from my list</button>
-    </form>
-  </div>
+<section aria-labelledby="more-heading">
+  <h2 id="more-heading">More</h2>
+  <ul>
+    {% for a in entry.book.authors %}<li><a href="/catalog/authors/{{ a.id }}/edit">Edit author “{{ a.name }}”</a>{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}</li>{% endfor %}
+    {% if entry.book.series %}<li><a href="/series/{{ entry.book.series.id }}">All of {{ entry.book.series.name }}</a></li>
+    <li><a href="/catalog/series/{{ entry.book.series.id }}/edit">Edit series “{{ entry.book.series.name }}”</a></li>{% endif %}
+  </ul>
 </section>
 {% endblock %}

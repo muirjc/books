@@ -23,7 +23,7 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | GET | `/suggest/authors?q=` | Type-ahead fragment; matches real name | FR-010 |
 | GET | `/suggest/series?q=` | Type-ahead fragment | FR-010 |
 | GET | `/entries/{id}` | My entry, with book details and summary; 404 if not mine | FR-020 |
-| POST | `/entries/{id}` | Update status, date, times read, notes | FR-018, FR-029 |
+| POST | `/entries/{id}` | Update status, date, times read, notes; and, when the form sends a title, the book's title, authors, series, number and ISBN (family-wide; skipped if unchanged). Nothing saves if any field is refused (books-4l5) | FR-009, FR-018, FR-029 |
 | POST | `/entries/{id}/read-again` | Start a re-read | FR-029 |
 | POST | `/entries/{id}/remove` | Remove from my list (asks to confirm first) | FR-019 |
 | GET | `/series/{id}` | My books in this series, in order | FR-022 |

@@ -13,7 +13,6 @@ from starlette.responses import Response
 from book_tracker.auth.dependencies import Authenticated, UiUser
 from book_tracker.domain import models as domain
 from book_tracker.domain.imports import SourceRef
-from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import AuthorUpdate, SeriesWrite, SummaryCreate
 from book_tracker.services import catalog as service
@@ -22,7 +21,7 @@ from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import render
-from book_tracker.web.routes.readings import resolve_authors, resolve_series
+from book_tracker.web.routes.readings import book_form, save_book_details
 
 router = APIRouter(prefix="/catalog", include_in_schema=False)
 
@@ -39,19 +38,6 @@ def _message(request: Request) -> str | None:
 
 
 # --------------------------------------------------------------------------- books
-
-
-def _book_form(book: domain.Book) -> AddBookForm:
-    raw: dict[str, str] = {"title": book.title, "isbn_13": book.isbn_13 or ""}
-    if book.series:
-        raw["series_name"] = book.series.name
-        raw["series_id"] = str(book.series.id)
-    if book.series_number is not None:
-        raw["series_number"] = format_series_number(book.series_number)
-    for i, author in enumerate(book.authors):
-        raw[f"author_name_{i}"] = author.name
-        raw[f"author_id_{i}"] = str(author.id)
-    return AddBookForm(raw=raw)
 
 
 def _book_page(
@@ -89,7 +75,7 @@ async def edit_book_form(
 ) -> Response:
     book = await service.get_book(db, book_id)
     source_ref = await imports_service.source_ref(db, book_id)
-    return _book_page(request, auth, book, _book_form(book), source_ref=source_ref)
+    return _book_page(request, auth, book, book_form(book), source_ref=source_ref)
 
 
 @router.post("/books/{book_id}/edit")
@@ -98,35 +84,13 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
     form = parse_add_book(await request.form())
     if form.errors:
         return _book_page(request, auth, book, form, status_code=422)
-    author_ids, author_conflicts = await resolve_authors(db, auth, form)
-    series_id, series_conflict = await resolve_series(db, auth, form)
-    if not author_ids and not author_conflicts:
-        form.errors["author_name_0"] = "Enter at least one author"
-        return _book_page(request, auth, book, form, status_code=422)
-    if author_conflicts or series_conflict:
+    problem = await save_book_details(db, auth, book, form)
+    if problem is not None:
         return _book_page(
-            request,
-            auth,
-            book,
-            form,
-            status_code=409,
-            author_conflicts=author_conflicts,
-            series_conflict=series_conflict,
-        )
-    changes: dict[str, Any] = {
-        "title": form.title,
-        "author_ids": author_ids,
-        "series_id": series_id,
-        "series_number": form.series_number,
-        "isbn_13": form.isbn_13,
-    }
-    try:
-        await service.update_book(db, auth.account.id, book_id, changes)
-    except ConflictError as exc:
-        return _book_page(request, auth, book, form, status_code=409, conflict=exc)
-    except ValidationFailed as exc:
-        form.errors.update({e.field: e.message for e in exc.errors})
-        return _book_page(request, auth, book, form, status_code=422)
+            request, auth, book, form, status_code=problem.status_code,
+            conflict=problem.conflict, author_conflicts=problem.author_conflicts,
+            series_conflict=problem.series_conflict,
+        )  # fmt: skip
     return RedirectResponse(f"/catalog/books/{book_id}/edit?msg=saved", status_code=303)
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlencode
 
@@ -12,7 +13,9 @@ from pydantic import ValidationError
 from starlette.responses import Response
 
 from book_tracker.auth.dependencies import Authenticated, UiUser, today
+from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
+from book_tracker.domain.values import format_series_number, normalize_name
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import BookCreate
 from book_tracker.schemas.readings import ReadingEntryCreate
@@ -305,6 +308,82 @@ async def resolve_series(
     return series.id, None
 
 
+# --------------------------------------------------------------------------- book details
+
+ENTRY_FIELDS = frozenset({"status", "finished_on", "times_read", "notes"})
+
+
+def book_form(book: domain.Book) -> AddBookForm:
+    """The book's current details as a filled-in form."""
+    raw: dict[str, str] = {"title": book.title, "isbn_13": book.isbn_13 or ""}
+    if book.series:
+        raw["series_name"] = book.series.name
+        raw["series_id"] = str(book.series.id)
+    if book.series_number is not None:
+        raw["series_number"] = format_series_number(book.series_number)
+    for i, author in enumerate(book.authors):
+        raw[f"author_name_{i}"] = author.name
+        raw[f"author_id_{i}"] = str(author.id)
+    return AddBookForm(raw=raw)
+
+
+@dataclass
+class BookSaveProblem:
+    """Why the book's details weren't saved; field errors are added to the form."""
+
+    status_code: int
+    conflict: ConflictError | None = None
+    author_conflicts: dict[int, ConflictError] = field(default_factory=dict)
+    series_conflict: ConflictError | None = None
+
+
+async def save_book_details(
+    db: DbSession,
+    auth: Authenticated,
+    book: domain.Book,
+    form: AddBookForm,
+    *,
+    only_if_changed: bool = False,
+) -> BookSaveProblem | None:
+    """Save the book fields of a checked form; None when saved (or nothing changed)."""
+    author_ids, author_conflicts = await resolve_authors(db, auth, form)
+    series_id, series_conflict = await resolve_series(db, auth, form)
+    if not author_ids and not author_conflicts:
+        form.errors["author_name_0"] = "Enter at least one author"
+        return BookSaveProblem(422)
+    if author_conflicts or series_conflict:
+        return BookSaveProblem(
+            409, author_conflicts=author_conflicts, series_conflict=series_conflict
+        )
+    changes: dict[str, Any] = {
+        "title": form.title,
+        "author_ids": author_ids,
+        "series_id": series_id,
+        "series_number": form.series_number,
+        "isbn_13": form.isbn_13,
+    }
+    if only_if_changed and _unchanged(book, changes):
+        return None  # don't mark the book as edited by someone who only changed their notes
+    try:
+        await catalog_service.update_book(db, auth.account.id, book.id, changes)
+    except ConflictError as exc:
+        return BookSaveProblem(409, conflict=exc)
+    except ValidationFailed as exc:
+        form.errors.update({e.field: e.message for e in exc.errors})
+        return BookSaveProblem(422)
+    return None
+
+
+def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:
+    return (
+        normalize_name(changes["title"]) == book.title
+        and changes["author_ids"] == [a.id for a in book.authors]
+        and changes["series_id"] == (book.series.id if book.series else None)
+        and changes["series_number"] == book.series_number
+        and changes["isbn_13"] == book.isbn_13
+    )
+
+
 # --------------------------------------------------------------------------- entry
 
 
@@ -315,9 +394,12 @@ def _entry_page(
     *,
     errors: dict[str, str] | None = None,
     raw: dict[str, Any] | None = None,
+    form: AddBookForm | None = None,
+    problem: BookSaveProblem | None = None,
     status_code: int = 200,
     source_ref: Any = None,
 ) -> Response:
+    form = form or book_form(entry.book)
     return render(
         request,
         "pages/entry.html",
@@ -327,6 +409,11 @@ def _entry_page(
             "statuses": STATUSES,
             "errors": errors or {},
             "raw": raw or {},
+            "book_form": form,
+            "all_errors": {**form.errors, **(errors or {})},
+            "conflict": problem.conflict if problem else None,
+            "author_conflicts": problem.author_conflicts if problem else {},
+            "series_conflict": problem.series_conflict if problem else None,
             "message": message(request),
         },
         auth=auth,
@@ -347,12 +434,29 @@ async def entry_page(
 async def update_entry(
     entry_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
-    update, errors, raw = parse_entry_update(await request.form())
-    if update is None:
-        entry = await service.get_entry(db, auth.account.id, entry_id)
-        return _entry_page(request, auth, entry, errors=errors, raw=raw, status_code=422)
+    """Save the member's reading details and, when the form has them, the book's details.
+
+    Nothing is saved unless every field is valid: a refused page rolls the request back.
+    """
+    data = await request.form()
+    current = await service.get_entry(db, auth.account.id, entry_id)  # 404 if not mine
+    update, errors, raw = parse_entry_update(data)
+    details = parse_add_book(data) if "title" in data else None
+    if details is not None:
+        for name in ENTRY_FIELDS:  # checked by parse_entry_update
+            details.errors.pop(name, None)
+    if update is None or (details is not None and details.errors):
+        return _entry_page(
+            request, auth, current, errors=errors, raw=raw, form=details, status_code=422
+        )
+    if details is not None:
+        problem = await save_book_details(db, auth, current.book, details, only_if_changed=True)
+        if problem is not None:
+            return _entry_page(
+                request, auth, current, raw=raw, form=details, problem=problem,
+                status_code=problem.status_code,
+            )  # fmt: skip
     changes = {name: getattr(update, name) for name in update.model_fields_set}
-    current = await service.get_entry(db, auth.account.id, entry_id)
     if changes.get("times_read") == current.times_read:
         # The form always sends "Times read"; only a changed value is an explicit edit, so
         # finishing a re-read still adds one (FR-029).

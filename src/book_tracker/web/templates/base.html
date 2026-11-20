@@ -19,6 +19,7 @@
         <ul class="nav-list">
           <li><a href="/"{% if active == "list" %} aria-current="page"{% endif %}>My books</a></li>
           <li><a href="/books/add"{% if active == "add" %} aria-current="page"{% endif %}>Add a book</a></li>
+          <li><a href="/import"{% if active == "import" %} aria-current="page"{% endif %}>Import from Open Library</a></li>
           {% if current_user.is_admin %}
           <li><a href="/admin/users"{% if active == "admin" %} aria-current="page"{% endif %}>Accounts</a></li>
           {% endif %}

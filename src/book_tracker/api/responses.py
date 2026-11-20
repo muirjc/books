@@ -36,6 +36,15 @@ CONFLICT: Responses = {409: _problem("Conflict", "Conflict")}
 CATALOG_CONFLICT: Responses = {409: _problem("Uniqueness conflict in the catalog", "Conflict")}
 PLAIN_CONFLICT: Responses = {409: _problem("Conflict")}
 VALIDATION: Responses = {422: _problem("Request failed validation", "ValidationProblem")}
+AUTHOR_NOT_FOUND: Responses = {
+    404: _problem("code=author_not_found: Open Library has no author with this key (AC-23)")
+}
+RESULTS_EXPIRED: Responses = {
+    409: _problem("code=results_expired: list the works again before confirming")
+}
+SOURCE_UNAVAILABLE: Responses = {
+    503: _problem("code=source_unavailable: Open Library couldn't be reached; nothing changed")
+}
 BAD_REQUEST: Responses = {400: _problem("Current password is wrong")}
 LOGIN_FAILED: Responses = {401: _problem("Wrong login or password, or account deactivated")}
 TOO_MANY_ATTEMPTS: Responses = {

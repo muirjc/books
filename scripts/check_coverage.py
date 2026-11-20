@@ -1,7 +1,8 @@
 """Fail unless every coverage-critical module has 100% line coverage.
 
-Run after ``pytest --cov --cov-report=json``. The module list comes from
-specs/001-family-reading-list/plan.md, "Coverage-critical modules" (Constitution Principle V).
+Run after ``pytest --cov --cov-report=json``. The module list comes from the
+"Coverage-critical modules" sections of specs/001-family-reading-list/plan.md and
+specs/002-author-book-import/plan.md (Constitution Principle V).
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ CRITICAL_MODULES = (
     "src/book_tracker/auth/throttle.py",
     "src/book_tracker/persistence/readings.py",
     "src/book_tracker/services/accounts.py",
+    "src/book_tracker/services/imports.py",  # spec 002: whose list receives imported books
 )
 
 

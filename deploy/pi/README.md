@@ -239,6 +239,13 @@ docker image prune -f
 GitHub. A rollback across a database migration may not work; restore the backup taken
 before the update instead (section 10).
 
+**Import from Open Library** (spec 002) needs no setup beyond outbound HTTPS, which the
+Pi already allows. Requests name only the app; there is no contact setting. If a member
+sees "The book site couldn't be reached", Open Library was slow (over 10 s), down or
+limiting requests; nothing was changed, and adding books by hand always works. Answers
+are kept for 24 hours in the `source_lookup_cache` table, so repeat searches don't call
+Open Library again.
+
 **Update Docker** (not covered by automatic updates), when convenient:
 
 ```bash

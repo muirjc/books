@@ -22,6 +22,7 @@ from playwright.async_api import Browser, Page, async_playwright
 from book_tracker.main import create_app
 from book_tracker.settings import Settings
 from tests.conftest import Factory, TestUser
+from tests.fakes import FakeBookSource
 
 WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]
 _axe = Axe()
@@ -34,10 +35,23 @@ def _free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def live_server(settings: Settings, database_url: str) -> Iterator[str]:
+def live_book_source() -> FakeBookSource:
+    """The live server's Open Library: a fake, so these tests never call the real one
+    (spec 002 research R14). Tests fill it in and should clear what they add."""
+    return FakeBookSource()
+
+
+@pytest.fixture(scope="session")
+def live_server(
+    settings: Settings, database_url: str, live_book_source: FakeBookSource
+) -> Iterator[str]:
     port = _free_port()
     config = uvicorn.Config(
-        create_app(settings), host="127.0.0.1", port=port, log_level="warning", lifespan="off"
+        create_app(settings, book_source=live_book_source),
+        host="127.0.0.1",
+        port=port,
+        log_level="warning",
+        lifespan="off",
     )
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)

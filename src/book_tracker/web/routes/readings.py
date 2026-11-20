@@ -17,6 +17,7 @@ from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import BookCreate
 from book_tracker.schemas.readings import ReadingEntryCreate
 from book_tracker.services import catalog as catalog_service
+from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
 from book_tracker.services.catalog import NewBook
 from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
@@ -315,12 +316,14 @@ def _entry_page(
     errors: dict[str, str] | None = None,
     raw: dict[str, Any] | None = None,
     status_code: int = 200,
+    source_ref: Any = None,
 ) -> Response:
     return render(
         request,
         "pages/entry.html",
         {
             "entry": entry,
+            "source_ref": source_ref,
             "statuses": STATUSES,
             "errors": errors or {},
             "raw": raw or {},
@@ -336,7 +339,8 @@ async def entry_page(
     entry_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     entry = await service.get_entry(db, auth.account.id, entry_id)
-    return _entry_page(request, auth, entry)
+    source_ref = await imports_service.source_ref(db, entry.book.id)
+    return _entry_page(request, auth, entry, source_ref=source_ref)
 
 
 @router.post("/entries/{entry_id}")

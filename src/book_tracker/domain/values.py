@@ -6,6 +6,7 @@ import re
 from decimal import Decimal, InvalidOperation
 
 SERIES_NUMBER_MAX = Decimal("999.99")
+SORT_NAME_MAX = 200  # author.sort_name
 PEN_NAME_FIRST = "Mark the author as a pen name first"  # FR-014
 _SERIES_NUMBER = re.compile(r"^\d{1,3}(\.\d{1,2})?$")
 
@@ -20,7 +21,8 @@ def default_sort_name(name: str) -> str:
     parts = normalize_name(name).split(" ")
     if len(parts) < 2:
         return parts[0] if parts else ""
-    return f"{parts[-1]}, {' '.join(parts[:-1])}"
+    sort = f"{parts[-1]}, {' '.join(parts[:-1])}"
+    return sort[:SORT_NAME_MAX].rstrip()  # one longer than the name; author.sort_name is 200
 
 
 def parse_isbn13(raw: str) -> str:

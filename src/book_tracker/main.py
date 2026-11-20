@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from book_tracker.api import admin as api_admin
 from book_tracker.api import auth as api_auth
 from book_tracker.api import authors as api_authors
 from book_tracker.api import books as api_books
+from book_tracker.api import imports as api_imports
 from book_tracker.api import me as api_me
 from book_tracker.api import readings as api_readings
 from book_tracker.api import series as api_series
@@ -27,11 +29,14 @@ from book_tracker.api.errors import (
 from book_tracker.logging import RequestLogMiddleware, configure_logging
 from book_tracker.persistence.db import Database
 from book_tracker.settings import Settings, get_settings
+from book_tracker.sources.base import BookSource, UnavailableSource
+from book_tracker.sources.open_library import OpenLibrarySource, make_client
 from book_tracker.web.cookies import refresh_session_cookie
 from book_tracker.web.routes import admin as web_admin
 from book_tracker.web.routes import auth as web_auth
 from book_tracker.web.routes import catalog as web_catalog
 from book_tracker.web.routes import health as web_health
+from book_tracker.web.routes import imports as web_imports
 from book_tracker.web.routes import readings as web_readings
 from book_tracker.web.routes import suggest as web_suggest
 from book_tracker.web.security import SecurityHeadersMiddleware
@@ -44,17 +49,44 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def create_app(settings: Settings) -> FastAPI:
+def _book_source(settings: Settings, given: BookSource | None) -> tuple[BookSource, Any]:
+    """The source to use, and an HTTP client to close on shutdown (research R14, R18).
+
+    Under test, no app may call Open Library: without a given source it gets one that fails
+    every call (Principle V).
+    """
+    if given is not None:
+        return given, None
+    if settings.environment == "test":
+        return UnavailableSource(), None
+    client = make_client(settings.openlibrary_base_url)
+    source = OpenLibrarySource(client, timeout_seconds=settings.source_timeout_seconds)
+    return source, client
+
+
+def create_app(settings: Settings, *, book_source: BookSource | None = None) -> FastAPI:
+    source, http_client = _book_source(settings, book_source)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            if http_client is not None:
+                await http_client.aclose()
+
     app = FastAPI(
         title="Family Book Tracker API",
         version="1.0.0",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        lifespan=lifespan,
     )
     app.state.settings = settings
     app.state.db = Database.from_url(settings.database_url)
     app.state.clock = utc_now
+    app.state.book_source = source
 
     configure_logging()
     app.middleware("http")(refresh_session_cookie)
@@ -71,6 +103,7 @@ def create_app(settings: Settings) -> FastAPI:
     api.include_router(api_authors.router)
     api.include_router(api_series.router)
     api.include_router(api_admin.router)
+    api.include_router(api_imports.router)
     app.include_router(api)
 
     app.include_router(web_auth.router)
@@ -79,6 +112,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.include_router(web_catalog.router)
     app.include_router(web_suggest.router)
     app.include_router(web_health.router)
+    app.include_router(web_imports.router)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     # FastAPI's documented way to customise the schema is to replace app.openapi.

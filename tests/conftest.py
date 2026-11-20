@@ -34,9 +34,10 @@ from book_tracker.auth.passwords import hash_password
 from book_tracker.main import create_app
 from book_tracker.persistence import models
 from book_tracker.settings import Settings
+from tests.fakes import FakeBookSource
 
 ROOT = Path(__file__).resolve().parent.parent
-AC_ID = re.compile(r"^001/AC-\d{2}$")
+AC_ID = re.compile(r"^\d{3}/AC-\d{2}$")  # feature number / criterion, e.g. 002/AC-01
 TEST_SECRET = "test-secret-key-that-is-at-least-32-characters-long"
 DEFAULT_PASSWORD = "password123"
 
@@ -50,7 +51,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             for ac_id in marker.args:
                 if not isinstance(ac_id, str) or not AC_ID.match(ac_id):
                     raise pytest.UsageError(
-                        f"{item.nodeid}: ac marker {ac_id!r} must look like '001/AC-01'"
+                        f"{item.nodeid}: ac marker {ac_id!r} must look like '002/AC-01'"
                     )
 
 
@@ -193,6 +194,8 @@ def app(settings: Settings) -> Any:
 
 
 TABLES = (
+    "book_source_ref",
+    "source_lookup_cache",
     "reading_entry",
     "book_summary",
     "book_author",
@@ -433,6 +436,18 @@ class Factory:
 @pytest.fixture
 def factory(app: Any) -> Factory:
     return Factory(app)
+
+
+@pytest.fixture
+def book_source(app: Any) -> Iterator[FakeBookSource]:
+    """Swap in a fake Open Library for one test (spec 002, research R14)."""
+    previous = app.state.book_source
+    fake = FakeBookSource()
+    app.state.book_source = fake
+    try:
+        yield fake
+    finally:
+        app.state.book_source = previous
 
 
 async def gather(*aws: Awaitable[Any]) -> list[Any]:

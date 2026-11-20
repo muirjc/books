@@ -1,0 +1,7 @@
+{
+ "numFound": 2,
+ "docs": [
+  {"key": "OL31353A", "name": "Good Author", "work_count": 3},
+  {"key": "/authors/../OL1W", "name": "Garbled Author", "work_count": 1}
+ ]
+}

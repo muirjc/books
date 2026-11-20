@@ -13,13 +13,13 @@ from openapi_core import Config, OpenAPI
 from openapi_core.datatypes import RequestParameters
 from werkzeug.datastructures import Headers, ImmutableMultiDict
 
-CONTRACT = (
-    Path(__file__).resolve().parents[2]
-    / "specs"
-    / "001-family-reading-list"
-    / "contracts"
-    / "openapi.yaml"
-)
+SPECS = Path(__file__).resolve().parents[2] / "specs"
+DEFAULT_FEATURE = "001-family-reading-list"
+
+
+def contract_path(feature: str) -> Path:
+    """The committed contract of one feature, e.g. ``002-author-book-import``."""
+    return SPECS / feature / "contracts" / "openapi.yaml"
 
 
 class HttpxOpenAPIRequest:
@@ -80,21 +80,20 @@ class HttpxOpenAPIResponse:
         return self._response.content or None
 
 
-_openapi: OpenAPI | None = None
+_contracts: dict[str, OpenAPI] = {}
 
 
-def contract() -> OpenAPI:
-    global _openapi
-    if _openapi is None:
+def contract(feature: str = DEFAULT_FEATURE) -> OpenAPI:
+    if feature not in _contracts:
         # openapi-core has no built-in parser for problem+json; it is plain JSON.
         config = Config(extra_media_type_deserializers={"application/problem+json": json.loads})
-        _openapi = OpenAPI.from_file_path(str(CONTRACT), config=config)
-    return _openapi
+        _contracts[feature] = OpenAPI.from_file_path(str(contract_path(feature)), config=config)
+    return _contracts[feature]
 
 
-def assert_matches_contract(response: httpx.Response) -> None:
-    """Fail unless the response is one the contract defines for its operation."""
-    contract().validate_response(
+def assert_matches_contract(response: httpx.Response, feature: str = DEFAULT_FEATURE) -> None:
+    """Fail unless the response is one the feature's contract defines for its operation."""
+    contract(feature).validate_response(
         HttpxOpenAPIRequest(response.request), HttpxOpenAPIResponse(response)
     )
 
@@ -102,3 +101,9 @@ def assert_matches_contract(response: httpx.Response) -> None:
 @pytest.fixture
 def matches_contract() -> Callable[[httpx.Response], None]:
     return assert_matches_contract
+
+
+@pytest.fixture
+def matches_contract_002() -> Callable[[httpx.Response], None]:
+    """Spec 002's contract: the author-import operations."""
+    return lambda response: assert_matches_contract(response, "002-author-book-import")

@@ -1,0 +1,18 @@
+{
+ "numFound": 2,
+ "docs": [
+  {
+   "key": "OL1394865A",
+   "name": "Brandon Sanderson",
+   "birth_date": "19 December 1975",
+   "top_work": "The Final Empire",
+   "work_count": 238
+  },
+  {
+   "key": "OL16029248A",
+   "name": "Brandon Sanderson",
+   "top_work": "Wind and Truth",
+   "work_count": 14
+  }
+ ]
+}

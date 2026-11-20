@@ -13,7 +13,7 @@
   <table class="import-table">
     <caption class="visually-hidden">Books by {{ view.author.name }} on Open Library</caption>
     <thead>
-      <tr><th scope="col">Add</th><th scope="col">Title</th><th scope="col">First published</th><th scope="col">Authors</th><th scope="col">In the family</th></tr>
+      <tr><th scope="col" class="col-add">Add</th><th scope="col">Title</th><th scope="col" class="col-year">First published</th><th scope="col" class="col-authors">Authors</th><th scope="col" class="col-family">In the family</th></tr>
     </thead>
     <tbody>
       {% for w in view.works %}

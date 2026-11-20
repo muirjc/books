@@ -133,4 +133,12 @@ th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #d5dae1; ve
 @media (max-width: 40rem) {
   .import-table th:nth-child(4), .import-table td:nth-child(4) { display: none; } /* authors */
 }
+/* Fixed columns from tablet width up, so the layout is the same for every author. */
+@media (min-width: 40.0625rem) {
+  .import-table { table-layout: fixed; }
+  .import-table .col-add { width: 3.5rem; }
+  .import-table .col-year { width: 7rem; }
+  .import-table .col-authors { width: 22%; }
+  .import-table .col-family { width: 10rem; }
+}
 .import-table input[type="checkbox"] { width: 24px; height: 24px; margin: 0; } /* WCAG 2.2 target size */

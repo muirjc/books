@@ -64,3 +64,19 @@ async def test_phone_width_admin(ui: UI, seeded: Seeded) -> None:
     for label, path in {"accounts": "/admin/users", "new account": "/admin/users/new"}.items():
         await ui.go(path)
         await check(ui.page, label)
+
+
+ROW_TOPS = """() => [...document.querySelectorAll('.book-list > li')].map(li =>
+  [...li.children].map(c => Math.round(c.getBoundingClientRect().top)))"""
+
+
+async def test_my_books_one_line_per_book(ui: UI, seeded: Seeded) -> None:
+    """On a tablet or wider, each book's title, authors and status share one line."""
+    await ui.page.set_viewport_size({"width": 1024, "height": 768})
+    await ui.sign_in(seeded.alice)
+    await ui.go("/")
+    rows = await ui.page.evaluate(ROW_TOPS)
+    assert rows, "no books listed"
+    for tops in rows:
+        assert max(tops) - min(tops) <= 2, rows
+    await check(ui.page, "list at tablet width")

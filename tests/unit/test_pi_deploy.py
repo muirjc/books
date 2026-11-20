@@ -8,6 +8,7 @@ PostgreSQL are never published, and PostgreSQL has no route out.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -128,6 +129,12 @@ def test_caddyfile_uses_internal_ca_for_books_local() -> None:
     # Connections by IP carry no SNI; without this they fail the TLS handshake.
     assert "default_sni {$PI_LAN_IP}" in caddyfile
     assert "reverse_proxy app:8000" in caddyfile
+
+
+def test_caddyfile_turns_http3_off() -> None:
+    """Only TCP 443 is published; Safari on iOS fails on an unreachable HTTP/3 (Alt-Svc)."""
+    caddyfile = (DEPLOY / "caddy" / "Caddyfile").read_text()
+    assert re.search(r"servers\s*\{\s*protocols h1 h2\s*\}", caddyfile)
 
 
 def test_caddyfile_is_valid(config: dict[str, Any]) -> None:

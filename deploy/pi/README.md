@@ -55,6 +55,24 @@ port 5900 rule (`sudo ufw delete allow from 192.168.4.0/22 to any port 5900 prot
    (`systemctl status avahi-daemon`). Some Android devices don't resolve `.local`; they
    use the reserved IP instead.
 
+   Make Avahi announce only the LAN IPv4 address, the one Caddy listens on. By default it
+   also announces the Pi's IPv6 addresses and, once Docker is installed, Docker's internal
+   bridge addresses (172.x); iPhones and iPads then try one of those first and the site
+   doesn't respond, although the reserved IP works. In `/etc/avahi/avahi-daemon.conf`:
+
+   ```ini
+   [server]
+   use-ipv6=no
+   allow-interfaces=eth0
+
+   [publish]
+   publish-aaaa-on-ipv4=no
+   ```
+
+   Edit the existing lines rather than adding duplicate sections, then
+   `sudo systemctl restart avahi-daemon`. `journalctl -u avahi-daemon -n 5` should show
+   only `Registering new address record for <reserved-ip> on eth0.IPv4`.
+
 4. Bring the OS up to date and check the clock (HTTPS certificates depend on it):
 
    ```bash

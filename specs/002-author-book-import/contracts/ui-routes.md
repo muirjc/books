@@ -18,7 +18,8 @@ No custom JavaScript (research R12).
 States and messages:
 
 - **Open Library unreachable while the cached list still has under an hour left**: the cached
-  list is shown; it is fetched again on a later visit.
+  list is shown with "Open Library couldn't be reached, so this is the list fetched earlier.
+  It expires within the hour…"; it is fetched again on a later visit.
 - **Open Library unreachable**: the search or works page shows "The book site couldn't be
   reached. Try again later, or add the book by hand," with a link to `/books/add` (AC-13).
 - **Results expired** at confirm: nothing is added; the page sends the member (303, or

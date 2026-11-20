@@ -18,14 +18,19 @@ _LEADING_ARTICLE = re.compile(r"^(the|a|an)\s+")
 _PUNCTUATION = re.compile(r"[^\w\s]", re.UNICODE)
 
 
+_UNSTORABLE = frozenset({"Cc", "Cs"})  # control characters; lone UTF-16 surrogates
+
+
 def clean(value: str) -> str:
     """NFKC with whitespace collapsed and control characters dropped: the stored form.
 
-    PostgreSQL text and JSONB refuse NUL, so it must never get as far as a query.
+    PostgreSQL text and JSONB refuse NUL and lone surrogates, so neither may reach a query.
     """
     text = " ".join(unicodedata.normalize("NFKC", value).split())
-    if any(unicodedata.category(c) == "Cc" for c in text):
-        text = " ".join("".join(c for c in text if unicodedata.category(c) != "Cc").split())
+    if any(unicodedata.category(c) in _UNSTORABLE for c in text):
+        text = " ".join(
+            "".join(c for c in text if unicodedata.category(c) not in _UNSTORABLE).split()
+        )
     return text
 
 

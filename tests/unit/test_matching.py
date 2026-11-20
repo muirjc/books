@@ -111,3 +111,8 @@ def test_clean_drops_control_characters() -> None:
     assert clean("ann\x00 author\x07") == "ann author"
     assert clean("tab\tand\nnewline") == "tab and newline"
     assert "\x00" not in fit("a\x00b", 10)
+
+
+def test_clean_drops_lone_surrogates() -> None:
+    """JSONB refuses them as it refuses NUL (third review, finding 2)."""
+    assert clean("ab\ud800cd \udfff") == "abcd"

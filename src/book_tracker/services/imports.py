@@ -8,6 +8,7 @@ user id from request data (Principle I). Nothing is written to the catalog befor
 
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
@@ -130,8 +131,9 @@ async def list_works(
     except SourceUnavailable:
         if cached is None:
             raise
-        # Still valid for under an hour, so show it rather than fail (second review, 5).
-        return await _works_view(db, user_id, cached.value, cached.fetched_at, sort=sort, q=q)
+        # Still valid for under an hour, so show it, saying so (research R8).
+        view = await _works_view(db, user_id, cached.value, cached.fetched_at, sort=sort, q=q)
+        return dataclasses.replace(view, refresh_failed=True)
     await source_cache.put_works(db, author_key, listing, now)
     fetched_at = now
     return await _works_view(db, user_id, listing, fetched_at, sort=sort, q=q)

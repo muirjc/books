@@ -74,6 +74,7 @@ class WorksView:
     fetched_at: datetime
     # Every id in the whole list, before filtering, merged ids included → the work's own id.
     lead_ids: Mapping[str, str] = field(default_factory=dict)
+    refresh_failed: bool = False  # shown from the cache because Open Library was down
 
 
 class SkipReason(enum.StrEnum):

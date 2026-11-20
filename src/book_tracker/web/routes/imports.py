@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from starlette.responses import Response
 
 from book_tracker.api.errors import ui_redirect
@@ -20,7 +20,7 @@ from book_tracker.auth.dependencies import Authenticated, UiUser, now
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.imports import MAX_WORKS_PER_IMPORT, WorkState, WorksView
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.imports import ImportPageForm, WorksViewForm
+from book_tracker.schemas.imports import ImportPageForm, WorkKey, WorksViewForm
 from book_tracker.services import imports as service
 from book_tracker.services.errors import (
     ConflictError,
@@ -40,6 +40,10 @@ BAD_STATUS = "Choose how to add the books: Finished, Reading or Want to read"
 EXPIRED_NOTICE = (
     "The list had expired, so it was fetched again from Open Library. Tick your books again."
 )
+STALE_NOTICE = (
+    "Open Library couldn't be reached, so this is the list fetched earlier. It expires "
+    "within the hour: confirm soon, or come back later for a fresh list."
+)
 SELECT_LIMIT_NOTE = (
     f"Only the first {MAX_WORKS_PER_IMPORT} shown were ticked: you can add up to "
     f"{MAX_WORKS_PER_IMPORT} books at a time."
@@ -56,6 +60,17 @@ def _unreachable(request: Request, auth: Authenticated, q: str = "") -> Response
     )
 
 
+_WORK_KEY_RULE: TypeAdapter[str] = TypeAdapter(WorkKey)
+
+
+def _valid_work_key(value: str) -> bool:
+    try:
+        _WORK_KEY_RULE.validate_python(value)
+    except ValidationError:
+        return False
+    return True
+
+
 def _page_form(data: Any) -> tuple[ImportPageForm, str | None]:
     """The posted status and ticks, validated; on a bad value, the defaults and a message."""
     raw = {"status": data.get("status") or ReadingStatus.FINISHED.value,
@@ -64,7 +79,7 @@ def _page_form(data: Any) -> tuple[ImportPageForm, str | None]:
         return ImportPageForm.model_validate(raw), None
     except ValidationError as exc:
         bad_status = any(e["loc"][:1] == ("status",) for e in exc.errors())
-        keys = [k for k in raw["work"] if _WORK_KEY.fullmatch(k)]
+        keys = [k for k in raw["work"] if _valid_work_key(k)]  # same rule (third review, 1)
         message = BAD_STATUS if bad_status else service.NOT_IN_LIST
         return ImportPageForm(work=keys), message
 
@@ -116,7 +131,7 @@ def _works_context(
         "status": status.value,
         "error": error,
         "note": note,
-        "notice": notice,
+        "notice": notice or (STALE_NOTICE if view.refresh_failed else None),
         "hidden_ticks": sorted(k for k in checked if k not in shown),  # filtered out (finding 2)
         "selectable": [w for w in view.works if w.state is not WorkState.ON_MY_LIST],
         "max_import": MAX_WORKS_PER_IMPORT,

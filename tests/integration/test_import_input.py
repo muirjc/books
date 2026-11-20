@@ -103,8 +103,10 @@ async def test_search_with_a_nul_character(
     assert page.status_code in (200, 303), page.text
 
 
+@pytest.mark.parametrize("bad", ["OL1W\n", "OL" + "1" * 60 + "W"])
 @pytest.mark.parametrize("path", [f"/import/authors/{KEY}", f"/import/authors/{KEY}/view"])
 async def test_work_id_with_a_trailing_newline(
+    bad: str,
     path: str,
     factory: Factory,
     client_factory: Callable[[], httpx.AsyncClient],
@@ -114,9 +116,9 @@ async def test_work_id_with_a_trailing_newline(
     stock(book_source)
     _, client = await member(factory, client_factory, "alice")
     await client.get(f"/import/authors/{KEY}")
-    sent = await _post(client, path, [("work", "OL1W\n")])
+    sent = await _post(client, path, [("work", bad)])  # also too long (third review, 1)
     assert sent.status_code == 422, sent.text
-    assert "OL1W\n" not in submitted(sent.text)
+    assert bad not in submitted(sent.text)
 
 
 async def test_author_key_with_a_trailing_newline(
@@ -182,6 +184,7 @@ async def test_refresh_failure_falls_back_to_the_cache(
     book_source.error = SourceUnavailable()
     page = await client.get(f"/import/authors/{KEY}")
     assert page.status_code == 200
+    assert "Open Library couldn&#39;t be reached" in page.text  # says so (third review, 3)
     token = await ui_csrf(client)
     fragment = await client.post(
         f"/import/authors/{KEY}/view", data={"csrf_token": token, "sort": "year"},

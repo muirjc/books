@@ -165,8 +165,11 @@ Checked with live requests on 2026-11-19 (author "Brandon Sanderson").
   has expired, the confirm is refused with `results_expired` and the member reloads the list.
   A work id that isn't in the cached list is a validation error. When the works list is
   shown from a cache row with less than 1 hour left, it is fetched again and the row
-  refreshed, so a list on screen always has at least an hour to be confirmed (review
-  finding 11).
+  refreshed, so a list on screen normally has at least an hour to be confirmed (review
+  finding 11). If that refresh fails because Open Library can't be reached, the cached list
+  is shown anyway, with a note that it expires within the hour and the member should
+  confirm soon. Showing it beats the "couldn't be reached" page, and an expired confirm is
+  still refused (PR #12 reviews 2 and 3).
 - **Rationale**: titles and authors come from the server's own copy of Open Library's answer,
   not from the browser, so provenance (FR-009) can't be forged. Nothing is fetched at confirm
   time, matching the spec's edge case.

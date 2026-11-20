@@ -56,7 +56,8 @@ class Recorder:
             return httpx.Response(404)
         if isinstance(target, int):
             return httpx.Response(target)
-        return httpx.Response(200, json=fixture(target))
+        body = (FIXTURES / target).read_bytes()  # as recorded, escapes and all
+        return httpx.Response(200, content=body, headers={"Content-Type": "application/json"})
 
 
 def source(handler: Handler, *, budget: float = 10.0) -> OpenLibrarySource:

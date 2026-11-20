@@ -178,8 +178,10 @@ books are added.
   them can't be imported from this list and are added by hand. *(AC-20)*
 - **The listed results expire** (after 24 hours) before the member confirms. Nothing is
   added; they are asked to reload the list, so no book is imported from stale data. A list is
-  never shown with less than an hour left, so this needs a page left open for an hour or
-  more.
+  normally never shown with less than an hour left, so this needs a page left open for an
+  hour or more. The exception: if the site can't be reached when a list with under an hour
+  left would be fetched again, the earlier list is still shown, with a note that it expires
+  within the hour, rather than no list at all.
 
 - **AC-13**: **Given** the site times out or returns an error, **When** the member searches or
   loads an author's books, **Then** they see "The book site couldn't be reached. Try again

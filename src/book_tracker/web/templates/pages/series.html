@@ -1,20 +1,43 @@
 {% extends "base.html" %}
+{% from "macros.html" import authors_line %}
 {% block title %}{{ series.name }}{% endblock %}
 {% block content %}
 <h1>{{ series.name }}</h1>
-<p class="muted">The books from this series on your list, in reading order.</p>
-{% if entries %}
-<ol class="book-list series-list" role="list">
-  {% for entry in entries %}
+{% if added %}
+<p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list.</p>
+{% endif %}
+{% if view.rows %}
+<p>You've finished {{ view.finished }} of {{ view.total }} book{{ "" if view.total == 1 else "s" }} in this series.</p>
+{#- Every catalog book in the series with my own status, and gaps (spec 006). Each row
+    reads number, title, authors, status, then its action (R5). -#}
+<ol class="book-list series-rows" role="list">
+  {% for row in view.rows %}
+  {% if row.book %}
+  {% set book = row.book %}
   <li>
-    <span class="badge">{% if entry.book.series_number is not none %}#{{ entry.book.series_number | series_number }}{% else %}No number{% endif %}</span>
-    <a class="book-title" href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>
-    <span class="book-meta">· {{ STATUS_LABELS[entry.status] }}</span>
+    <span class="badge">{% if book.series_number is not none %}#{{ book.series_number | series_number }}{% else %}No number{% endif %}</span>
+    {% if row.entry %}
+    <a class="book-title" href="/entries/{{ row.entry.id }}">{{ book.title }}</a>
+    {% else %}
+    <span class="book-title">{{ book.title }}</span>
+    {% endif %}
+    <span class="series-detail"><span class="book-meta">{{ authors_line(book) }}</span> · <span class="series-status">{% if row.entry %}{{ STATUS_LABELS[row.entry.status] }}{% if row.entry.finished_on %} · {{ row.entry.finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}</span></span>
+    {% if not row.entry %}
+    <a class="series-action" href="/books/add?book={{ book.id }}&amp;from_series={{ series.id }}"><span>Add<span class="visually-hidden"> “{{ book.title }}”</span> to my list</span></a>
+    {% endif %}
   </li>
+  {% else %}
+  <li class="series-gap">
+    <span class="badge">#{{ row.first }}{% if row.last != row.first %}–#{{ row.last }}{% endif %}</span>
+    <span class="series-detail series-status">Not in the family catalog yet</span>
+    <a class="series-action" href="/books/add?series={{ series.id }}&amp;number={{ row.first }}&amp;from_series={{ series.id }}">Add #{{ row.first }}</a>
+  </li>
+  {% endif %}
   {% endfor %}
 </ol>
 {% else %}
-<p>None of the books in this series are on your list yet.</p>
+<p>The family catalog has no books in this series yet.</p>
+<p><a class="series-action" href="/books/add?series={{ series.id }}&amp;from_series={{ series.id }}">Add a book to this series</a></p>
 {% endif %}
 <p><a href="/catalog/series/{{ series.id }}/edit">Edit series</a> · <a href="/">Back to my books</a></p>
 {% endblock %}

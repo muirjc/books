@@ -81,8 +81,11 @@ async def test_series_page(world: dict[str, Any]) -> None:
     assert "<h1>Discworld</h1>" in series.text
     text = series.text
     assert text.index("The Colour of Magic") < text.index("Mort")
-    # Cross-user (Principle I): Ben's entry in the same series never appears.
-    assert "Equal Rites" not in text and "ben secret" not in text
+    # Cross-user (Principle I): Ben's entry in the same series never appears. Since spec 006
+    # the page lists every catalog book, so his book shows, but only as "Not on my list".
+    assert "ben secret" not in text and "Ben" not in text.split("<main", 1)[1]
+    rites = text.split("Equal Rites", 1)[1].split("</li>", 1)[0]
+    assert "Not on my list" in rites
     filtered = await page.get("/", params={"series_id": str(world["discworld"])})
     assert "Equal Rites" not in filtered.text
     assert (await page.get("/series/00000000-0000-4000-8000-000000000000")).status_code == 404

@@ -112,6 +112,8 @@ class AddBookForm:
     # Spec 005: the series counterparts of AuthorRow.confirmed and AuthorRow.use_id.
     series_confirmed: str = ""
     use_series_id: uuid.UUID | None = None
+    # Spec 006: the series page to return to after a successful save (a parsed id only).
+    from_series: uuid.UUID | None = None
     raw: dict[str, str] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
     new_names: dict[str, NewName] = field(default_factory=dict)  # by field (spec 005)
@@ -144,6 +146,7 @@ def parse_add_book(form: FormData) -> AddBookForm:
     # The last value wins: the hidden field comes first, the clicked button later (R2).
     parsed.then = "another" if text(form, "then") == "another" else "list"
     parsed.book_id = optional_uuid(form, "book_id")
+    parsed.from_series = optional_uuid(form, "from_series")
     parsed.authors = [
         AuthorRow(
             i,
@@ -267,3 +270,33 @@ def carry_over_form(entry: domain.ReadingEntry) -> AddBookForm:
             raw["series_number"] = format_series_number(number)
     raw["status"] = entry.status.value
     return AddBookForm(status=entry.status, then="another", raw=raw)
+
+
+def book_start_form(book: domain.Book) -> AddBookForm:
+    """Add a book starting from a catalog book (spec 006 R3): the book chosen, its details
+    shown, status Want to read. With ``book_id`` set, saving adds that book."""
+    raw: dict[str, str] = {"book_id": str(book.id), "title": book.title}
+    for i, author in enumerate(book.authors):
+        raw[f"author_name_{i}"] = author.name
+        raw[f"author_id_{i}"] = str(author.id)
+    if book.series is not None:
+        raw["series_name"] = book.series.name
+        raw["series_id"] = str(book.series.id)
+        if book.series_number is not None:
+            raw["series_number"] = format_series_number(book.series_number)
+    raw["status"] = ReadingStatus.WANT_TO_READ.value
+    return AddBookForm(book_id=book.id, status=ReadingStatus.WANT_TO_READ, raw=raw)
+
+
+def series_start_form(series: domain.Series, number: str) -> AddBookForm:
+    """Add a book starting from a series and number, as for a gap row (spec 006 R3). An
+    invalid number is left blank."""
+    raw: dict[str, str] = {"series_name": series.name, "series_id": str(series.id)}
+    try:
+        value = _series_number.validate_python(number)
+    except ValidationError:
+        value = None
+    if value is not None:
+        raw["series_number"] = format_series_number(value)
+    raw["status"] = ReadingStatus.WANT_TO_READ.value
+    return AddBookForm(status=ReadingStatus.WANT_TO_READ, raw=raw)

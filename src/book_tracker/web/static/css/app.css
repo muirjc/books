@@ -107,6 +107,23 @@ button, .button {
 .book-list { list-style: none; margin: 0; padding: 0; }
 .book-list > li { border-bottom: 1px solid #d5dae1; padding: 0.4rem 0; }
 .series-list > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; }
+/* The series viewer (spec 006). Each row: number, title, then authors · status, then the
+   action. Phone: number left; title, details and action stacked beside it. Wider: one line. */
+.series-rows > li {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "num title" ". detail" ". action"; column-gap: 0.5rem;
+}
+.series-rows .badge { grid-area: num; align-self: center; justify-self: start; min-width: 3.25rem; text-align: center; }
+.series-rows .book-title { grid-area: title; }
+.series-rows .series-detail { grid-area: detail; color: var(--muted); }
+.series-gap .series-detail { grid-area: title; font-style: italic; }
+.series-action { grid-area: action; justify-self: start; }
+.series-action, .series-rows a.book-title { display: inline-flex; align-items: center; min-height: var(--target); }
+@media (min-width: 40em) {
+  .series-rows > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; min-height: var(--target); }
+  .series-rows > li:not(.series-gap) .series-detail::before { content: "· "; }
+  .series-action { margin-left: auto; }
+}
 .reading-list > li {
   display: grid; grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "title title" "meta status";

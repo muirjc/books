@@ -28,9 +28,11 @@ from book_tracker.web.forms import (
     AddBookForm,
     AuthorRow,
     NewName,
+    book_start_form,
     carry_over_form,
     parse_add_book,
     parse_entry_update,
+    series_start_form,
 )
 from book_tracker.web.rendering import is_htmx, render
 
@@ -141,9 +143,30 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
 async def series_page(
     series_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
-    """My books in one series, in reading order (FR-022)."""
-    series, entries = await service.series_view(db, auth.account.id, series_id)
-    return render(request, "pages/series.html", {"series": series, "entries": entries}, auth=auth)
+    """Every catalog book in the series with my own status, and gaps (spec 006). With
+    ``added`` = my own just-added entry, a confirmation (another member's id: nothing)."""
+    series, view = await service.whole_series_view(db, auth.account.id, series_id)
+    added: domain.ReadingEntry | None = None
+    entry_id = _uuid_param(request, "added")
+    if entry_id is not None:
+        try:
+            added = await service.get_entry(db, auth.account.id, entry_id)
+        except NotFoundError:
+            added = None
+    if added is not None and (added.book.series is None or added.book.series.id != series.id):
+        added = None  # only a book in this series (PR #22 review)
+    return render(
+        request, "pages/series.html", {"series": series, "view": view, "added": added}, auth=auth
+    )
+
+
+async def _existing_series(db: DbSession, series_id: uuid.UUID | None) -> domain.Series | None:
+    if series_id is None:
+        return None
+    try:
+        return await catalog_service.get_series(db, series_id)
+    except NotFoundError:
+        return None
 
 
 # --------------------------------------------------------------------------- add
@@ -177,6 +200,7 @@ def _add_form(
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
     added: domain.ReadingEntry | None = None,
+    chosen: domain.Book | None = None,
 ) -> Response:
     return render(
         request,
@@ -184,6 +208,7 @@ def _add_form(
         {
             "form": form or AddBookForm(),
             "added": added,
+            "chosen": chosen,
             "statuses": STATUSES,
             "conflict": conflict,
             "author_conflicts": author_conflicts or {},
@@ -211,9 +236,33 @@ async def add_book_form(
             added = await service.get_entry(db, auth.account.id, entry_id)
         except NotFoundError:
             added = None
-    if added is None:
-        return _add_form(request, auth)
-    return _add_form(request, auth, carry_over_form(added), added=added)
+    if added is not None:
+        return _add_form(request, auth, carry_over_form(added), added=added)
+    # Spec 006: start from a catalog book, or from a series and number, and return to a
+    # series page. Unknown or malformed values are ignored (R3).
+    form = AddBookForm()
+    chosen = await _chosen_book(db, _uuid_param(request, "book"))
+    if chosen is not None:
+        form = book_start_form(chosen)
+    else:
+        start_series = await _existing_series(db, _uuid_param(request, "series"))
+        if start_series is not None:
+            form = series_start_form(start_series, request.query_params.get("number", ""))
+    from_series = await _existing_series(db, _uuid_param(request, "from_series"))
+    if from_series is not None:
+        form.from_series = from_series.id
+    return _add_form(request, auth, form, chosen=chosen)
+
+
+async def _chosen_book(db: DbSession, book_id: uuid.UUID | None) -> domain.Book | None:
+    """The catalog book a form starts from, shown as details rather than editable fields:
+    saving adds that book as it is (spec 006, PR #22 review)."""
+    if book_id is None:
+        return None
+    try:
+        return await catalog_service.get_book(db, book_id)
+    except NotFoundError:
+        return None
 
 
 @router.post("/books/add")
@@ -221,8 +270,10 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
     form = parse_add_book(await request.form())
     if form.book_id is None:
         await new_name_prompts(db, form)  # spec 005: shown with any field errors
+    # A chosen catalog book shows again as details, not editable fields (spec 006).
+    chosen = await _chosen_book(db, form.book_id)
     if form.field_errors:
-        return _add_form(request, auth, form, status_code=422)
+        return _add_form(request, auth, form, status_code=422, chosen=chosen)
     if form.new_names:
         return _add_form(request, auth, form, status_code=409)
     user_id = auth.account.id
@@ -281,12 +332,15 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                 notes=form.notes,
             )
     except ConflictError as exc:
-        return _add_form(request, auth, form, status_code=409, conflict=exc)
+        return _add_form(request, auth, form, status_code=409, conflict=exc, chosen=chosen)
     except (ValidationFailed, NotFoundError):
         form.errors["title"] = "That book is no longer in the catalog. Enter its details."
         return _add_form(request, auth, form, status_code=422)
     if form.then == "another":
         return RedirectResponse(f"/books/add?after={entry.id}", status_code=303)
+    back = await _existing_series(db, form.from_series)
+    if back is not None:  # spec 006: the path is built from a parsed, existing series id
+        return RedirectResponse(f"/series/{back.id}?added={entry.id}", status_code=303)
     return RedirectResponse("/?msg=added", status_code=303)
 
 

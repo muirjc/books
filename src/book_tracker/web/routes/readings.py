@@ -15,7 +15,7 @@ from starlette.responses import Response
 from book_tracker.auth.dependencies import Authenticated, UiUser, today
 from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
-from book_tracker.domain.values import format_series_number, normalize_name
+from book_tracker.domain.values import format_series_number, normalize_name, similar_names
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import BookCreate
 from book_tracker.schemas.readings import ReadingEntryCreate
@@ -26,6 +26,8 @@ from book_tracker.services.catalog import NewBook
 from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
 from book_tracker.web.forms import (
     AddBookForm,
+    AuthorRow,
+    NewName,
     carry_over_form,
     parse_add_book,
     parse_entry_update,
@@ -217,8 +219,12 @@ async def add_book_form(
 @router.post("/books/add")
 async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
     form = parse_add_book(await request.form())
-    if form.errors:
+    if form.book_id is None:
+        await new_name_prompts(db, form)  # spec 005: shown with any field errors
+    if form.field_errors:
         return _add_form(request, auth, form, status_code=422)
+    if form.new_names:
+        return _add_form(request, auth, form, status_code=409)
     user_id = auth.account.id
     try:
         if form.book_id is not None:
@@ -284,32 +290,114 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
     return RedirectResponse("/?msg=added", status_code=303)
 
 
+NEW_NAME = "“{}” is not in the family catalog yet"
+
+
+async def _chosen_author(db: DbSession, row: AuthorRow) -> domain.Author | None:
+    """The catalog author a row names: a "Use …" choice, or a picked id whose name still
+    matches what was typed (without JavaScript, editing the text doesn't clear the id)."""
+    if row.use_id is not None:
+        try:
+            return await catalog_service.get_author(db, row.use_id)
+        except NotFoundError:
+            pass
+    if row.author_id is not None:
+        try:
+            chosen = await catalog_service.get_author(db, row.author_id)
+        except NotFoundError:
+            return None
+        if chosen.name.lower() == row.name.lower():
+            return chosen
+    return None
+
+
+async def _chosen_series(db: DbSession, form: AddBookForm) -> domain.Series | None:
+    """The series counterpart of ``_chosen_author``."""
+    if form.use_series_id is not None:
+        try:
+            return await catalog_service.get_series(db, form.use_series_id)
+        except NotFoundError:
+            pass
+    if form.series_id is not None:
+        try:
+            chosen = await catalog_service.get_series(db, form.series_id)
+        except NotFoundError:
+            return None
+        if chosen.name.lower() == form.series_name.lower():
+            return chosen
+    return None
+
+
+async def new_name_prompts(db: DbSession, form: AddBookForm) -> None:
+    """Spec 005: record a prompt for every typed author or series that isn't picked,
+    confirmed, or an exact catalog name (that one keeps today's "Already in the catalog"
+    choice). Read-only, and runs once per form; each prompt is also a field error, so it
+    is in the error summary.
+
+    A "Use …" choice is written back as a picked record (id and catalog name), so it
+    sticks when the page comes back for another reason.
+    """
+    if form.names_checked:
+        return
+    form.names_checked = True
+    confirmed = {row.name for row in form.chosen_authors if row.confirmed == row.name}
+    candidates: catalog_service.Candidates | None = None
+    for row in form.chosen_authors:
+        field = f"author_name_{row.index}"
+        chosen = await _chosen_author(db, row)
+        if chosen is not None:
+            form.raw[f"author_id_{row.index}"] = str(chosen.id)
+            form.raw[field] = chosen.name
+            continue
+        if row.name in confirmed or await catalog_service.author_named(db, row.name):
+            continue
+        if candidates is None:
+            candidates = await catalog_service.author_candidates(db)
+        form.new_names[field] = NewName(
+            field, "author", row.name, similar_names(row.name, candidates)
+        )
+        form.errors.setdefault(field, NEW_NAME.format(row.name))
+    name = form.series_name
+    if not name:
+        return
+    series = await _chosen_series(db, form)
+    if series is not None:
+        form.raw["series_id"] = str(series.id)
+        form.raw["series_name"] = series.name
+        return
+    if form.series_confirmed == name or await catalog_service.series_named(db, name):
+        return
+    similar = similar_names(name, await catalog_service.series_candidates(db))
+    form.new_names["series_name"] = NewName("series_name", "series", name, similar)
+    form.errors.setdefault("series_name", NEW_NAME.format(name))
+
+
 async def resolve_authors(
     db: DbSession, auth: Authenticated, form: AddBookForm
 ) -> tuple[list[uuid.UUID], dict[int, ConflictError]]:
-    """Use chosen authors; create typed new ones. Conflicts are reported per row.
+    """Use chosen authors; create the typed ones. Conflicts are reported per row.
 
-    A chosen id only counts if its name still matches what was typed (without JavaScript,
-    editing the text doesn't clear the hidden id).
+    Callers run ``new_name_prompts`` first and stop on a prompt, so a name created here
+    was confirmed, or exactly matches a catalog name (which raises today's conflict). A
+    name typed in two rows is created once.
     """
     ids: list[uuid.UUID] = []
     conflicts: dict[int, ConflictError] = {}
+    created: dict[str, uuid.UUID] = {}
     for row in form.chosen_authors:
-        if row.author_id is not None:
-            try:
-                chosen = await catalog_service.get_author(db, row.author_id)
-            except NotFoundError:
-                chosen = None
-            if chosen is not None and chosen.name.lower() == row.name.lower():
-                ids.append(chosen.id)
-                continue
-        if not row.name:
+        chosen = await _chosen_author(db, row)
+        if chosen is not None:
+            ids.append(chosen.id)
+            continue
+        if row.name.lower() in created:
+            ids.append(created[row.name.lower()])
             continue
         try:
             author = await catalog_service.create_author(db, auth.account.id, name=row.name)
         except ConflictError as exc:
             conflicts[row.index] = exc
             continue
+        created[row.name.lower()] = author.id
         ids.append(author.id)
     return list(dict.fromkeys(ids)), conflicts
 
@@ -320,13 +408,9 @@ async def resolve_series(
     """A blank series name means no series, even if a stale id was sent (no-JS editing)."""
     if not form.series_name:
         return None, None
-    if form.series_id is not None:
-        try:
-            chosen = await catalog_service.get_series(db, form.series_id)
-        except NotFoundError:
-            chosen = None
-        if chosen is not None and chosen.name.lower() == form.series_name.lower():
-            return chosen.id, None
+    chosen = await _chosen_series(db, form)
+    if chosen is not None:
+        return chosen.id, None
     try:
         series = await catalog_service.create_series(db, auth.account.id, name=form.series_name)
     except ConflictError as exc:
@@ -372,6 +456,9 @@ async def save_book_details(
     only_if_changed: bool = False,
 ) -> BookSaveProblem | None:
     """Save the book fields of a checked form; None when saved (or nothing changed)."""
+    await new_name_prompts(db, form)
+    if form.new_names:
+        return BookSaveProblem(409)  # spec 005: confirm or replace new names first
     author_ids, author_conflicts = await resolve_authors(db, auth, form)
     series_id, series_conflict = await resolve_series(db, auth, form)
     if not author_ids and not author_conflicts:
@@ -471,7 +558,8 @@ async def update_entry(
     if details is not None:
         for name in ENTRY_FIELDS:  # checked by parse_entry_update
             details.errors.pop(name, None)
-    if update is None or (details is not None and details.errors):
+        await new_name_prompts(db, details)  # spec 005: shown with any field errors
+    if update is None or (details is not None and details.field_errors):
         return _entry_page(
             request, auth, current, errors=errors, raw=raw, form=details, status_code=422
         )

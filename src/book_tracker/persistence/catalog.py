@@ -109,6 +109,18 @@ async def find_book_by_series_number(
     return (row[0], row[1]) if row else None
 
 
+async def author_names(db: AsyncSession) -> list[tuple[uuid.UUID, str, str | None]]:
+    """(id, name, real name) of every catalog author, for "did you mean" (spec 005)."""
+    rows = await db.execute(select(models.Author.id, models.Author.name, models.Author.real_name))
+    return [(r[0], r[1], r[2]) for r in rows]
+
+
+async def series_names(db: AsyncSession) -> list[tuple[uuid.UUID, str]]:
+    """(id, name) of every catalog series, for "did you mean" (spec 005)."""
+    rows = await db.execute(select(models.Series.id, models.Series.name))
+    return [(r[0], r[1]) for r in rows]
+
+
 async def list_series_books(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Book]:
     """Every catalog book in a series, on anyone's list or none: by number, unnumbered
     last, then by title."""

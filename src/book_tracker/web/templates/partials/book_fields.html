@@ -1,6 +1,9 @@
 {#- Title, authors, series, number and ISBN, shared by the add and edit book pages.
     Expects: form (AddBookForm), author_conflicts, series_conflict, suggest_title -#}
 {% from "macros.html" import described, field_error %}
+{#- The form's default button, so Enter in a field saves as the main button does, never as
+    a "Use …" or "Add … as new" choice further down (spec 005, PR #21 review). -#}
+<span class="visually-hidden"><button type="submit" name="then" value="list" tabindex="-1" aria-hidden="true">Save</button></span>
 <div class="field">
   <label for="title">Title</label>
   {% if suggest_title %}
@@ -23,7 +26,10 @@
     <label for="{{ name_key }}">{% if i == 0 %}Author{% else %}Another author (optional){% endif %}</label>
     {% with name=name_key, kind="authors", id_field=id_key, value=form.raw.get(name_key, ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
     <input type="hidden" id="{{ id_key }}" name="{{ id_key }}" value="{{ '' if author_conflicts.get(i) else form.raw.get(id_key, '') }}">
+    {%- set confirm_key = "confirm_author_" ~ i %}
+    {% if form.raw.get(confirm_key) %}<input type="hidden" name="{{ confirm_key }}" value="{{ form.raw.get(confirm_key) }}">{% endif %}
     {{ field_error(form.errors, name_key) }}
+    {% if form.new_names.get(name_key) %}{% with nn=form.new_names.get(name_key) %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
     {% if author_conflicts.get(i) %}
     {% set c = author_conflicts.get(i) %}
     <div class="conflict" id="{{ name_key }}-conflict">
@@ -42,6 +48,9 @@
     <label for="series_name">Series</label>
     {% with name="series_name", kind="series", id_field="series_id", value=form.raw.get("series_name", ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
     <input type="hidden" id="series_id" name="series_id" value="{{ '' if series_conflict else form.raw.get('series_id', '') }}">
+    {% if form.raw.get("confirm_series") %}<input type="hidden" name="confirm_series" value="{{ form.raw.get('confirm_series') }}">{% endif %}
+    {{ field_error(form.errors, "series_name") }}
+    {% if form.new_names.get("series_name") %}{% with nn=form.new_names.get("series_name") %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
     {% if series_conflict %}
     <div class="conflict" id="series_name-conflict">
       <p class="field-error">Already in the catalog: “{{ series_conflict.existing_label }}”.</p>

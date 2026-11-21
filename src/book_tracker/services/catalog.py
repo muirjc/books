@@ -21,6 +21,7 @@ from book_tracker.domain.values import (
     default_sort_name,
     normalize_name,
     parse_isbn13,
+    similar_names,
 )
 from book_tracker.persistence import catalog
 from book_tracker.services.errors import (
@@ -123,6 +124,43 @@ async def get_series(db: AsyncSession, series_id: uuid.UUID) -> domain.Series:
     if series is None:
         raise NotFoundError()
     return series
+
+
+async def author_named(db: AsyncSession, name: str) -> bool:
+    """Whether a catalog author has exactly this name, ignoring capitals."""
+    return await catalog.find_author_by_name(db, name) is not None
+
+
+async def series_named(db: AsyncSession, name: str) -> bool:
+    """Whether a catalog series has exactly this name, ignoring capitals."""
+    return await catalog.find_series_by_name(db, name) is not None
+
+
+Candidates = list[tuple[uuid.UUID, str, tuple[str, ...]]]
+
+
+async def author_candidates(db: AsyncSession) -> Candidates:
+    """Every catalog author as (id, name, names to compare: name and real name)."""
+    return [
+        (author_id, label, (label, real) if real else (label,))
+        for author_id, label, real in await catalog.author_names(db)
+    ]
+
+
+async def series_candidates(db: AsyncSession) -> Candidates:
+    """Every catalog series as (id, name, (name,))."""
+    return [(sid, label, (label,)) for sid, label in await catalog.series_names(db)]
+
+
+async def similar_authors(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
+    """Up to three catalog authors whose name or real name looks like ``name``
+    (spec 005 R3), best first."""
+    return similar_names(name, await author_candidates(db))
+
+
+async def similar_series(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
+    """Up to three catalog series whose name looks like ``name`` (spec 005 R3)."""
+    return similar_names(name, await series_candidates(db))
 
 
 async def series_books(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Book]:

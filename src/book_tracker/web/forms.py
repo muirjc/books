@@ -60,6 +60,36 @@ class AuthorRow:
     index: int
     author_id: uuid.UUID | None
     name: str
+    # Spec 005: "Add … as a new author" confirms this exact name; "Use …" picks a record.
+    confirmed: str = ""
+    use_id: uuid.UUID | None = None
+
+
+@dataclass
+class NewName:
+    """A typed author or series that isn't in the catalog yet (spec 005): nothing is saved
+    until the member confirms it or picks one of the similar catalog records."""
+
+    field: str  # the form field it belongs to: author_name_<i> or series_name
+    kind: Literal["author", "series"]
+    name: str
+    similar: list[tuple[uuid.UUID, str]]
+
+    @property
+    def use_field(self) -> str:
+        return (
+            "use_series"
+            if self.kind == "series"
+            else self.field.replace("author_name", "use_author", 1)
+        )
+
+    @property
+    def confirm_field(self) -> str:
+        return (
+            "confirm_series"
+            if self.kind == "series"
+            else self.field.replace("author_name", "confirm_author", 1)
+        )
 
 
 @dataclass
@@ -79,8 +109,18 @@ class AddBookForm:
     summary: str | None = None
     # Where a successful save goes (spec 004): My books, or a fresh form for the next book.
     then: Literal["list", "another"] = "list"
+    # Spec 005: the series counterparts of AuthorRow.confirmed and AuthorRow.use_id.
+    series_confirmed: str = ""
+    use_series_id: uuid.UUID | None = None
     raw: dict[str, str] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
+    new_names: dict[str, NewName] = field(default_factory=dict)  # by field (spec 005)
+    names_checked: bool = False  # new_name_prompts has run for this form
+
+    @property
+    def field_errors(self) -> bool:
+        """Errors other than new-name prompts (those answer 409, not 422)."""
+        return any(name not in self.new_names for name in self.errors)
 
     @property
     def chosen_authors(self) -> list[AuthorRow]:
@@ -106,10 +146,16 @@ def parse_add_book(form: FormData) -> AddBookForm:
     parsed.book_id = optional_uuid(form, "book_id")
     parsed.authors = [
         AuthorRow(
-            i, optional_uuid(form, f"author_id_{i}"), normalize_name(text(form, f"author_name_{i}"))
+            i,
+            optional_uuid(form, f"author_id_{i}"),
+            normalize_name(text(form, f"author_name_{i}")),
+            confirmed=normalize_name(text(form, f"confirm_author_{i}")),
+            use_id=optional_uuid(form, f"use_author_{i}"),
         )
         for i in range(MAX_AUTHOR_ROWS)
     ]
+    parsed.series_confirmed = normalize_name(text(form, "confirm_series"))
+    parsed.use_series_id = optional_uuid(form, "use_series")
     parsed.series_id = optional_uuid(form, "series_id")
     parsed.series_name = " ".join(text(form, "series_name").split())
     parsed.title = " ".join(text(form, "title").split())

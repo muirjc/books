@@ -4,6 +4,9 @@
 {% block content %}
 <h1>Add a book</h1>
 <p class="muted">Adding several books by one author? <a href="/import">Import them from Open Library</a>.</p>
+{% if added %}
+<p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list.</p>
+{% endif %}
 {{ error_summary(form.errors) }}
 
 {% if conflict %}
@@ -24,6 +27,7 @@
     <input type="hidden" name="status" value="{{ form.status }}">
     <input type="hidden" name="finished_on" value="{{ form.raw.get('finished_on', '') }}">
     <input type="hidden" name="notes" value="{{ form.raw.get('notes', '') }}">
+    <input type="hidden" name="then" value="{{ form.then }}">
     <button type="submit" name="book_id" value="{{ conflict.existing_id }}">Add “{{ conflict.existing_label }}” to my list instead</button>
   </form>
   {% else %}
@@ -34,6 +38,9 @@
 
 <form method="post" action="/books/add" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {#- Remembers the chosen button for a conflict's own buttons; a main button overrides it
+      (spec 004 R2). #}
+  <input type="hidden" name="then" value="{{ form.then }}">
   <div class="form-columns">
   <div class="stack">
   {% with suggest_title=true %}{% include "partials/book_fields.html" %}{% endwith %}
@@ -48,6 +55,9 @@
   {% include "partials/entry_fields.html" %}
   </div>
   </div>
-  <button type="submit" class="button-primary">Add to my list</button>
+  <div class="form-actions">
+    <button type="submit" name="then" value="list" class="button-primary">Add to my list</button>
+    <button type="submit" name="then" value="another">Add and add another</button>
+  </div>
 </form>
 {% endblock %}

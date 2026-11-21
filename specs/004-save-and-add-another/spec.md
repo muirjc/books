@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "Save and add another (bead books-g38): on Add a book, offer a way to save the book and go straight to a fresh Add a book form for the next one, without going through My books. Today every successful save redirects to My books, so entering several books (for example a run of books in one series) means clicking Add a book again each time. Keep plain Save as today. Decide which fields carry over to the next form (author, series with the next number, status, finished date) and which clear (title, ISBN, summary, notes); confirm which book was just added; put focus on Title; work without JavaScript; keep validation and conflict handling unchanged; meet WCAG 2.2 AA and the spec 003 phone, tablet and laptop layouts."
 

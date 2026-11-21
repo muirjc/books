@@ -4,17 +4,19 @@ collects friendly, per-field error messages."""
 
 from __future__ import annotations
 
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import TypeAdapter, ValidationError
 from starlette.datastructures import FormData
 
+from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
-from book_tracker.domain.values import normalize_name
+from book_tracker.domain.values import format_series_number, normalize_name
 from book_tracker.schemas.readings import ReadingEntryUpdate
 from book_tracker.schemas.types import (
     FinishedOn,
@@ -75,6 +77,8 @@ class AddBookForm:
     finished_on: date | None = None
     notes: str | None = None
     summary: str | None = None
+    # Where a successful save goes (spec 004): My books, or a fresh form for the next book.
+    then: Literal["list", "another"] = "list"
     raw: dict[str, str] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
 
@@ -97,6 +101,8 @@ class AddBookForm:
 def parse_add_book(form: FormData) -> AddBookForm:
     parsed = AddBookForm(raw={key: text(form, key) for key in form})
     errors = parsed.errors
+    # The last value wins: the hidden field comes first, the clicked button later (R2).
+    parsed.then = "another" if text(form, "then") == "another" else "list"
     parsed.book_id = optional_uuid(form, "book_id")
     parsed.authors = [
         AuthorRow(
@@ -187,3 +193,27 @@ def parse_entry_update(
                 message = "Choose a status"
             errors.setdefault(name, message)
         return None, errors, raw
+
+
+def next_series_number(number: Decimal | None) -> Decimal | None:
+    """The next whole number after ``number`` (3 -> 4, 4.5 -> 5); None stays None (R4)."""
+    return None if number is None else Decimal(math.floor(number) + 1)
+
+
+def carry_over_form(entry: domain.ReadingEntry) -> AddBookForm:
+    """A fresh add-book form for the next book after ``entry`` (spec 004 R5): the book's
+    authors and series (as chosen catalog records), the next number and the entry's status.
+    Everything else, including ``book_id``, stays empty."""
+    book = entry.book
+    raw: dict[str, str] = {}
+    for i, author in enumerate(book.authors):
+        raw[f"author_name_{i}"] = author.name
+        raw[f"author_id_{i}"] = str(author.id)
+    if book.series is not None:
+        raw["series_name"] = book.series.name
+        raw["series_id"] = str(book.series.id)
+        number = next_series_number(book.series_number)
+        if number is not None:
+            raw["series_number"] = format_series_number(number)
+    raw["status"] = entry.status.value
+    return AddBookForm(status=entry.status, then="another", raw=raw)

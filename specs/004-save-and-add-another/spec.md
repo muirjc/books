@@ -167,8 +167,8 @@ size; check the buttons, the confirmation and the automated accessibility checks
   isn't theirs, or no longer exists (removed in another tab), it opens as a plain empty
   Add a book form, revealing nothing about that entry (Principle I).
 - **Carried author or series changed meanwhile**: if another member renames the carried
-  author or series between the two adds, the next form shows the current name; if it was
-  deleted (for example an author with no books, books-4oc), that field is left empty.
+  author or series between the two adds, the next form shows the current name. (They can't
+  be deleted meanwhile: the book just added still links to them.)
 - **Very long series numbers or titles**: the confirmation and fields keep the spec 003
   rules (no sideways scroll; long text wraps).
 - **Book from Open Library import**: import has its own page and confirm flow (spec 002) and

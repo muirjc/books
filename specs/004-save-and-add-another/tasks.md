@@ -207,7 +207,9 @@ form has Jim Butcher, The Dresden Files, 4 and Finished, and nothing else.
 ## Phase 6: User Story 4 - Fits every screen and stays accessible (P2)
 
 - [ ] T029 [P] [US4] Browser test `test_buttons_fit_every_width` in
-  `tests/a11y/test_add_another_a11y.py`, at 360, 390, 820, 1,024 and 1,440:
+  `tests/a11y/test_add_another_a11y.py`, on the carry-over form after adding a book with a
+  long title, at 360, 390, 820, 1,024 and 1,440, and at 200% text (a 640 × 450 viewport at
+  device scale 2, as in spec 003 AC-22; FR-012):
   - both buttons are visible with no sideways scroll (`check`);
   - each is at least 44 × 44;
   - **Add to my list** is before **Add and add another** in Tab order (AC-17).
@@ -229,6 +231,9 @@ form has Jim Butcher, The Dresden Files, 4 and Finished, and nothing else.
   - ruff, ruff format, `mypy --strict`;
   - the full pytest suite with coverage and `scripts/check_coverage.py`;
   - `-m a11y`, `-m perf` and `pip-audit`.
+
+  SC-004 has no new perf test: carry-over adds one read of the member's entry by its ID to
+  Add a book, which the existing page budget easily covers (analysis C2).
 - [ ] T034 Walk through quickstart.md by hand at 390 and 1,440 px (screenshots in the
   scratchpad); set spec status to Implemented.
 

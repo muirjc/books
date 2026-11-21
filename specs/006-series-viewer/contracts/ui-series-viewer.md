@@ -10,8 +10,8 @@ Amends the `GET /series/{id}` and `GET, POST /books/add` rows of
 | Series exists | `200`: progress line, then rows ([data-model.md](../data-model.md)) |
 | Series exists, no catalog books | `200`: "The family catalog has no books in this series yet." + "Add a book to this series" |
 | Unknown or malformed id | `404` (unchanged) |
-| `?added=<entry_id>`, the viewer's own entry | as above, plus a status message "Added “Title” to your list." |
-| `?added=` another member's, removed or malformed | as above, with no message |
+| `?added=<entry_id>`, the viewer's own entry for a book in this series | as above, plus a status message "Added “Title” to your list." |
+| `?added=` another member's, in another series, removed or malformed | as above, with no message |
 
 Links in rows:
 
@@ -23,7 +23,7 @@ Links in rows:
 
 | Parameter | Valid | Invalid or unknown |
 |---|---|---|
-| `book` | form starts from that catalog book, status Want to read | ignored |
+| `book` | form starts from that catalog book, shown as details (title · authors · series #n) with "Add a different book", not as editable fields; status Want to read | ignored |
 | `series` + `number` | series and number filled in, status Want to read | ignored; an invalid `number` alone leaves the number blank |
 | `from_series` | hidden `from_series` in the form | ignored |
 | `after` (spec 004) | unchanged; takes precedence over `book` and `series` | unchanged |

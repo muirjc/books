@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import described, field_error, error_summary, conflict_notice %}
+{% from "macros.html" import described, field_error, error_summary, conflict_notice, authors_line, series_line %}
 {% block title %}Add a book{% endblock %}
 {% block content %}
 <h1>Add a book</h1>
@@ -46,6 +46,16 @@
   {% if form.from_series %}<input type="hidden" name="from_series" value="{{ form.from_series }}">{% endif %}
   <div class="form-columns">
   <div class="stack">
+  {% if chosen %}
+  {#- A catalog book chosen up front (spec 006): saving adds it as it is, so its details
+      are shown, not offered as fields whose edits would be ignored. -#}
+  <div class="field chosen-book">
+    <p class="legend">Book</p>
+    <p><strong>{{ chosen.title }}</strong> · {{ authors_line(chosen) }}{% if chosen.series %} · {{ series_line(chosen) }}{% endif %}</p>
+    <input type="hidden" name="book_id" value="{{ chosen.id }}">
+    <p><a href="/books/add{% if form.from_series %}?from_series={{ form.from_series }}{% endif %}">Add a different book</a></p>
+  </div>
+  {% else %}
   {% with suggest_title=true %}{% include "partials/book_fields.html" %}{% endwith %}
   <div class="field">
     <label for="summary">Summary (optional)</label>
@@ -53,6 +63,7 @@
     <textarea id="summary" name="summary" maxlength="5000"{{ described(form.errors, "summary", hint=true) }}>{{ form.raw.get('summary', '') }}</textarea>
     {{ field_error(form.errors, "summary") }}
   </div>
+  {% endif %}
   </div>
   <div class="stack">
   {% include "partials/entry_fields.html" %}

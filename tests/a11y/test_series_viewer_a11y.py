@@ -46,6 +46,14 @@ async def test_series_page_layout(ui: UI, discworld: Seeded) -> None:
             assert link["height"] >= 44 and link["width"] >= 44, (wh, link)
         if wh in (PHONE, IPAD, LAPTOP):
             await assert_no_axe_violations(ui.page, f"series {wh}")
+    # Add a book, started from a row: the chosen book's details (PR #22 review).
+    await ui.page.get_by_role("link", name="Add “The Light Fantastic” to my list").click()
+    await ui.page.wait_for_load_state()
+    for wh in (SMALL, PHONE, LAPTOP):
+        await size(ui.page, wh)
+        await check(ui.page, f"add from series {wh}")
+        if wh != SMALL:
+            await assert_no_axe_violations(ui.page, f"add from series {wh}")
 
 
 @pytest.mark.ac("006/AC-18")
@@ -77,7 +85,10 @@ async def test_flow_without_js(discworld: Seeded, pw_browser: Browser, live_serv
     await view.go(f"/series/{discworld.series_id}")
     await view.page.get_by_role("link", name="Add “The Light Fantastic” to my list").click()
     await view.page.wait_for_load_state()
-    assert await view.page.input_value("#title") == "The Light Fantastic"
+    chosen = " ".join((await view.page.inner_text(".chosen-book")).split())
+    assert "The Light Fantastic · Terry Pratchett · Discworld #2" in chosen
+    assert await view.page.locator("#title").count() == 0
+    await check(view.page, "add from series")
     assert await view.page.input_value("#status") == "want_to_read"
     await view.page.click(".form-actions button[name=then][value=list]")
     await view.page.wait_for_load_state()

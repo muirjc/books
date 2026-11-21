@@ -186,3 +186,14 @@ description: "Task list for spec 006, series viewer"
   visually-hidden title isn't lost inside the flex link.
 - **SC-002:** a 100-book series with 20 gaps in the 5,000-book dataset loads in 58 ms at
   p95.
+- **PR #22 review fixes:**
+  - **Gaps split at fractional books:** with books 1, 3.5 and 7, the page now shows #2,
+    #3, #3.5, #4–#6 in order. Before, #3.5 came before one #2–#6 row.
+  - **The chosen book is read-only:** Add a book started from a catalog book shows that
+    book's details (title · authors · series #n) with "Add a different book", instead of
+    editable fields whose edits would be ignored. The same display returns on a 422 or 409
+    page whenever the form carries a `book_id`.
+  - **Confirmation only for this series:** `?added=` confirms only a book in this series.
+  - **No wasted lookup:** the `series` start parameter is looked up only when there's no
+    `book`.
+  - **Layout test:** checks gap rows again.

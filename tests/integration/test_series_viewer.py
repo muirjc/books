@@ -174,12 +174,21 @@ async def test_add_link_starts_from_the_book(
     form = await member.get(f"/books/add?book={dresden['4']}&from_series={dresden['series']}")
     assert form.status_code == 200
     body = form.text
+    # The chosen book is shown, not editable: edits would be ignored (PR #22 review).
     assert f'name="book_id" value="{dresden["4"]}"' in body
-    assert 'value="Summer Knight"' in body
-    assert f'name="author_id_0" value="{dresden["author"]}"' in body
-    assert 'value="Jim Butcher"' in body
-    assert f'name="series_id" value="{dresden["series"]}"' in body
-    assert 'name="series_number"' in body and 'value="4"' in body
+    chosen = text(form).split("Book", 1)[1]
+    assert "Summer Knight · Jim Butcher · The Dresden Files #4" in chosen
+    for field in (
+        'name="title"',
+        'name="author_name_0"',
+        'name="series_name"',
+        'name="series_number"',
+        'name="isbn_13"',
+        'name="summary"',
+    ):
+        assert field not in body, field
+    assert f'href="/books/add?from_series={dresden["series"]}"' in body
+    assert "Add a different book" in text(form)
     assert '<option value="want_to_read" selected>' in body
     assert f'name="from_series" value="{dresden["series"]}"' in body
 
@@ -304,6 +313,7 @@ async def test_add_another_keeps_spec_004(
 async def test_bad_parameters_ignored(
     member: httpx.AsyncClient,
     factory: Factory,
+    alice: TestUser,
     dresden: dict[str, uuid.UUID],
 ) -> None:
     for query in (
@@ -334,6 +344,10 @@ async def test_bad_parameters_ignored(
     assert page.status_code == 200 and "Added “" not in text(page)
     page = await member.get(f"/series/{dresden['series']}?added=junk")
     assert page.status_code == 200 and "Added “" not in text(page)
+    # My own entry from another series shows nothing either (PR #22 review).
+    other_series = await factory.series("Discworld", alice)
+    page = await member.get(f"/series/{other_series}?added={dresden['e1']}")
+    assert page.status_code == 200 and "Added “" not in text(page)
 
 
 async def _entry_of(factory: Factory, book: uuid.UUID) -> uuid.UUID | None:
@@ -359,6 +373,15 @@ async def test_already_on_my_list(
     assert page.status_code == 409
     assert "Already on your list" in text(page)
     assert await counts(factory) == before
+    # The chosen book stays shown, not as editable fields.
+    assert "Storm Front · Jim Butcher · The Dresden Files #1" in text(page)
+    assert 'name="title"' not in page.text
+    bad_date = await member.post(
+        "/books/add", data={**_save_book(dresden, "4"), "status": "finished",
+                            "finished_on": "not a date"}
+    )  # fmt: skip
+    assert bad_date.status_code == 422
+    assert "Summer Knight · Jim Butcher · The Dresden Files #4" in text(bad_date)
 
 
 # --------------------------------------------------------------------------- US3
@@ -382,6 +405,10 @@ async def test_long_gap_is_one_row(
         series_number="500",
     )  # fmt: skip
     shown = rows(await member.get(f"/series/{dresden['series']}"))
-    assert "#6–#499 Not in the family catalog yet Add #6" in shown
-    assert len(shown) == 9  # 8 books and one gap row; Side Jobs last
+    # #6.5 sits between the missing #6 and the rest, so the run splits around it.
+    six = shown.index("#6 Not in the family catalog yet Add #6")
+    assert "Backup" in shown[six + 1]
+    assert shown[six + 2] == "#7–#499 Not in the family catalog yet Add #7"
+    assert "Far Future" in shown[six + 3]
+    assert len(shown) == 10  # 8 books and two gap rows; Side Jobs last
     assert "Side Jobs" in shown[-1]

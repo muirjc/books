@@ -108,11 +108,13 @@ class SeriesView:
 
 
 def _gap_runs(numbers: set[Decimal], top: int) -> list[tuple[int, int]]:
-    """Runs of whole numbers 1..top that no book has exactly; long runs as one."""
+    """Runs of whole numbers 1..top that no book has exactly; long runs as one. A book
+    numbered between two missing numbers (say 3.5) ends a run, so it keeps its place."""
     missing = [n for n in range(1, top + 1) if n not in numbers]
+    between = {math.floor(n) for n in numbers if n != math.floor(n)}  # 3.5 → between 3 and 4
     runs: list[list[int]] = []
     for n in missing:
-        if runs and runs[-1][-1] == n - 1:
+        if runs and runs[-1][-1] == n - 1 and (n - 1) not in between:
             runs[-1].append(n)
         else:
             runs.append([n])

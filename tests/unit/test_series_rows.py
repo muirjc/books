@@ -172,3 +172,14 @@ def test_parse_from_series() -> None:
     assert parse_add_book(FormData([("from_series", str(SERIES.id))])).from_series == SERIES.id
     for bad in ("junk", "https://example.com/", ""):
         assert parse_add_book(FormData([("from_series", bad)])).from_series is None
+
+
+@pytest.mark.ac("006/AC-14")
+def test_fraction_inside_a_long_gap_splits_it() -> None:
+    """PR #22 review: a book between missing numbers keeps its place in the order."""
+    assert shown(series_rows(numbered("1", "3.5", "7"), []).rows) == [
+        "Book 1", "gap 2", "gap 3", "Book 3.5", "gap 4", "gap 5", "gap 6", "Book 7",
+    ]  # fmt: skip
+    assert shown(series_rows(numbered("1", "2.5", "9"), []).rows) == [
+        "Book 1", "gap 2", "Book 2.5", "gap 3-8", "Book 9",
+    ]  # fmt: skip

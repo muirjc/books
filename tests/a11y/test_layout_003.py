@@ -475,8 +475,18 @@ async def test_series_and_summary_lists_keep_their_layout(
             assert badge["cls"] == "badge", cells
             assert badge["right"] <= title["left"] and same_line([badge, title]), (wh, cells)
             assert meta["cls"] == "series-detail" and meta["top"] >= title["top"], (wh, cells)
-        for cells in rows:
-            assert cells[0]["cls"] == "badge", (wh, cells)
+            assert meta["left"] >= title["left"], (wh, cells)
+        # Gap rows: the badge, then the text on its line, then the Add link after them.
+        gaps = [cells for cells in rows if cells[1]["cls"].startswith("series-detail")
+                and cells not in books]  # fmt: skip
+        assert gaps, wh  # seeded #1 and #4 leave gaps #2 and #3
+        for cells in gaps:
+            badge, detail, action = cells
+            assert badge["cls"] == "badge" and action["cls"] == "series-action", cells
+            assert badge["right"] <= detail["left"] and same_line([badge, detail]), (wh, cells)
+            # After the text: to its right (wider screens) or below it (phone).
+            after = action["left"] >= detail["right"] or action["top"] >= detail["bottom"] - 1
+            assert after, (wh, cells)
         await ui.go(f"/catalog/books/{seeded.book_id}/summary")
         text = await ui.page.evaluate(
             """t => { const p = [...document.querySelectorAll('ol > li > p')]

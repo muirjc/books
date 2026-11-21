@@ -9,6 +9,7 @@ every catalog book in the series.
 from __future__ import annotations
 
 import html
+import re
 import uuid
 from collections.abc import Callable
 
@@ -70,6 +71,11 @@ async def test_add_book_conflict_links_to_the_book_holding_the_number(
     assert "Another book already has this number in the series" in text
     assert _edit_link(dresden["rites"]) in page.text
     assert "Change the number of “Blood Rites”" in text
+    # Opens in a new tab, so what was typed here isn't lost, and says so.
+    link = re.search(rf'<a [^>]*href="/catalog/books/{dresden["rites"]}/edit"[^>]*>', page.text)
+    assert link and 'target="_blank"' in link.group(0) and 'rel="noopener"' in link.group(0)
+    assert "(opens in a new tab)" in text
+    assert "To swap two books' numbers, clear one of them first." in text
 
 
 async def test_edit_pages_conflict_links_to_the_book_holding_the_number(
@@ -84,18 +90,64 @@ async def test_edit_pages_conflict_links_to_the_book_holding_the_number(
         assert _edit_link(dresden["rites"]) in page.text, path
 
 
+def _listed(page: str) -> list[str]:
+    body = page.split('<ol class="book-list series-list" role="list">', 1)[1].split("</ol>")[0]
+    return [html.unescape(t) for t in re.findall(r'class="book-title"[^>]*>([^<]*)<', body)]
+
+
 async def test_series_page_lists_every_catalog_book_in_the_series(
-    member: httpx.AsyncClient, dresden: dict[str, uuid.UUID]
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, dresden: dict[str, uuid.UUID]
 ) -> None:
+    ben = await factory.user("ben", display_name="Ben")
+    guilty = await factory.book(
+        "Proven Guilty", ben, author_ids=[dresden["author"]], series_id=dresden["series"],
+        series_number="8",
+    )  # fmt: skip
+    await factory.entry(ben, guilty)  # only on Ben's list
+    for title in ("Side Jobs", "Brief Cases"):  # no number: last, by title
+        await factory.book(title, alice, series_id=dresden["series"])
     page = await member.get(f"/catalog/series/{dresden['series']}/edit")
     assert page.status_code == 200
     text = html.unescape(page.text)
     assert "Books in this series" in text
-    # Blood Rites is on nobody's list, but still listed and reachable, in number order.
-    assert text.index("Storm Front") < text.index("Blood Rites")
-    assert "#5" in text and "#1" in text
-    assert _edit_link(dresden["rites"]) in page.text
-    assert _edit_link(dresden["storm"]) in page.text
+    # Blood Rites is on nobody's list and Proven Guilty only on Ben's: both listed.
+    assert _listed(page.text) == [
+        "Storm Front", "Blood Rites", "Proven Guilty", "Brief Cases", "Side Jobs"
+    ]  # fmt: skip
+    assert "#5" in text and "#1" in text and "No number" in text
+    for book in (dresden["rites"], dresden["storm"], guilty):
+        assert _edit_link(book) in page.text
+
+
+async def test_series_rename_errors_still_list_the_books(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, dresden: dict[str, uuid.UUID]
+) -> None:
+    await factory.series("Cinder Spires", alice)
+    path = f"/catalog/series/{dresden['series']}/edit"
+    for name, status in (("", 422), ("Cinder Spires", 409)):
+        page = await member.post(path, data={"name": name})
+        assert page.status_code == status, name
+        assert _listed(page.text) == ["Storm Front", "Blood Rites"], name
+
+
+async def test_swapping_two_numbers_by_clearing_one_first(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, dresden: dict[str, uuid.UUID]
+) -> None:
+    """The notice's advice works: Blood Rites #5 and Death Masks #6 swap numbers."""
+    masks = await factory.book(
+        "Death Masks", alice, author_ids=[dresden["author"]], series_id=dresden["series"],
+        series_number="6",
+    )  # fmt: skip
+
+    async def number(book: uuid.UUID, title: str, value: str) -> int:
+        data = _death_masks(dresden, value) | {"title": title}
+        del data["status"]
+        return (await member.post(f"/catalog/books/{book}/edit", data=data)).status_code
+
+    assert await number(masks, "Death Masks", "5") == 409
+    assert await number(masks, "Death Masks", "") == 303
+    assert await number(dresden["rites"], "Blood Rites", "6") == 303
+    assert await number(masks, "Death Masks", "5") == 303
 
 
 async def test_renumbering_the_held_book_frees_the_number(

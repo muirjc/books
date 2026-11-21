@@ -31,6 +31,7 @@
 {% macro conflict_notice(conflict) -%}
 <p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p>
 {%- if conflict.code == "series_number_taken" and conflict.existing_id %}
-<p><a href="/catalog/books/{{ conflict.existing_id }}/edit">Change the number of “{{ conflict.existing_label }}”</a></p>
+<p><a href="/catalog/books/{{ conflict.existing_id }}/edit" target="_blank" rel="noopener">Change the number of “{{ conflict.existing_label }}” (opens in a new tab)</a>.
+  To swap two books' numbers, clear one of them first.</p>
 {%- endif %}
 {%- endmacro %}

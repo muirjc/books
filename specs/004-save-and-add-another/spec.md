@@ -126,11 +126,12 @@ check the member lands on a fresh Add a book form.
 - **AC-14**: **Given** a form with a validation error or a conflict, **When** the member
   chooses **Add and add another**, **Then** nothing is saved and the page shows the same
   messages, field values and choices as **Add to my list** would.
-- **AC-15**: **Given** an error page reached with **Add and add another**, **When** the
-  member fixes the problem and saves with either button, or chooses one of the conflict's
-  own actions (use the existing author or series, or add the existing ISBN book), **Then**
-  the outcome follows the button or action they used last, and **Add and add another** still
-  leads to a fresh form when used.
+- **AC-15**: **Given** an error or conflict page reached with **Add and add another**,
+  **When** the member chooses one of the conflict's own actions (use the existing author or
+  series, or add the existing ISBN book instead), **Then** a successful save still leads to
+  a fresh Add a book form, because they chose **Add and add another**. **When** they instead
+  save with **Add to my list** or **Add and add another**, **Then** that button decides.
+  The same holds the other way round for a page reached with **Add to my list**.
 - **AC-16**: **Given** a book already on the member's list, **When** they add it again with
   **Add and add another**, **Then** they see the usual "Already on your list" choices (Read
   again, Open it), unchanged.

@@ -14,4 +14,18 @@
   </div>
   <button type="submit" class="button-primary">Save series</button>
 </form>
+<h2>Books in this series</h2>
+{% if books %}
+<p class="muted">Every book the family catalog has in this series, including books on nobody's list.</p>
+<ol class="book-list series-list" role="list">
+  {% for book in books %}
+  <li>
+    <span class="badge">{% if book.series_number is not none %}#{{ book.series_number | series_number }}{% else %}No number{% endif %}</span>
+    <a class="book-title" href="/catalog/books/{{ book.id }}/edit">{{ book.title }}</a>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p>No books in this series yet.</p>
+{% endif %}
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import described, field_error, error_summary %}
+{% from "macros.html" import described, field_error, error_summary, conflict_notice %}
 {% block title %}Add a book{% endblock %}
 {% block content %}
 <h1>Add a book</h1>
@@ -27,7 +27,7 @@
     <button type="submit" name="book_id" value="{{ conflict.existing_id }}">Add “{{ conflict.existing_label }}” to my list instead</button>
   </form>
   {% else %}
-  <p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p>
+  {{ conflict_notice(conflict) }}
   {% endif %}
 </div>
 {% endif %}

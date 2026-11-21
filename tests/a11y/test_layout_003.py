@@ -467,11 +467,16 @@ async def test_series_and_summary_lists_keep_their_layout(
             return {cls: c.className, top: r.top, bottom: r.bottom, left: r.left,
                     right: r.right, width: r.width, height: r.height, visible: true}; }))""")
         assert rows, wh
+        # Spec 006 rows: number, title, authors, status (and an Add link), or a gap row.
+        books = [cells for cells in rows if cells[1]["cls"] == "book-title"]
+        assert books, wh
+        for cells in books:
+            badge, title, meta = cells[:3]
+            assert badge["cls"] == "badge", cells
+            assert badge["right"] <= title["left"] and same_line([badge, title]), (wh, cells)
+            assert meta["cls"] == "series-detail" and meta["top"] >= title["top"], (wh, cells)
         for cells in rows:
-            badge, title, meta = cells
-            assert badge["cls"] == "badge" and title["cls"] == "book-title", cells
-            assert badge["right"] <= title["left"] and same_line(cells), (wh, cells)
-            assert meta["left"] >= title["left"], (wh, cells)
+            assert cells[0]["cls"] == "badge", (wh, cells)
         await ui.go(f"/catalog/books/{seeded.book_id}/summary")
         text = await ui.page.evaluate(
             """t => { const p = [...document.querySelectorAll('ol > li > p')]

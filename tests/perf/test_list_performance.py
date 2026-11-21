@@ -102,3 +102,35 @@ async def test_type_ahead_under_300_ms(big_list: httpx.AsyncClient) -> None:
         )
     print("\ntype-ahead p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert all(value < 0.3 for value in results.values()), results
+
+
+BIG_SERIES = [
+    """INSERT INTO series (id, name, created_by, updated_by)
+       SELECT gen_random_uuid(), 'A long series', id, id FROM app_user WHERE login = 'reader'""",
+    """INSERT INTO book (id, title, series_id, series_number, created_by, updated_by)
+       SELECT gen_random_uuid(), 'Long series book ' || i, s.id, i, u.id, u.id
+       FROM generate_series(1, 120) AS i
+       CROSS JOIN (SELECT id FROM series WHERE name = 'A long series') s
+       CROSS JOIN (SELECT id FROM app_user WHERE login = 'reader') u
+       WHERE i % 6 <> 0""",
+    """INSERT INTO book_author (book_id, author_id, position)
+       SELECT b.id, (SELECT id FROM author ORDER BY name LIMIT 1), 1
+       FROM book b JOIN series s ON s.id = b.series_id WHERE s.name = 'A long series'""",
+    """INSERT INTO reading_entry (id, user_id, book_id, status, times_read)
+       SELECT gen_random_uuid(), u.id, b.id, 'finished', 1
+       FROM book b JOIN series s ON s.id = b.series_id
+       CROSS JOIN (SELECT id FROM app_user WHERE login = 'reader') u
+       WHERE s.name = 'A long series' AND b.series_number % 2 = 0""",
+]
+
+
+async def test_series_page_under_one_second(big_list: httpx.AsyncClient, factory: Factory) -> None:
+    """Spec 006 SC-002: a 100-book series (with 20 gaps) in the 5,000-book catalog."""
+    for statement in BIG_SERIES:
+        await factory.execute(statement)
+    await factory.execute("ANALYZE")
+    series = await factory.scalar("SELECT id FROM series WHERE name = 'A long series'")
+    assert await factory.scalar(f"SELECT count(*) FROM book WHERE series_id = '{series}'") == 100
+    page = await p95(lambda i: big_list.get(f"/series/{series}"))
+    print(f"\nseries page p95 {page * 1000:.0f} ms")
+    assert page < 1.0

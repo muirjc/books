@@ -20,8 +20,8 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | POST | `/switch-user` | Sign out, keep the recent profiles; 303 to `/sign-in` | FR-007 |
 | GET, POST | `/account/password` | Change own password (forced after reset) | FR-004, FR-028 |
 | GET | `/` | My list: search, sort, filter, paging (fragment: `#reading-list`) | FR-021, FR-023 |
-| GET | `/books/add` | Add-book form with type-ahead; `?after=<own entry id>` pre-fills the next book ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)) | FR-016 |
-| POST | `/books/add` | Add to my list (existing or new book); `then=another` redirects to the next-book form ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)) New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). | FR-016, FR-017 |
+| GET | `/books/add` | Add-book form with type-ahead; `?after=<own entry id>` pre-fills the next book ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)); `?book=`, `?series=&number=` and `?from_series=` start from a series page ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)) | FR-016 |
+| POST | `/books/add` | Add to my list (existing or new book); `then=another` redirects to the next-book form ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)) New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). With `from_series`, a successful save returns to that series page ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)). | FR-016, FR-017 |
 | GET | `/suggest/books?q=` | Type-ahead fragment | FR-010 |
 | GET | `/suggest/authors?q=` | Type-ahead fragment; matches real name | FR-010 |
 | GET | `/suggest/series?q=` | Type-ahead fragment | FR-010 |
@@ -29,7 +29,7 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | POST | `/entries/{id}` | Update status, date, times read, notes; and, when the form sends a title, the book's title, authors, series, number and ISBN (family-wide; skipped if unchanged). Nothing saves if any field is refused (books-4l5) New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). | FR-009, FR-018, FR-029 |
 | POST | `/entries/{id}/read-again` | Start a re-read | FR-029 |
 | POST | `/entries/{id}/remove` | Remove from my list (asks to confirm first) | FR-019 |
-| GET | `/series/{id}` | My books in this series, in order | FR-022 |
+| GET | `/series/{id}` | Every catalog book in this series, in order, with my own status, gaps and Add links ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)) | FR-022 |
 | GET, POST | `/catalog/books/{id}/edit` | Edit a catalog book. New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). | FR-009 |
 | GET, POST | `/catalog/authors/{id}/edit` | Edit an author, pen name, real name | FR-009, FR-014 |
 | GET, POST | `/catalog/series/{id}/edit` | Rename a series; lists every catalog book in it (number, link to edit), including books on nobody's list (books-cay). A "number taken" conflict anywhere links to the book holding the number | FR-009 |

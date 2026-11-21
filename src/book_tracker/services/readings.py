@@ -5,15 +5,19 @@ Every operation goes through a ``ReadingEntryRepository`` bound to the session u
 
 from __future__ import annotations
 
+import math
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from book_tracker.domain.enums import ReadingStatus
-from book_tracker.domain.models import ReadingEntry, ReadingEntryPage, Series
+from book_tracker.domain.models import Book, ReadingEntry, ReadingEntryPage, Series
 from book_tracker.persistence import catalog
 from book_tracker.persistence.readings import SORTS, FilterOptions, ReadingEntryRepository
 from book_tracker.services import catalog as catalog_service
@@ -82,12 +86,81 @@ async def list_entries(
     )
 
 
+GAP_RUN_ROWS = 3  # a run of missing numbers longer than this is one row (spec 006)
+
+
+@dataclass(frozen=True, slots=True)
+class SeriesRow:
+    """A series page row: a catalog book with my entry (or none), or a gap in the
+    numbering from ``first`` to ``last``."""
+
+    book: Book | None = None
+    entry: ReadingEntry | None = None
+    first: int = 0
+    last: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class SeriesView:
+    rows: tuple[SeriesRow, ...]
+    finished: int  # my Finished entries among the listed books
+    total: int  # catalog books listed; gaps don't count
+
+
+def _gap_runs(numbers: set[Decimal], top: int) -> list[tuple[int, int]]:
+    """Runs of whole numbers 1..top that no book has exactly; long runs as one."""
+    missing = [n for n in range(1, top + 1) if n not in numbers]
+    runs: list[list[int]] = []
+    for n in missing:
+        if runs and runs[-1][-1] == n - 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    out: list[tuple[int, int]] = []
+    for run in runs:
+        if len(run) > GAP_RUN_ROWS:
+            out.append((run[0], run[-1]))
+        else:
+            out.extend((n, n) for n in run)
+    return out
+
+
+def series_rows(books: Sequence[Book], entries: Sequence[ReadingEntry]) -> SeriesView:
+    """Merge a series' catalog books (in catalog order: by number, then unnumbered) with
+    my entries, adding gap rows for missing whole numbers (spec 006, research R2)."""
+    mine = {entry.book.id: entry for entry in entries}
+    numbers = {book.series_number for book in books if book.series_number is not None}
+    top = math.floor(max(numbers)) if numbers else 0
+    gaps = _gap_runs(numbers, top)
+    rows: list[SeriesRow] = []
+    for book in books:
+        while gaps and book.series_number is not None and book.series_number > gaps[0][1]:
+            rows.append(SeriesRow(first=gaps[0][0], last=gaps[0][1]))
+            gaps.pop(0)
+        rows.append(SeriesRow(book=book, entry=mine.get(book.id)))
+    finished = sum(
+        1 for row in rows if row.entry is not None and row.entry.status is ReadingStatus.FINISHED
+    )
+    return SeriesView(rows=tuple(rows), finished=finished, total=len(books))
+
+
 async def series_view(
     db: AsyncSession, user_id: uuid.UUID, series_id: uuid.UUID
 ) -> tuple[Series, tuple[ReadingEntry, ...]]:
-    """My books in one series, in reading order (FR-022). Unknown series → not found."""
+    """My books in one series, in reading order (FR-022; the JSON API). Unknown series →
+    not found."""
     series = await catalog_service.get_series(db, series_id)
     return series, await ReadingEntryRepository(db, user_id).list_series(series_id)
+
+
+async def whole_series_view(
+    db: AsyncSession, user_id: uuid.UUID, series_id: uuid.UUID
+) -> tuple[Series, SeriesView]:
+    """Every catalog book in a series with my own entries, and gaps (spec 006, the series
+    page). Only my entries are read (Principle I). Unknown series → not found."""
+    series, entries = await series_view(db, user_id, series_id)
+    books = await catalog_service.series_books(db, series_id)
+    return series, series_rows(books, entries)
 
 
 async def filter_options(

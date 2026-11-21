@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "Series viewer (bead books-56w, from the books-0wi discussion):
 the series page lists every catalog book in the series in number order, each with the

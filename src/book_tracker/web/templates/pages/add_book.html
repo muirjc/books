@@ -28,6 +28,7 @@
     <input type="hidden" name="finished_on" value="{{ form.raw.get('finished_on', '') }}">
     <input type="hidden" name="notes" value="{{ form.raw.get('notes', '') }}">
     <input type="hidden" name="then" value="{{ form.then }}">
+    {% if form.from_series %}<input type="hidden" name="from_series" value="{{ form.from_series }}">{% endif %}
     <button type="submit" name="book_id" value="{{ conflict.existing_id }}">Add “{{ conflict.existing_label }}” to my list instead</button>
   </form>
   {% else %}
@@ -41,6 +42,8 @@
   {#- Remembers the chosen button for a conflict's own buttons; a main button overrides it
       (spec 004 R2). #}
   <input type="hidden" name="then" value="{{ form.then }}">
+  {#- The series page to return to (spec 006 R4). -#}
+  {% if form.from_series %}<input type="hidden" name="from_series" value="{{ form.from_series }}">{% endif %}
   <div class="form-columns">
   <div class="stack">
   {% with suggest_title=true %}{% include "partials/book_fields.html" %}{% endwith %}

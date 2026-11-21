@@ -109,6 +109,26 @@ async def find_book_by_series_number(
     return (row[0], row[1]) if row else None
 
 
+async def list_series_books(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Book]:
+    """Every catalog book in a series, on anyone's list or none: by number, unnumbered
+    last, then by title."""
+    rows = (
+        (
+            await db.execute(
+                select(models.Book)
+                .where(models.Book.series_id == series_id)
+                .order_by(
+                    models.Book.series_number.asc().nulls_last(), func.lower(models.Book.title)
+                )
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    return [to_book(row) for row in rows]
+
+
 # --------------------------------------------------------------------------- writes
 
 

@@ -25,3 +25,12 @@
 {% macro series_line(book) -%}
 {%- if book.series %}{{ book.series.name }}{% if book.series_number is not none %} #{{ book.series_number | series_number }}{% endif %}{% endif -%}
 {%- endmacro %}
+
+{# A catalog conflict. When another book holds the series number, link to it, so its
+   number can be changed even if it is on nobody's list (books-cay). #}
+{% macro conflict_notice(conflict) -%}
+<p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p>
+{%- if conflict.code == "series_number_taken" and conflict.existing_id %}
+<p><a href="/catalog/books/{{ conflict.existing_id }}/edit">Change the number of “{{ conflict.existing_label }}”</a></p>
+{%- endif %}
+{%- endmacro %}

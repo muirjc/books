@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% from "macros.html" import error_summary %}
+{% from "macros.html" import error_summary, conflict_notice %}
 {% block title %}{{ entry.book.title }}{% endblock %}
 {% block content %}
 <h1>{{ entry.book.title }}</h1>
 {% include "partials/source_ref.html" %}
 {{ error_summary(all_errors) }}
 {% if conflict %}
-<div class="conflict" role="alert"><p><strong>{{ conflict.title }}:</strong> “{{ conflict.existing_label }}”.</p></div>
+<div class="conflict" role="alert">{{ conflict_notice(conflict) }}</div>
 {% endif %}
 <form method="post" action="/entries/{{ entry.id }}" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

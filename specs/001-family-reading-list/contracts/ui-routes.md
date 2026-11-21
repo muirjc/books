@@ -32,7 +32,7 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | GET | `/series/{id}` | My books in this series, in order | FR-022 |
 | GET, POST | `/catalog/books/{id}/edit` | Edit a catalog book | FR-009 |
 | GET, POST | `/catalog/authors/{id}/edit` | Edit an author, pen name, real name | FR-009, FR-014 |
-| GET, POST | `/catalog/series/{id}/edit` | Rename a series | FR-009 |
+| GET, POST | `/catalog/series/{id}/edit` | Rename a series; lists every catalog book in it (number, link to edit), including books on nobody's list (books-cay). A "number taken" conflict anywhere links to the book holding the number | FR-009 |
 | GET, POST | `/catalog/books/{id}/summary` | Write a new summary; shows history | FR-024 |
 | GET | `/admin/users` | Accounts list (Admin only) | FR-003 |
 | GET, POST | `/admin/users/new` | Create an account | FR-003 |

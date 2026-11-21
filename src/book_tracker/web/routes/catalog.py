@@ -169,9 +169,10 @@ async def edit_author(
 # --------------------------------------------------------------------------- series
 
 
-def _series_page(
+async def _series_page(
     request: Request,
     auth: Authenticated,
+    db: DbSession,
     series: domain.Series,
     name: str | None = None,
     errors: dict[str, str] | None = None,
@@ -182,6 +183,7 @@ def _series_page(
         "pages/edit_series.html",
         {
             "series": series,
+            "books": await service.series_books(db, series.id),
             "name": series.name if name is None else name,
             "errors": errors or {},
             "message": _message(request),
@@ -195,7 +197,7 @@ def _series_page(
 async def edit_series_form(
     series_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
-    return _series_page(request, auth, await service.get_series(db, series_id))
+    return await _series_page(request, auth, db, await service.get_series(db, series_id))
 
 
 @router.post("/series/{series_id}/edit")
@@ -207,12 +209,14 @@ async def edit_series(
     try:
         body = SeriesWrite.model_validate({"name": name})
     except ValidationError:
-        return _series_page(request, auth, series, name, {"name": "Enter a series name"}, 422)
+        return await _series_page(
+            request, auth, db, series, name, {"name": "Enter a series name"}, 422
+        )
     try:
         await service.update_series(db, auth.account.id, series_id, name=body.name)
     except ConflictError as exc:
         errors = {"name": f"{exc.title}: “{exc.existing_label}”"}
-        return _series_page(request, auth, series, name, errors, 409)
+        return await _series_page(request, auth, db, series, name, errors, 409)
     return RedirectResponse(f"/catalog/series/{series_id}/edit?msg=saved", status_code=303)
 
 

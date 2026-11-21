@@ -125,6 +125,12 @@ async def get_series(db: AsyncSession, series_id: uuid.UUID) -> domain.Series:
     return series
 
 
+async def series_books(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Book]:
+    """The shared catalog's books in a series, so one held by nobody's list can still be
+    reached and renumbered (books-cay)."""
+    return await catalog.list_series_books(db, series_id)
+
+
 async def get_book(db: AsyncSession, book_id: uuid.UUID) -> domain.Book:
     book = await catalog.get_book(db, book_id)
     if book is None:

@@ -2,6 +2,7 @@
 {% set errs = form.errors if form is defined and form.errors is defined else errors %}
 {% set values = form.raw if form is defined and form.raw is defined else raw %}
 {% set current_status = values.get("status") or (entry.status if entry is defined else "finished") %}
+<div class="field-row">
 <div class="field">
   <label for="status">Status</label>
   <select id="status" name="status"{{ described(errs, "status") }}>
@@ -16,6 +17,7 @@
   <input id="finished_on" name="finished_on" type="date"
          value="{{ values.get('finished_on') if 'finished_on' in values else (entry.finished_on or '') if entry is defined else '' }}"{{ described(errs, "finished_on") }}>
   {{ field_error(errs, "finished_on") }}
+</div>
 </div>
 {% if entry is defined %}
 <div class="field">

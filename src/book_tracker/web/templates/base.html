@@ -6,6 +6,7 @@
   <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false}'>
   <title>{% block title %}Family Book Tracker{% endblock %} · Family Book Tracker</title>
   <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/fold.js"></script>
   <script src="/static/vendor/htmx.min.js" defer></script>
   <script src="/static/js/app.js" defer></script>
 </head>
@@ -26,7 +27,7 @@
         </ul>
       </nav>
       <div class="account-actions">
-        <span class="signed-in-as">Signed in as <strong>{{ current_user.display_name }}</strong></span>
+        <span class="signed-in-as"><span class="signed-in-label">Signed in as </span><strong>{{ current_user.display_name }}</strong></span>
         <form method="post" action="/switch-user" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="button-link">Switch user</button>

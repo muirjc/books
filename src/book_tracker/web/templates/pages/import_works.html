@@ -11,6 +11,7 @@
 {% endif %}
 <form method="post" action="/import/authors/{{ key }}" class="stack" id="import-form" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="import-toolbar">
   <div class="field">
     <label for="status">Add the ticked books as</label>
     <select id="status" name="status">
@@ -39,6 +40,7 @@
     <button type="submit" formaction="/import/authors/{{ key }}/view" name="select" value="shown"
             hx-post="/import/authors/{{ key }}/view" hx-target="#import-works" hx-swap="outerHTML"
             hx-include="closest form" hx-vals='{"select": "shown"}'>Select all shown</button>
+  </div>
   </div>
   {% include "partials/import_works.html" %}
   <button type="submit" class="button-primary">Add ticked books to my list</button>

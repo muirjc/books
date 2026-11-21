@@ -10,6 +10,7 @@
 {% endif %}
 <form method="post" action="/entries/{{ entry.id }}" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="form-columns">
   <section aria-labelledby="book-details-heading" class="stack">
     <h2 id="book-details-heading">Book details</h2>
     <p class="hint">Changes here show on every family member's list.</p>
@@ -20,6 +21,7 @@
     <p class="hint">Only you see these.</p>
     {% include "partials/entry_fields.html" %}
   </section>
+  </div>
   <button type="submit" class="button-primary">Save</button>
 </form>
 <div class="actions spaced">

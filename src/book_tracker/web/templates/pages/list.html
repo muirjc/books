@@ -1,16 +1,22 @@
 {% extends "base.html" %}
 {% block title %}My books{% endblock %}
 {% block content %}
-<h1>My books</h1>
-<p><a class="button button-primary" href="/books/add">Add a book</a></p>
+<div class="page-head">
+  <h1>My books</h1>
+  <p><a class="button button-primary" href="/books/add">Add a book</a></p>
+</div>
 
 <form method="get" action="/" role="search" aria-label="Search and filter my books" class="filters"
-      hx-get="/" hx-target="#reading-list" hx-push-url="true"
+      data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/" hx-target="#reading-list" hx-push-url="true"
       hx-trigger="submit, change, input changed delay:300ms from:#q">
   <div class="field">
     <label for="q">Search my books</label>
     <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off">
   </div>
+  {# Spec 003: on a phone, app.js shows this and folds the rest; without JavaScript all show. #}
+  <button type="button" class="filters-toggle" aria-controls="filter-extra"
+          aria-expanded="{{ 'true' if filters_open else 'false' }}" hidden>Sort and filter</button>
+  <div id="filter-extra" class="filter-extra">
   <div class="field">
     <label for="sort">Sort by</label>
     <select id="sort" name="sort">
@@ -49,6 +55,7 @@
   <div class="actions">
     <button type="submit">Apply</button>
     {% if filtered %}<a href="/">Clear</a>{% endif %}
+  </div>
   </div>
 </form>
 

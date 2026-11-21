@@ -4,7 +4,7 @@
 <h1>{{ series.name }}</h1>
 <p class="muted">The books from this series on your list, in reading order.</p>
 {% if entries %}
-<ol class="book-list">
+<ol class="book-list series-list">
   {% for entry in entries %}
   <li>
     <span class="badge">{% if entry.book.series_number is not none %}#{{ entry.book.series_number | series_number }}{% else %}No number{% endif %}</span>

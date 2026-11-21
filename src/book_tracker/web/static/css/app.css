@@ -17,6 +17,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* The hidden attribute always wins over author display rules (e.g. buttons). */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -95,21 +98,26 @@ button, .button {
 .notice { background: var(--success-bg); border-left: 4px solid #15803d; padding: 0.75rem 1rem; margin: 0 0 1rem; }
 .conflict { border-left: 4px solid var(--danger); padding: 0.5rem 0.75rem; background: #fdf1f0; }
 
-/* Lists of books */
-.filters { display: grid; gap: 0.75rem; grid-template-columns: 1fr; margin-bottom: 1rem; }
+/* Lists of books. My books (.reading-list) has five cells per row, laid out by size
+   (spec 003 R4); the series and summary-history lists keep simple rows. */
+.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin: 0.5rem 0 1rem; }
+.page-head h1, .page-head p { margin: 0; }
+.filters { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); align-items: end; margin-bottom: 1rem; }
+.filter-extra { display: grid; gap: 0.75rem; grid-template-columns: 1fr; grid-column: 1 / -1; }
 .book-list { list-style: none; margin: 0; padding: 0; }
-.book-list > li { border-bottom: 1px solid #d5dae1; padding: 0.75rem 0; }
-/* Tablet and wider: one line per book (title, authors and series, status), cut with an
-   ellipsis when too long; the full details are on the book's own page. */
-@media (min-width: 40.0625rem) {
-  .book-list > li {
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 28%) minmax(0, 12rem);
-    column-gap: 1rem; align-items: baseline; padding: 0.4rem 0;
-  }
-  .book-list > li > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book-list > li { border-bottom: 1px solid #d5dae1; padding: 0.4rem 0; }
+.series-list > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; }
+.reading-list > li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title title" "meta status";
+  column-gap: 0.75rem; align-items: baseline;
 }
-.book-title { font-weight: 600; font-size: 1.05rem; }
-.book-meta { color: var(--muted); }
+.reading-list > li > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.book-title { grid-area: title; font-weight: 600; font-size: 1.05rem; }
+.book-meta { grid-area: meta; color: var(--muted); }
+.book-status { grid-area: status; }
+.book-finished { grid-area: finished; color: var(--muted); display: none; }
+.book-times { grid-area: times; color: var(--muted); display: none; }
 .badge { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 0 0.5rem; font-size: 0.9rem; }
 .pagination { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
 
@@ -128,26 +136,76 @@ table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #d5dae1; vertical-align: top; }
 .table-wrap { overflow-x: auto; }
 
-@media (min-width: 40rem) {
-  .filters { grid-template-columns: 2fr 1fr 1fr 1fr; align-items: end; }
+
+/* Phone only: fold sort and filters behind "Sort and filter" (spec 003 R5). */
+@media not all and (min-width: 40em) {
+  .js .filters { grid-template-columns: minmax(0, 1fr) auto; }
+  .js .filters[data-fold="closed"] .filter-extra { display: none; }
 }
 
 /* Spec 002: import from Open Library */
+.import-toolbar { display: flex; flex-direction: column; gap: 1rem; }
 .import-controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-end; }
 .import-controls .field { min-width: 0; flex: 1 1 12rem; }
 .import-controls input, .import-controls select { max-width: 100%; }
 .table-scroll { overflow-x: auto; max-width: 100%; }
 .import-table th, .import-table td { padding: 0.4rem 0.5rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.import-table th:nth-child(4), .import-table td:nth-child(4) { display: none; } /* authors: tablet up */
+.import-table input[type="checkbox"] { width: 24px; height: 24px; margin: 0; } /* WCAG 2.2 target size */
 .author-choices li { margin-bottom: 0.5rem; }
-@media (max-width: 40rem) {
-  .import-table th:nth-child(4), .import-table td:nth-child(4) { display: none; } /* authors */
-}
-/* Fixed columns from tablet width up, so the layout is the same for every author. */
-@media (min-width: 40.0625rem) {
+
+/* Book forms: paired short fields and two column groups (spec 003 R6). */
+.field-row { display: grid; gap: 1rem; grid-template-columns: 1fr; align-items: start; }
+.form-columns { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+.form-columns > * + * { margin-top: 0; }
+
+/* Readable line length at any width (spec 003 FR-013). */
+main p, main .hint, main .notice { max-width: 75ch; }
+
+/* ------------------------------------------------------------------ tablet: 40em (640px) */
+@media (min-width: 40em) {
+  .header-inner { flex-wrap: wrap; }
+  .site-header nav { order: 3; flex-basis: 100%; }
+  .nav-list { flex-wrap: nowrap; }
+  .filters { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); align-items: end; }
+  .filters .field { min-width: 0; }
+  .filter-extra { display: contents; }
+  .filters-toggle { display: none; }
+  .reading-list > li {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 24%) 6.5rem 9.5rem;
+    grid-template-areas: "title meta status finished";
+    column-gap: 1rem;
+  }
+  .book-finished { display: block; }
+  .field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .import-table th:nth-child(4), .import-table td:nth-child(4) { display: table-cell; }
+  /* Fixed columns, so the layout is the same for every author (spec 002). */
   .import-table { table-layout: fixed; }
   .import-table .col-add { width: 3.5rem; }
   .import-table .col-year { width: 7rem; }
   .import-table .col-authors { width: 22%; }
   .import-table .col-family { width: 10rem; }
 }
-.import-table input[type="checkbox"] { width: 24px; height: 24px; margin: 0; } /* WCAG 2.2 target size */
+
+/* ------------------------------------------------------------------ laptop: 64em (1024px) */
+@media (min-width: 64em) {
+  .container { max-width: 82.5rem; padding: 0 1.5rem; }
+  .header-inner { flex-wrap: nowrap; gap: 0.5rem 1rem; }
+  .site-header nav { order: 0; flex-basis: auto; }
+  .nav-list { gap: 0 0.5rem; }
+  .account-actions { flex-wrap: nowrap; gap: 0 0.5rem; white-space: nowrap; }
+  .signed-in-label { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .filters { grid-template-columns: 2fr repeat(4, minmax(0, 1fr)) auto; }
+  .reading-list > li {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26%) 7rem 11.5rem 6.5rem;
+    grid-template-areas: "title meta status finished times";
+  }
+  .book-times { display: block; }
+  .form-columns { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 2rem; align-items: start; }
+  .form-columns .field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .import-toolbar { flex-direction: row; align-items: flex-end; gap: 1rem; }
+  .import-toolbar > .field { flex: 1 1 0; min-width: 0; }
+  .import-toolbar .import-controls { flex: 4 1 0; flex-wrap: nowrap; }
+  .import-controls .field { flex: 1 1 0; }
+  .import-controls button { flex: none; }
+}

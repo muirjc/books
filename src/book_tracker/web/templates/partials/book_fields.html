@@ -36,6 +36,7 @@
 
 <fieldset>
   <legend>Series (optional)</legend>
+  <div class="field-row">
   <div class="field">
     <label for="series_name">Series</label>
     {% with name="series_name", kind="series", id_field="series_id", value=form.raw.get("series_name", ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
@@ -49,10 +50,12 @@
   </div>
   <div class="field">
     <label for="series_number">Number in series</label>
-    <p class="hint" id="series_number-hint">Decimals are fine, for example 2.5 for a novella.</p>
     <input id="series_number" name="series_number" type="text" inputmode="decimal" maxlength="6"
            value="{{ form.raw.get('series_number', '') }}"{{ described(form.errors, "series_number", hint=true) }}>
+    {# Below the box, so the label lines up with Series beside it (spec 003). #}
+    <p class="hint" id="series_number-hint">Decimals are fine, for example 2.5 for a novella.</p>
     {{ field_error(form.errors, "series_number") }}
+  </div>
   </div>
 </fieldset>
 

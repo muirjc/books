@@ -266,7 +266,12 @@ async def test_book_forms_by_size(ui: UI, seeded: Seeded) -> None:
         await ui.go(path)
         left, right = await boxes(ui.page, ".form-columns > *")
         assert abs(left["top"] - right["top"]) <= 2 and right["left"] > left["right"], path
-        submit = await box(ui.page, ".form-columns ~ button[type=submit]")
+        # The submit buttons follow the two columns, alone or in a row (spec 004 .form-actions).
+        submit = await box(
+            ui.page,
+            ".form-columns ~ button[type=submit],"
+            " .form-columns ~ .form-actions button[type=submit]",
+        )
         assert submit["top"] >= max(left["bottom"], right["bottom"]), path
         tall = await ui.page.evaluate(f"{FORM}.getBoundingClientRect().height")
         await size(ui.page, IPAD)

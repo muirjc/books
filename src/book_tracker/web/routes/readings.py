@@ -24,7 +24,12 @@ from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
 from book_tracker.services.catalog import NewBook
 from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
-from book_tracker.web.forms import AddBookForm, parse_add_book, parse_entry_update
+from book_tracker.web.forms import (
+    AddBookForm,
+    carry_over_form,
+    parse_add_book,
+    parse_entry_update,
+)
 from book_tracker.web.rendering import is_htmx, render
 
 router = APIRouter(include_in_schema=False)
@@ -169,12 +174,14 @@ def _add_form(
     conflict: ConflictError | None = None,
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
+    added: domain.ReadingEntry | None = None,
 ) -> Response:
     return render(
         request,
         "pages/add_book.html",
         {
             "form": form or AddBookForm(),
+            "added": added,
             "statuses": STATUSES,
             "conflict": conflict,
             "author_conflicts": author_conflicts or {},
@@ -187,8 +194,24 @@ def _add_form(
 
 
 @router.get("/books/add")
-async def add_book_form(request: Request, auth: UiUser) -> Response:
-    return _add_form(request, auth)
+async def add_book_form(
+    request: Request, auth: UiUser, db: DbSession, after: str | None = None
+) -> Response:
+    """With ``after`` = the member's own just-added entry, a form for the next book
+    (spec 004). Any other entry, or a malformed id, gives the plain form (Principle I)."""
+    added: domain.ReadingEntry | None = None
+    try:
+        entry_id = uuid.UUID(after) if after else None
+    except ValueError:
+        entry_id = None
+    if entry_id is not None:
+        try:
+            added = await service.get_entry(db, auth.account.id, entry_id)
+        except NotFoundError:
+            added = None
+    if added is None:
+        return _add_form(request, auth)
+    return _add_form(request, auth, carry_over_form(added), added=added)
 
 
 @router.post("/books/add")
@@ -205,7 +228,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                 finished_on=form.finished_on,
                 notes=form.notes,
             )
-            await service.add_entry(
+            entry = await service.add_entry(
                 db,
                 user_id,
                 book_id=payload.book_id,
@@ -236,7 +259,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
             except ValidationError as exc:
                 form.errors.update(book_create_errors(exc))
                 return _add_form(request, auth, form, status_code=422)
-            await service.add_entry(
+            entry = await service.add_entry(
                 db,
                 user_id,
                 new_book=NewBook(
@@ -256,6 +279,8 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
     except (ValidationFailed, NotFoundError):
         form.errors["title"] = "That book is no longer in the catalog. Enter its details."
         return _add_form(request, auth, form, status_code=422)
+    if form.then == "another":
+        return RedirectResponse(f"/books/add?after={entry.id}", status_code=303)
     return RedirectResponse("/?msg=added", status_code=303)
 
 

@@ -5,7 +5,8 @@
   <label for="title">Title</label>
   {% if suggest_title %}
   <p class="hint">Start typing: if someone in the family already added the book, pick it from the list.</p>
-  {% with name="title", kind="books", id_field="book_id", value=form.raw.get("title", ""), errors=form.errors, maxlength=300 %}{% include "partials/combobox.html" %}{% endwith %}
+  {% with name="title", kind="books", id_field="book_id", value=form.raw.get("title", ""), errors=form.errors, maxlength=300,
+          autofocus=(added is defined and added), describedby_extra=("added-notice" if added is defined and added else "") %}{% include "partials/combobox.html" %}{% endwith %}
   <input type="hidden" id="book_id" name="book_id" value="{{ form.raw.get('book_id', '') }}">
   {% else %}
   <input id="title" name="title" type="text" required maxlength="300" value="{{ form.raw.get('title', '') }}"{{ described(form.errors, "title") }}>

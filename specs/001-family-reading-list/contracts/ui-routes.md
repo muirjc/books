@@ -20,8 +20,8 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | POST | `/switch-user` | Sign out, keep the recent profiles; 303 to `/sign-in` | FR-007 |
 | GET, POST | `/account/password` | Change own password (forced after reset) | FR-004, FR-028 |
 | GET | `/` | My list: search, sort, filter, paging (fragment: `#reading-list`) | FR-021, FR-023 |
-| GET | `/books/add` | Add-book form with type-ahead | FR-016 |
-| POST | `/books/add` | Add to my list (existing or new book) | FR-016, FR-017 |
+| GET | `/books/add` | Add-book form with type-ahead; `?after=<own entry id>` pre-fills the next book ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)) | FR-016 |
+| POST | `/books/add` | Add to my list (existing or new book); `then=another` redirects to the next-book form ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)) | FR-016, FR-017 |
 | GET | `/suggest/books?q=` | Type-ahead fragment | FR-010 |
 | GET | `/suggest/authors?q=` | Type-ahead fragment; matches real name | FR-010 |
 | GET | `/suggest/series?q=` | Type-ahead fragment | FR-010 |

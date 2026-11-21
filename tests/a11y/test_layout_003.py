@@ -405,3 +405,75 @@ async def test_200_percent_text(
 def _clear_source(live_book_source: FakeBookSource) -> Iterator[None]:
     yield
     live_book_source.works.pop("OL2A", None)
+
+
+# --------------------------------------------------------------------------- review fixes
+
+
+@pytest.mark.ac("003/AC-05")
+async def test_phone_filters_without_javascript(
+    seeded: Seeded, pw_browser: Browser, live_server: str
+) -> None:
+    """Without JavaScript the toggle stays hidden and search spans the filter row."""
+    context = await pw_browser.new_context(java_script_enabled=False)
+    view = UI(await context.new_page(), live_server)
+    await view.sign_in(seeded.alice)
+    for wh in (SMALL, PHONE):
+        await size(view.page, wh)
+        await view.go("/")
+        assert not (await box(view.page, ".filters-toggle"))["visible"], wh
+        search, status = await box(view.page, "#q"), await box(view.page, "#status")
+        assert status["visible"], wh
+        assert abs(search["right"] - status["right"]) <= 1, (wh, search, status)
+    await context.close()
+
+
+async def test_js_flag_set_before_first_paint(ui: UI, seeded: Seeded) -> None:
+    """The fold (html.js flag and toggle) comes from its own blocking script, so phones
+    never see the filters open and then jump shut, and it works even if app.js fails."""
+    await size(ui.page, PHONE)
+    await ui.sign_in(seeded.alice)
+    await ui.page.route("**/static/js/app.js", lambda route: route.abort())
+    await ui.go("/")
+    assert await ui.page.evaluate("document.documentElement.classList.contains('js')")
+    assert not (await box(ui.page, "#sort"))["visible"]
+    await ui.page.click(".filters-toggle")
+    assert (await box(ui.page, "#sort"))["visible"]
+
+
+@pytest.mark.ac("003/AC-01")
+async def test_series_and_summary_lists_keep_their_layout(
+    ui: UI, seeded: Seeded, factory: Factory
+) -> None:
+    """Only My books uses the one-line book rows: the series number stays first, and
+    earlier summaries wrap in full."""
+    long_text = "An earlier summary that runs well past one line of text. " * 12
+    await factory.execute(
+        "INSERT INTO book_summary (id, book_id, text, origin, created_by, is_current) "
+        "VALUES (gen_random_uuid(), :b, :t, 'manual', :u, false)",
+        b=seeded.book_id, t=long_text, u=seeded.alice.id,
+    )  # fmt: skip
+    await ui.sign_in(seeded.alice)
+    for wh in (SMALL, IPAD, LAPTOP):
+        await size(ui.page, wh)
+        await ui.go(f"/series/{seeded.series_id}")
+        rows = await ui.page.evaluate("""() => [...document.querySelectorAll('ol > li')].map(li =>
+          [...li.children].map(c => { const r = c.getBoundingClientRect();
+            return {cls: c.className, top: r.top, bottom: r.bottom, left: r.left,
+                    right: r.right, width: r.width, height: r.height, visible: true}; }))""")
+        assert rows, wh
+        for cells in rows:
+            badge, title, meta = cells
+            assert badge["cls"] == "badge" and title["cls"] == "book-title", cells
+            assert badge["right"] <= title["left"] and same_line(cells), (wh, cells)
+            assert meta["left"] >= title["left"], (wh, cells)
+        await ui.go(f"/catalog/books/{seeded.book_id}/summary")
+        text = await ui.page.evaluate(
+            """t => { const p = [...document.querySelectorAll('ol > li > p')]
+                 .find(e => e.textContent.startsWith(t));
+               return {lines: Math.round(p.getBoundingClientRect().height /
+                         parseFloat(getComputedStyle(p).lineHeight)),
+                       cut: p.scrollWidth > p.clientWidth}; }""",
+            long_text[:20],
+        )
+        assert text["lines"] > 1 and not text["cut"], (wh, text)

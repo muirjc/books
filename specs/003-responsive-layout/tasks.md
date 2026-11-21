@@ -363,3 +363,18 @@ T007–T009 browser tests               (tests/a11y/test_layout_003.py)
 - **guard** tests (T003, T021, T026) pin existing behaviour and may pass on first run.
   Principle V's fail-first rule applies to the tests that cover new behaviour.
 - **No server data changes**: the only server change is the `filters_open` context flag.
+
+## PR #18 review fixes
+
+- [X] T033 Keep `hidden` elements hidden: `[hidden] { display: none !important }`, so the
+  fold toggle never shows without JavaScript (test `test_phone_filters_without_javascript`).
+- [X] T034 Scope the one-line row layout to My books (`.reading-list`); the series page gets
+  `.series-list` with its number badge first, and summary history wraps in full (test
+  `test_series_and_summary_lists_keep_their_layout`).
+- [X] T035 Move the fold from `app.js` to a blocking `static/js/fold.js` in `<head>`, so
+  `html.js` is set before first paint and the fold works if `app.js` fails (test
+  `test_js_flag_set_before_first_paint`).
+- [X] T036 Phone-only rules use `not all and (min-width: 40em)`; the two-column filter grid
+  (search + toggle) applies only under `html.js`.
+- [X] T037 `test_my_books_one_line_per_book`: check every displayed cell against the title's
+  line, instead of skipping zero-height cells.

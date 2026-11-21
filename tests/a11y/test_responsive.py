@@ -66,9 +66,14 @@ async def test_phone_width_admin(ui: UI, seeded: Seeded) -> None:
         await check(ui.page, label)
 
 
-ROW_TOPS = """() => [...document.querySelectorAll('.book-list > li')].map(li =>
-  [...li.children].filter(c => c.getBoundingClientRect().height > 0)
-    .map(c => Math.round(c.getBoundingClientRect().top)))"""
+# For each row: the title's line (top, bottom) and the tops of the other cells the CSS
+# shows. An empty cell has no height but still sits on the row's baseline.
+ROW_TOPS = """() => [...document.querySelectorAll('.book-list > li')].map(li => {
+  const title = li.querySelector('.book-title').getBoundingClientRect();
+  return {top: title.top, bottom: title.bottom,
+          cells: [...li.children].filter(c => getComputedStyle(c).display !== 'none')
+                   .map(c => c.getBoundingClientRect().top)};
+})"""
 
 
 async def test_my_books_one_line_per_book(ui: UI, seeded: Seeded) -> None:
@@ -78,6 +83,6 @@ async def test_my_books_one_line_per_book(ui: UI, seeded: Seeded) -> None:
     await ui.go("/")
     rows = await ui.page.evaluate(ROW_TOPS)
     assert rows, "no books listed"
-    for tops in rows:
-        assert max(tops) - min(tops) <= 2, rows
+    for row in rows:
+        assert all(row["top"] - 2 <= top < row["bottom"] for top in row["cells"]), rows
     await check(ui.page, "list at tablet width")

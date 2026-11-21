@@ -15,7 +15,7 @@ under 64em) and laptop (64em and wider). The work is almost all in the one style
 - **My books:** separate cells in each row, so laptop rows can add date finished and times
   read, and phone rows take two lines.
 - **Phone filters:** a "Sort and filter" fold on phone, a small progressive enhancement in
-  `app.js`.
+  `fold.js` (originally `app.js`; moved after the PR #18 review).
 - **Book forms:** two-column forms on laptop, with short fields paired on tablet.
 - **Import:** controls on one row on laptop.
 
@@ -110,7 +110,7 @@ specs/003-responsive-layout/
 src/book_tracker/web/
 ├── static/css/app.css               # breakpoints, container, header, list rows, form grid,
 │                                    #   import controls, readable line length
-├── static/js/app.js                 # "Sort and filter" fold on phone (progressive)
+├── static/js/fold.js                # "Sort and filter" fold on phone (progressive)
 └── templates/
     ├── base.html                    # header markup classes (no content change)
     ├── pages/list.html              # filters: fold toggle + data-fold state

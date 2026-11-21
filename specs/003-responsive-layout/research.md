@@ -108,7 +108,8 @@
     `data-fold="open"` when any sort or filter differs from the default, otherwise
     `data-fold="closed"`. It also renders a `<button type="button" class="filters-toggle"
     aria-expanded aria-controls="filter-extra" hidden>Sort and filter</button>`.
-  - **What `app.js` does:** it marks `<html class="js">`, unhides the toggle, and flips
+  - **What `fold.js` does** (a small blocking script in `<head>`, apart from `app.js`; see
+    the PR #18 review fixes in tasks.md): it marks `<html class="js">`, unhides the toggle, and flips
     `data-fold` and `aria-expanded` on click.
   - **What CSS does:** `.js .filters[data-fold="closed"] .filter-extra { display: none }`,
     only below 40em. At tablet and laptop widths the toggle is hidden and the extra filters

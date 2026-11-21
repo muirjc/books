@@ -24,7 +24,8 @@ Everywhere: running text at most 75ch wide; stacked single-line inputs at most 4
 
 ## My books (`/`)
 
-Row cells, in DOM order, inside each `li` of `.book-list`:
+Row cells, in DOM order, inside each `li` of `.book-list.reading-list`. Only this list uses
+the row layout; the series page (`.series-list`) and the summary history keep simple rows:
 
 | Cell | Class | Content |
 |---|---|---|
@@ -47,7 +48,12 @@ Filters:
 - The form carries `data-fold="open"` when the request has a non-default sort or any filter
   (`q`, `status`, `author_id`, `series_id`); otherwise `data-fold="closed"`.
 - A `button.filters-toggle` (`type="button"`, `aria-controls="filter-extra"`,
-  `aria-expanded`) is rendered `hidden`. `app.js` shows it.
+  `aria-expanded`) is rendered `hidden`. `static/js/fold.js` shows it.
+- `fold.js` loads without `defer` in `<head>`, so `html.js` is set before the first paint
+  (no flash of open filters), and it doesn't depend on `app.js`.
+- `[hidden]` is `display: none !important`, so the toggle stays hidden without JS.
+- The phone fold applies under `not all and (min-width: 40em)`, the exact complement of
+  the tablet query, so no fractional width falls between the two.
 
 | Size | Filters |
 |---|---|

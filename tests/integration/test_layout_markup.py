@@ -50,7 +50,7 @@ class _Outline(HTMLParser):
 
 
 def _rows(html: str) -> list[str]:
-    body = html.split('<ul class="book-list"', 1)[1].split("</ul>", 1)[0]
+    body = html.split('<ul class="book-list reading-list"', 1)[1].split("</ul>", 1)[0]
     return re.findall(r"<li>(.*?)</li>", body, re.S)
 
 

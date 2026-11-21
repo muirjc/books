@@ -1,0 +1,11 @@
+{#- Spec 005: choices for a typed author or series that isn't in the catalog yet.
+    Expects: nn (NewName). The field error above names it; these buttons settle it. -#}
+<div class="conflict new-name" id="{{ nn.field }}-new">
+  {% if nn.similar %}
+  <p>Did you mean:</p>
+  {% for record_id, label in nn.similar %}
+  <button type="submit" name="{{ nn.use_field }}" value="{{ record_id }}">Use “{{ label }}”</button>
+  {% endfor %}
+  {% endif %}
+  <button type="submit" name="{{ nn.confirm_field }}" value="{{ nn.name }}">Add “{{ nn.name }}” as a new {{ nn.kind }}</button>
+</div>

@@ -69,7 +69,9 @@ async def test_add_book_with_new_author_and_series(
         data={
             "title": "Guards! Guards!",
             "author_name_0": "Terry Pratchett",
+            "confirm_author_0": "Terry Pratchett",  # spec 005: a new name is confirmed
             "series_name": "Discworld",
+            "confirm_series": "Discworld",
             "series_number": "8",
             "status": "finished",
         },
@@ -86,7 +88,12 @@ async def test_add_book_with_new_author_and_series(
 @pytest.mark.ac("001/AC-03")
 async def test_add_with_title_and_author_only(member: httpx.AsyncClient, factory: Factory) -> None:
     response = await member.post(
-        "/books/add", data={"title": "The Hobbit", "author_name_0": "J.R.R. Tolkien"}
+        "/books/add",
+        data={
+            "title": "The Hobbit",
+            "author_name_0": "J.R.R. Tolkien",
+            "confirm_author_0": "J.R.R. Tolkien",
+        },  # spec 005: a new name is confirmed
     )
     assert response.status_code == 303
     assert await factory.scalar("SELECT series_id FROM book") is None
@@ -117,6 +124,7 @@ async def test_add_form_rolls_back_on_conflict(
         data={
             "title": "Not Mort",
             "author_name_0": "Brand New Author",
+            "confirm_author_0": "Brand New Author",  # spec 005: a new name is confirmed
             "series_id": str(series),
             "series_name": "Discworld",  # the form sends the chosen series' name too
             "series_number": "4",

@@ -21,7 +21,7 @@ from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import render
-from book_tracker.web.routes.readings import book_form, save_book_details
+from book_tracker.web.routes.readings import book_form, new_name_prompts, save_book_details
 
 router = APIRouter(prefix="/catalog", include_in_schema=False)
 
@@ -82,7 +82,8 @@ async def edit_book_form(
 async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
     book = await service.get_book(db, book_id)
     form = parse_add_book(await request.form())
-    if form.errors:
+    await new_name_prompts(db, form)  # spec 005: shown with any field errors
+    if form.field_errors:
         return _book_page(request, auth, book, form, status_code=422)
     problem = await save_book_details(db, auth, book, form)
     if problem is not None:

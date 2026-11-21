@@ -104,7 +104,8 @@ async def test_change_the_author_and_series(
     s = await _setup(factory, alice)
     saved = await member.post(
         f"/entries/{s['entry']}",
-        data=_form(s, author_name_0="Neil Gaiman", author_id_0="", author_name_1="Terry Pratchett",
+        data=_form(s, author_name_0="Neil Gaiman", author_id_0="", confirm_author_0="Neil Gaiman",
+                   author_name_1="Terry Pratchett",
                    author_id_1=str(s["author"]), series_name="", series_id="", series_number=""),
     )  # fmt: skip
     assert saved.status_code == 303, saved.text

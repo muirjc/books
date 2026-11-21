@@ -24,6 +24,11 @@ async def _add(page: Page, title: str, author: str = "Neil Gaiman") -> None:
     await page.fill("#author_name_0", author)
     await page.click(ANOTHER)
     await page.wait_for_load_state()
+    # Spec 005: a new author needs a yes; the choice keeps "Add and add another".
+    confirm = page.locator("button[name=confirm_author_0]")
+    if await confirm.count():
+        await confirm.click()
+        await page.wait_for_load_state()
 
 
 async def _active_id(page: Page) -> str:
@@ -76,6 +81,7 @@ async def test_buttons_fit_every_width(
     await ui.go("/books/add")
     await _add(ui.page, LONG_TITLE)
     carry_over = ui.page.url
+    assert "/books/add?after=" in carry_over, carry_over  # the next-book form, not a prompt
     for wh in (SMALL, PHONE, IPAD, LAPTOP_MIN, LAPTOP):
         await size(ui.page, wh)
         await ui.go(carry_over.removeprefix(ui.base_url))
@@ -108,6 +114,7 @@ async def test_axe_add_another(ui: UI, seeded: Seeded) -> None:
     await ui.go("/books/add")
     await _add(ui.page, "American Gods")
     carry_over = ui.page.url.removeprefix(ui.base_url)
+    assert "/books/add?after=" in carry_over, carry_over  # the next-book form, not a prompt
     for wh in (PHONE, IPAD, LAPTOP):
         await size(ui.page, wh)
         for label, path in (("plain", "/books/add"), ("carry-over", carry_over)):

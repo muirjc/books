@@ -41,6 +41,7 @@ async def test_edit_book_page(member: httpx.AsyncClient, factory: Factory, alice
             "author_name_0": "Terry Pratchett",
             "author_id_0": str(author),
             "series_name": "Discworld",
+            "confirm_series": "Discworld",  # spec 005: a new name is confirmed
             "series_number": "4",
         },
     )
@@ -67,6 +68,7 @@ async def test_edit_book_errors(
         data={
             "title": "Sourcery",
             "author_name_0": "Terry Pratchett",
+            "confirm_author_0": "Terry Pratchett",  # spec 005: a new name is confirmed
             "series_id": str(series),
             "series_name": "Discworld",
             "series_number": "4",

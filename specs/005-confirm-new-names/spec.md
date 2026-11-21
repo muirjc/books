@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description (bead books-ca5): "values should not be saved until the save button is clicked. Otherwise typos get added into the data and there is no simple way to clean them up." Seen on Add a book and on a book's page / Edit book. Agreed scope: before Save creates a new author or series, ask the member to confirm it, offering close matches already in the catalog.
 

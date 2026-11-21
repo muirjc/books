@@ -67,6 +67,7 @@ async def test_summary_when_adding_a_book(
         data={
             "title": "Earthsea",
             "author_name_0": "Ursula K. Le Guin",
+            "confirm_author_0": "Ursula K. Le Guin",  # spec 005: a new name is confirmed
             "summary": "A young wizard.",
         },
     )

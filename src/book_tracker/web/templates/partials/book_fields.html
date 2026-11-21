@@ -1,6 +1,9 @@
 {#- Title, authors, series, number and ISBN, shared by the add and edit book pages.
     Expects: form (AddBookForm), author_conflicts, series_conflict, suggest_title -#}
 {% from "macros.html" import described, field_error %}
+{#- The form's default button, so Enter in a field saves as the main button does, never as
+    a "Use …" or "Add … as new" choice further down (spec 005, PR #21 review). -#}
+<span class="visually-hidden"><button type="submit" name="then" value="list" tabindex="-1" aria-hidden="true">Save</button></span>
 <div class="field">
   <label for="title">Title</label>
   {% if suggest_title %}

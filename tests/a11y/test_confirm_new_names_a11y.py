@@ -13,7 +13,7 @@ pytestmark = pytest.mark.a11y
 
 USE = "button[name=use_author_0]"
 CONFIRM = "button[name=confirm_author_0]"
-ADD = "button[name=then][value=list]"
+ADD = ".form-actions button[name=then][value=list]"
 
 
 async def _type_book(ui: UI, title: str, author: str) -> None:
@@ -64,3 +64,16 @@ async def test_prompt_accessibility(ui: UI, seeded: Seeded) -> None:
             assert button["visible"] and button["height"] >= 44 and button["width"] >= 44, wh
         if wh in (PHONE, IPAD, LAPTOP):
             await assert_no_axe_violations(ui.page, f"prompt {wh}")
+
+
+async def test_enter_does_not_pick_a_choice(ui: UI, seeded: Seeded) -> None:
+    """Enter submits as the main button, never as "Use …" or "Add … as new" (review)."""
+    await ui.sign_in(seeded.alice)
+    await _type_book(ui, "Thief of Time", "Terry Pratchet")
+    await ui.page.fill("#title", "Thief of Time!")
+    await ui.page.press("#title", "Enter")
+    await ui.page.wait_for_load_state()
+    assert "/books/add" in ui.page.url and "msg=added" not in ui.page.url
+    assert await ui.page.locator(USE).count() >= 1  # still asking
+    await check(ui.page, "prompt after Enter")
+    await assert_no_axe_violations(ui.page, "prompt after Enter")

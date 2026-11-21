@@ -15,7 +15,7 @@ from starlette.responses import Response
 from book_tracker.auth.dependencies import Authenticated, UiUser, today
 from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
-from book_tracker.domain.values import format_series_number, normalize_name
+from book_tracker.domain.values import format_series_number, normalize_name, similar_names
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import BookCreate
 from book_tracker.schemas.readings import ReadingEntryCreate
@@ -293,12 +293,12 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
 NEW_NAME = "“{}” is not in the family catalog yet"
 
 
-async def _chosen_author(db: DbSession, row: AuthorRow) -> uuid.UUID | None:
+async def _chosen_author(db: DbSession, row: AuthorRow) -> domain.Author | None:
     """The catalog author a row names: a "Use …" choice, or a picked id whose name still
     matches what was typed (without JavaScript, editing the text doesn't clear the id)."""
     if row.use_id is not None:
         try:
-            return (await catalog_service.get_author(db, row.use_id)).id
+            return await catalog_service.get_author(db, row.use_id)
         except NotFoundError:
             pass
     if row.author_id is not None:
@@ -307,15 +307,15 @@ async def _chosen_author(db: DbSession, row: AuthorRow) -> uuid.UUID | None:
         except NotFoundError:
             return None
         if chosen.name.lower() == row.name.lower():
-            return chosen.id
+            return chosen
     return None
 
 
-async def _chosen_series(db: DbSession, form: AddBookForm) -> uuid.UUID | None:
+async def _chosen_series(db: DbSession, form: AddBookForm) -> domain.Series | None:
     """The series counterpart of ``_chosen_author``."""
     if form.use_series_id is not None:
         try:
-            return (await catalog_service.get_series(db, form.use_series_id)).id
+            return await catalog_service.get_series(db, form.use_series_id)
         except NotFoundError:
             pass
     if form.series_id is not None:
@@ -324,31 +324,50 @@ async def _chosen_series(db: DbSession, form: AddBookForm) -> uuid.UUID | None:
         except NotFoundError:
             return None
         if chosen.name.lower() == form.series_name.lower():
-            return chosen.id
+            return chosen
     return None
 
 
 async def new_name_prompts(db: DbSession, form: AddBookForm) -> None:
     """Spec 005: record a prompt for every typed author or series that isn't picked,
     confirmed, or an exact catalog name (that one keeps today's "Already in the catalog"
-    choice). Read-only; each prompt is also a field error, so it is in the error summary."""
+    choice). Read-only, and runs once per form; each prompt is also a field error, so it
+    is in the error summary.
+
+    A "Use …" choice is written back as a picked record (id and catalog name), so it
+    sticks when the page comes back for another reason.
+    """
+    if form.names_checked:
+        return
+    form.names_checked = True
+    confirmed = {row.name for row in form.chosen_authors if row.confirmed == row.name}
+    candidates: catalog_service.Candidates | None = None
     for row in form.chosen_authors:
         field = f"author_name_{row.index}"
-        if field in form.new_names or await _chosen_author(db, row) is not None:
+        chosen = await _chosen_author(db, row)
+        if chosen is not None:
+            form.raw[f"author_id_{row.index}"] = str(chosen.id)
+            form.raw[field] = chosen.name
             continue
-        if row.confirmed == row.name or await catalog_service.author_named(db, row.name):
+        if row.name in confirmed or await catalog_service.author_named(db, row.name):
             continue
-        similar = await catalog_service.similar_authors(db, row.name)
-        form.new_names[field] = NewName(field, "author", row.name, similar)
+        if candidates is None:
+            candidates = await catalog_service.author_candidates(db)
+        form.new_names[field] = NewName(
+            field, "author", row.name, similar_names(row.name, candidates)
+        )
         form.errors.setdefault(field, NEW_NAME.format(row.name))
     name = form.series_name
-    if not name or "series_name" in form.new_names:
+    if not name:
         return
-    if await _chosen_series(db, form) is not None or form.series_confirmed == name:
+    series = await _chosen_series(db, form)
+    if series is not None:
+        form.raw["series_id"] = str(series.id)
+        form.raw["series_name"] = series.name
         return
-    if await catalog_service.series_named(db, name):
+    if form.series_confirmed == name or await catalog_service.series_named(db, name):
         return
-    similar = await catalog_service.similar_series(db, name)
+    similar = similar_names(name, await catalog_service.series_candidates(db))
     form.new_names["series_name"] = NewName("series_name", "series", name, similar)
     form.errors.setdefault("series_name", NEW_NAME.format(name))
 
@@ -359,20 +378,26 @@ async def resolve_authors(
     """Use chosen authors; create the typed ones. Conflicts are reported per row.
 
     Callers run ``new_name_prompts`` first and stop on a prompt, so a name created here
-    was confirmed, or exactly matches a catalog name (which raises today's conflict).
+    was confirmed, or exactly matches a catalog name (which raises today's conflict). A
+    name typed in two rows is created once.
     """
     ids: list[uuid.UUID] = []
     conflicts: dict[int, ConflictError] = {}
+    created: dict[str, uuid.UUID] = {}
     for row in form.chosen_authors:
         chosen = await _chosen_author(db, row)
         if chosen is not None:
-            ids.append(chosen)
+            ids.append(chosen.id)
+            continue
+        if row.name.lower() in created:
+            ids.append(created[row.name.lower()])
             continue
         try:
             author = await catalog_service.create_author(db, auth.account.id, name=row.name)
         except ConflictError as exc:
             conflicts[row.index] = exc
             continue
+        created[row.name.lower()] = author.id
         ids.append(author.id)
     return list(dict.fromkeys(ids)), conflicts
 
@@ -385,7 +410,7 @@ async def resolve_series(
         return None, None
     chosen = await _chosen_series(db, form)
     if chosen is not None:
-        return chosen, None
+        return chosen.id, None
     try:
         series = await catalog_service.create_series(db, auth.account.id, name=form.series_name)
     except ConflictError as exc:

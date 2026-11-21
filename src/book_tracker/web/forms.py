@@ -115,6 +115,7 @@ class AddBookForm:
     raw: dict[str, str] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
     new_names: dict[str, NewName] = field(default_factory=dict)  # by field (spec 005)
+    names_checked: bool = False  # new_name_prompts has run for this form
 
     @property
     def field_errors(self) -> bool:

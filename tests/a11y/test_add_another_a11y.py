@@ -16,7 +16,7 @@ LONG_TITLE = (
     "Any Reasonable Length for One Line"
 )
 ANOTHER = "button[name=then][value=another]"
-LIST = "button[name=then][value=list]"
+LIST = ".form-actions button[name=then][value=list]"
 
 
 async def _add(page: Page, title: str, author: str = "Neil Gaiman") -> None:

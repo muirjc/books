@@ -190,3 +190,11 @@ description: "Task list for spec 005, confirm new author and series names"
   confirmation, as a member now would. The spec 004 browser helper confirms new names, and
   its tests now check that they reach the next-book form.
 - **Spacing:** `.new-name` CSS spaces and wraps the choice buttons, which touched on a phone.
+- **PR #21 review fixes:**
+  - **"Use" choices stick:** a "Use …" choice is written back into the field as a picked
+    record (id and catalog name), so it holds when the page returns for another name.
+  - **Enter:** a hidden default button (`then=list`) at the top of the book fields makes
+    Enter save as the main button, never as a "Use" or "Add … as new" choice.
+  - **Repeated names:** a name typed in two rows needs one confirmation and is created once.
+  - **Fewer reads:** catalog candidates are read once per request, and `new_name_prompts`
+    runs once per form.

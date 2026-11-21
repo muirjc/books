@@ -377,3 +377,36 @@ async def test_add_another_keeps_choice_and_carries_new_author(
               "author_id_0": str(new_id), "status": "finished"},
     )  # fmt: skip
     assert again.status_code == 303
+
+
+# --------------------------------------------------------------------------- PR #21 review
+
+
+async def test_use_choice_sticks_when_another_name_still_prompts(
+    member: httpx.AsyncClient, factory: Factory, robb: dict[str, uuid.UUID]
+) -> None:
+    """Two "Use …" choices, one per submit, both stick (review finding 1)."""
+    data = add_form(series_name="In Deth")
+    first = await member.post("/books/add", data=data | {"use_author_0": str(robb["robb"])})
+    assert first.status_code == 409
+    assert field_error(first.text, "author_name_0") == ""  # settled
+    assert f'name="author_id_0" value="{robb["robb"]}"' in first.text
+    assert 'name="author_name_0"' in first.text and 'value="J.D. Robb"' in first.text
+    # The browser now sends the settled row as a picked author, plus the series choice.
+    second = await member.post(
+        "/books/add",
+        data=data | {"author_name_0": "J.D. Robb", "author_id_0": str(robb["robb"]),
+                     "use_series": str(robb["in_death"])},
+    )  # fmt: skip
+    assert second.status_code == 303
+    assert await book_authors(factory, "Naked in Death") == ["J.D. Robb"]
+
+
+async def test_same_new_name_in_two_rows_needs_one_yes(
+    member: httpx.AsyncClient, factory: Factory, robb: dict[str, uuid.UUID]
+) -> None:
+    data = add_form(author_name_0="Ann Leckie", author_name_1="Ann Leckie")
+    saved = await member.post("/books/add", data=data | {"confirm_author_0": "Ann Leckie"})
+    assert saved.status_code == 303, field_error(saved.text, "author_name_1")
+    assert await factory.scalar("SELECT count(*) FROM author WHERE name = 'Ann Leckie'") == 1
+    assert await book_authors(factory, "Naked in Death") == ["Ann Leckie"]

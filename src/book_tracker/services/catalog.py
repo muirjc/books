@@ -136,20 +136,31 @@ async def series_named(db: AsyncSession, name: str) -> bool:
     return await catalog.find_series_by_name(db, name) is not None
 
 
-async def similar_authors(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
-    """Up to three catalog authors whose name or real name looks like ``name``
-    (spec 005 R3), best first."""
-    candidates = [
+Candidates = list[tuple[uuid.UUID, str, tuple[str, ...]]]
+
+
+async def author_candidates(db: AsyncSession) -> Candidates:
+    """Every catalog author as (id, name, names to compare: name and real name)."""
+    return [
         (author_id, label, (label, real) if real else (label,))
         for author_id, label, real in await catalog.author_names(db)
     ]
-    return similar_names(name, candidates)
+
+
+async def series_candidates(db: AsyncSession) -> Candidates:
+    """Every catalog series as (id, name, (name,))."""
+    return [(sid, label, (label,)) for sid, label in await catalog.series_names(db)]
+
+
+async def similar_authors(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
+    """Up to three catalog authors whose name or real name looks like ``name``
+    (spec 005 R3), best first."""
+    return similar_names(name, await author_candidates(db))
 
 
 async def similar_series(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
     """Up to three catalog series whose name looks like ``name`` (spec 005 R3)."""
-    candidates = [(sid, label, (label,)) for sid, label in await catalog.series_names(db)]
-    return similar_names(name, candidates)
+    return similar_names(name, await series_candidates(db))
 
 
 async def series_books(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Book]:

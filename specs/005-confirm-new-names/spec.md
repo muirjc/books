@@ -109,9 +109,11 @@ another" runs smooth.
 
 **Acceptance Criteria**:
 
-- **AC-11**: **Given** a form with a new name and another problem (for example a missing
-  title or a taken series number), **When** the member saves, **Then** the page shows the
-  other errors as today and the new-name notice together, and nothing is saved.
+- **AC-11**: **Given** a form with a new name and a field error (for example a missing
+  title or a bad ISBN), **When** the member saves, **Then** the page shows the field errors
+  as today and the new-name notice together, and nothing is saved. (A series number already
+  taken can only be found when the book is written, so it shows on the save after the
+  names are settled.)
 - **AC-12**: **Given** Add a book reached with **Add and add another** (spec 004), **When** a
   new-name choice is made, **Then** a successful save still leads to the next-book form; on
   that form the new author, now in the catalog, is carried over already chosen and needs

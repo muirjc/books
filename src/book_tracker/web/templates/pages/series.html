@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import authors_line %}
+{% from "macros.html" import authors_line, release_label %}
 {% block title %}{{ series.name }}{% endblock %}
 {% block content %}
 <h1>{{ series.name }}</h1>
@@ -21,7 +21,7 @@
     {% else %}
     <span class="book-title">{{ book.title }}</span>
     {% endif %}
-    <span class="series-detail"><span class="book-meta">{{ authors_line(book) }}</span> · <span class="series-status">{% if row.entry %}{{ STATUS_LABELS[row.entry.status] }}{% if row.entry.finished_on %} · {{ row.entry.finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}</span></span>
+    <span class="series-detail"><span class="book-meta">{{ authors_line(book) }}</span> · <span class="series-status">{% if row.entry %}{{ STATUS_LABELS[row.entry.status] }}{% if row.entry.finished_on %} · {{ row.entry.finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}{% set release = release_label(book, today, row.entry) %}{% if release | trim %} · {{ release }}{% endif %}</span></span>
     {% if not row.entry %}
     <a class="series-action" href="/books/add?book={{ book.id }}&amp;from_series={{ series.id }}"><span>Add<span class="visually-hidden"> “{{ book.title }}”</span> to my list</span></a>
     {% endif %}

@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "Upcoming books (bead books-a9y, from the books-0wi discussion).
 A catalog book can have an optional expected release date, entered by hand (no lookups).

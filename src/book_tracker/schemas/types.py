@@ -69,6 +69,8 @@ OptionalName = Annotated[
     BeforeValidator(lambda v: _normalize(v) or None),
 ]
 FinishedOn = Annotated[date | None, AfterValidator(_not_future)]
+# Spec 007: an expected or actual release date; any real calendar date.
+ReleaseDateIn = date | None
 Notes = Annotated[str | None, StringConstraints(max_length=10000)]
 
 

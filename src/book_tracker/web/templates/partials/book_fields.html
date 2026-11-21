@@ -75,3 +75,11 @@
          value="{{ form.raw.get('isbn_13', '') }}"{{ described(form.errors, "isbn_13") }}>
   {{ field_error(form.errors, "isbn_13") }}
 </div>
+
+<div class="field">
+  <label for="release_date">Release date (optional)</label>
+  <p class="hint" id="release_date-hint">If the book isn't out yet, the date it's due.</p>
+  <input id="release_date" name="release_date" type="date"
+         value="{{ form.raw.get('release_date', '') }}"{{ described(form.errors, "release_date", hint=true) }}>
+  {{ field_error(form.errors, "release_date") }}
+</div>

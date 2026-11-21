@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "macros.html" import authors_line, series_line, release_label %}
+{% block title %}Upcoming{% endblock %}
+{% block content %}
+{#- Spec 007 R5: my books not out yet, then the family catalog's other books not out yet.
+    Only my own entries are shown; the second list is catalog data. -#}
+<div class="page-head">
+  <h1>Upcoming</h1>
+  <p><a class="button button-primary" href="/books/add">Add a book</a></p>
+</div>
+
+<h2>On my list</h2>
+{% if view.mine %}
+<ul class="book-list upcoming-list" role="list">
+  {% for entry in view.mine %}
+  <li>
+    <a class="book-title" href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>
+    <span class="upcoming-detail"><span class="book-meta">{{ authors_line(entry.book) }}{% if entry.book.series %} · {{ series_line(entry.book) }}{% endif %}</span>
+      · {{ release_label(entry.book, today, entry) }} · <span class="badge">{{ STATUS_LABELS[entry.status] }}</span></span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Nothing on your list is coming up.</p>
+{% endif %}
+
+<h2>Also coming in the family catalog</h2>
+{% if view.others %}
+<ul class="book-list upcoming-list" role="list">
+  {% for book in view.others %}
+  <li>
+    <span class="book-title">{{ book.title }}</span>
+    <span class="upcoming-detail"><span class="book-meta">{{ authors_line(book) }}{% if book.series %} · {{ series_line(book) }}{% endif %}</span>
+      · {{ release_label(book, today) }}</span>
+    <a class="series-action" href="/books/add?book={{ book.id }}"><span>Add<span class="visually-hidden"> “{{ book.title }}”</span> to my list</span></a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Nothing else in the family catalog is coming up.</p>
+{% endif %}
+{% endblock %}

@@ -191,6 +191,11 @@ class Book(Base):
             postgresql_where=sql_text("series_id IS NOT NULL AND series_number IS NOT NULL"),
         ),
         Index("book_series_id_idx", "series_id"),
+        Index(
+            "book_release_date_idx",
+            "release_date",
+            postgresql_where=sql_text("release_date IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -200,6 +205,7 @@ class Book(Base):
     )
     series_number: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     isbn_13: Mapped[str | None] = mapped_column(CHAR(13))
+    release_date: Mapped[date | None] = mapped_column(Date)  # spec 007
     created_by: Mapped[uuid.UUID] = _user_fk("book_created_by_fkey")
     updated_by: Mapped[uuid.UUID] = _user_fk("book_updated_by_fkey")
     created_at: Mapped[datetime] = _created_at()
@@ -373,6 +379,9 @@ class ReadingEntry(Base):
     finished_on: Mapped[date | None] = mapped_column(Date)
     times_read: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+    pre_ordered: Mapped[bool] = mapped_column(  # spec 007
+        Boolean, nullable=False, default=False, server_default=sql_text("false")
+    )
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 

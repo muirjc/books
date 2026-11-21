@@ -8,8 +8,8 @@ so another member's entry is indistinguishable from one that doesn't exist.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Collection
-from datetime import date
+from collections.abc import Collection, Sequence
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, Select, delete, exists, func, or_, select, update
@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.models import ReadingEntry, ReadingEntryPage
+from book_tracker.domain.values import NOW_OUT_DAYS
 from book_tracker.persistence import models
 from book_tracker.persistence.catalog import like_patterns
 from book_tracker.persistence.mappers import to_reading_entry
@@ -42,6 +43,15 @@ def _matches(q: str) -> ColumnElement[bool]:
         by_author,
         models.Series.name.ilike(pattern, escape="\\"),
     )
+
+
+def _soonest_first() -> list[Any]:
+    """Release date ascending, then title (spec 007)."""
+    return [
+        models.Book.release_date.asc(),
+        func.lower(models.Book.title).asc(),
+        models.ReadingEntry.id.asc(),
+    ]
 
 
 def _order(sort: str) -> list[Any]:
@@ -89,7 +99,10 @@ class ReadingEntryRepository:
         series_id: uuid.UUID | None = None,
         status: ReadingStatus | None = None,
         sort: str = "title",
+        upcoming_after: date | None = None,
     ) -> ReadingEntryPage:
+        """``upcoming_after``: only books released after that date, soonest first, and
+        ``sort`` is ignored (spec 007 R4)."""
         filtered = (
             self._owned()
             .join(models.Book, models.Book.id == models.ReadingEntry.book_id)
@@ -108,11 +121,14 @@ class ReadingEntryRepository:
             filtered = filtered.where(models.Book.series_id == series_id)
         if status is not None:
             filtered = filtered.where(models.ReadingEntry.status == status.value)
+        if upcoming_after is not None:
+            filtered = filtered.where(models.Book.release_date > upcoming_after)
+        order = _soonest_first() if upcoming_after is not None else _order(sort)
         total = await self._db.scalar(select(func.count()).select_from(filtered.subquery()))
         rows = (
             (
                 await self._db.execute(
-                    filtered.order_by(*_order(sort))
+                    filtered.order_by(*order)
                     .limit(page_size)
                     .offset((page - 1) * page_size)
                     .execution_options(populate_existing=True)
@@ -149,6 +165,42 @@ class ReadingEntryRepository:
             .all()
         )
         return tuple(to_reading_entry(row) for row in rows)
+
+    async def _books_where(
+        self, *conditions: Any, order: Sequence[Any]
+    ) -> tuple[ReadingEntry, ...]:
+        rows = (
+            (
+                await self._db.execute(
+                    self._owned()
+                    .join(models.Book, models.Book.id == models.ReadingEntry.book_id)
+                    .where(*conditions)
+                    .order_by(*order)
+                    .execution_options(populate_existing=True)
+                )
+            )
+            .scalars()
+            .unique()
+            .all()
+        )
+        return tuple(to_reading_entry(row) for row in rows)
+
+    async def list_upcoming(self, today: date) -> tuple[ReadingEntry, ...]:
+        """My books not out yet, soonest first (spec 007, the Upcoming page)."""
+        return await self._books_where(models.Book.release_date > today, order=_soonest_first())
+
+    async def list_now_out(self, today: date) -> tuple[ReadingEntry, ...]:
+        """My Want to read books released in the last 30 days, most recent first (spec 007
+        R6)."""
+        return await self._books_where(
+            models.ReadingEntry.status == ReadingStatus.WANT_TO_READ.value,
+            models.Book.release_date.between(today - timedelta(days=NOW_OUT_DAYS - 1), today),
+            order=[
+                models.Book.release_date.desc(),
+                func.lower(models.Book.title).asc(),
+                models.ReadingEntry.id.asc(),
+            ],
+        )
 
     async def filter_options(self) -> tuple[FilterOptions, FilterOptions]:
         """Authors and series that appear on my list, for the filter menus."""
@@ -208,6 +260,7 @@ class ReadingEntryRepository:
         finished_on: date | None,
         times_read: int,
         notes: str | None,
+        pre_ordered: bool = False,
     ) -> ReadingEntry:
         row = models.ReadingEntry(
             id=uuid.uuid4(),
@@ -217,6 +270,7 @@ class ReadingEntryRepository:
             finished_on=finished_on,
             times_read=times_read,
             notes=notes,
+            pre_ordered=pre_ordered,
         )
         self._db.add(row)
         await self._db.flush()

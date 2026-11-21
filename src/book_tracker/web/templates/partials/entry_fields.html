@@ -27,6 +27,14 @@
   {{ field_error(errs, "times_read") }}
 </div>
 {% endif %}
+{#- Spec 007 R7: the hidden "" is sent when the box is unticked; a ticked box's "yes"
+    comes later and wins. -#}
+{% set pre_ordered = (values.get("pre_ordered") == "yes") if "pre_ordered" in values else (entry.pre_ordered if entry is defined else false) %}
+<div class="field checkbox-field">
+  <input type="hidden" name="pre_ordered" value="">
+  <input type="checkbox" id="pre_ordered" name="pre_ordered" value="yes"{% if pre_ordered %} checked{% endif %}>
+  <label for="pre_ordered">Pre-ordered</label>
+</div>
 <div class="field">
   <label for="notes">Private notes (optional)</label>
   <p class="hint" id="notes-hint">Only you can see these.</p>

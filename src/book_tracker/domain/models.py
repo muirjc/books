@@ -100,6 +100,7 @@ class Book:
     created_at: datetime
     updated_by: UserRef
     updated_at: datetime
+    release_date: date | None = None  # spec 007: expected or actual release
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +113,7 @@ class ReadingEntry:
     notes: str | None
     created_at: datetime
     updated_at: datetime
+    pre_ordered: bool = False  # spec 007: the owner's own flag
 
 
 @dataclass(frozen=True, slots=True)

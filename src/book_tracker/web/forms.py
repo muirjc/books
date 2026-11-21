@@ -23,6 +23,7 @@ from book_tracker.schemas.types import (
     Isbn13In,
     Notes,
     OptionalSummary,
+    ReleaseDateIn,
     SeriesNumberIn,
 )
 
@@ -34,6 +35,8 @@ _isbn = TypeAdapter(Isbn13In)
 _finished_on = TypeAdapter(FinishedOn)
 _notes = TypeAdapter(Notes)
 _summary = TypeAdapter(OptionalSummary)
+_release_date = TypeAdapter(ReleaseDateIn)
+RELEASE_DATE_ERROR = "Enter a date like 2027-03-01"
 
 
 def text(form: FormData, name: str) -> str:
@@ -103,9 +106,11 @@ class AddBookForm:
     series_name: str = ""
     series_number: Decimal | None = None
     isbn_13: str | None = None
+    release_date: date | None = None  # spec 007, a catalog field
     status: ReadingStatus = ReadingStatus.FINISHED
     finished_on: date | None = None
     notes: str | None = None
+    pre_ordered: bool = False  # spec 007, a personal field
     summary: str | None = None
     # Where a successful save goes (spec 004): My books, or a fresh form for the next book.
     then: Literal["list", "another"] = "list"
@@ -181,6 +186,10 @@ def parse_add_book(form: FormData) -> AddBookForm:
         except ValidationError as exc:
             errors["isbn_13"] = first_error(exc)
         try:
+            parsed.release_date = _release_date.validate_python(text(form, "release_date") or None)
+        except ValidationError:
+            errors["release_date"] = RELEASE_DATE_ERROR
+        try:
             parsed.summary = _summary.validate_python(text(form, "summary") or None)
         except ValidationError:
             errors["summary"] = "Keep the summary to 5,000 characters or fewer"
@@ -203,6 +212,8 @@ def _parse_entry_fields(form: FormData, parsed: AddBookForm, errors: dict[str, s
         parsed.notes = _notes.validate_python(text(form, "notes") or None)
     except ValidationError:
         errors["notes"] = "Keep notes to 10,000 characters or fewer"
+    # A hidden "" comes before the checkbox's "yes"; the last value wins (spec 007 R7).
+    parsed.pre_ordered = text(form, "pre_ordered") == "yes"
 
 
 def _date_message(exc: ValidationError) -> str:
@@ -215,7 +226,7 @@ def parse_entry_update(
 ) -> tuple[ReadingEntryUpdate | None, dict[str, str], dict[str, Any]]:
     """Fields present in the form become the update; returns (model, errors, raw values)."""
     raw: dict[str, Any] = {}
-    for name in ("status", "finished_on", "times_read", "notes"):
+    for name in ("status", "finished_on", "times_read", "notes", "pre_ordered"):
         if name in form:
             raw[name] = text(form, name)
     data: dict[str, Any] = {}
@@ -227,6 +238,8 @@ def parse_entry_update(
         data["times_read"] = raw["times_read"]
     if "notes" in raw:
         data["notes"] = raw["notes"] or None
+    if "pre_ordered" in raw:
+        data["pre_ordered"] = raw["pre_ordered"] == "yes"
     try:
         return ReadingEntryUpdate.model_validate(data), {}, raw
     except ValidationError as exc:
@@ -284,6 +297,8 @@ def book_start_form(book: domain.Book) -> AddBookForm:
         raw["series_id"] = str(book.series.id)
         if book.series_number is not None:
             raw["series_number"] = format_series_number(book.series_number)
+    if book.release_date is not None:
+        raw["release_date"] = book.release_date.isoformat()
     raw["status"] = ReadingStatus.WANT_TO_READ.value
     return AddBookForm(book_id=book.id, status=ReadingStatus.WANT_TO_READ, raw=raw)
 

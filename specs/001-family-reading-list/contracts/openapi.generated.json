@@ -402,6 +402,19 @@
             ],
             "title": "Isbn 13"
           },
+          "release_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expected or actual release date (spec 007)",
+            "title": "Release Date"
+          },
           "series": {
             "anyOf": [
               {
@@ -445,6 +458,7 @@
           "series",
           "series_number",
           "isbn_13",
+          "release_date",
           "current_summary",
           "created_by",
           "created_at",
@@ -510,6 +524,18 @@
               "string",
               "null"
             ]
+          },
+          "release_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Date"
           },
           "series_id": {
             "anyOf": [
@@ -585,6 +611,18 @@
               "string",
               "null"
             ]
+          },
+          "release_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Date"
           },
           "series_id": {
             "anyOf": [
@@ -956,6 +994,11 @@
             ],
             "title": "Notes"
           },
+          "pre_ordered": {
+            "description": "The owner's own Pre-ordered flag (spec 007)",
+            "title": "Pre Ordered",
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/ReadingStatus"
           },
@@ -978,6 +1021,7 @@
           "finished_on",
           "times_read",
           "notes",
+          "pre_ordered",
           "created_at",
           "updated_at"
         ],
@@ -1033,6 +1077,11 @@
               }
             ],
             "title": "Notes"
+          },
+          "pre_ordered": {
+            "default": false,
+            "title": "Pre Ordered",
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/ReadingStatus",
@@ -1103,6 +1152,11 @@
               }
             ],
             "title": "Notes"
+          },
+          "pre_ordered": {
+            "default": false,
+            "title": "Pre Ordered",
+            "type": "boolean"
           },
           "status": {
             "anyOf": [
@@ -3117,6 +3171,18 @@
               "title": "Page Size",
               "type": "integer"
             }
+          },
+          {
+            "description": "Only books not out yet, soonest first; sort is ignored (spec 007)",
+            "in": "query",
+            "name": "upcoming",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only books not out yet, soonest first; sort is ignored (spec 007)",
+              "title": "Upcoming",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -3458,7 +3524,7 @@
             "description": "Request failed validation"
           }
         },
-        "summary": "Update status, date finished, times read or notes",
+        "summary": "Update status, date finished, times read, notes or Pre-ordered",
         "tags": [
           "me"
         ]

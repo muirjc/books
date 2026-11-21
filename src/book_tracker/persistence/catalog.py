@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -141,6 +142,26 @@ async def list_series_books(db: AsyncSession, series_id: uuid.UUID) -> list[doma
     return [to_book(row) for row in rows]
 
 
+async def upcoming_books(db: AsyncSession, today: date) -> list[domain.Book]:
+    """Catalog books with a release date after today, soonest first, then by title
+    (spec 007). Catalog data only: no reading entries are read."""
+    rows = (
+        (
+            await db.execute(
+                select(models.Book)
+                .where(models.Book.release_date > today)
+                .order_by(
+                    models.Book.release_date.asc(), func.lower(models.Book.title), models.Book.id
+                )
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    return [to_book(row) for row in rows]
+
+
 # --------------------------------------------------------------------------- writes
 
 
@@ -187,6 +208,7 @@ async def create_book(
     series_number: Decimal | None,
     isbn_13: str | None,
     actor_id: uuid.UUID,
+    release_date: date | None = None,
 ) -> domain.Book:
     book_id = uuid.uuid4()
     db.add(
@@ -196,6 +218,7 @@ async def create_book(
             series_id=series_id,
             series_number=series_number,
             isbn_13=isbn_13,
+            release_date=release_date,
             created_by=actor_id,
             updated_by=actor_id,
         )

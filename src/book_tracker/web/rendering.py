@@ -11,7 +11,8 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
-from book_tracker.domain.values import format_series_number
+from book_tracker.auth.dependencies import today
+from book_tracker.domain.values import format_series_number, is_now_out, is_upcoming
 
 if TYPE_CHECKING:
     from book_tracker.auth.dependencies import Authenticated
@@ -35,6 +36,8 @@ def _date(value: date | datetime | None) -> str:
 templates.env.filters["series_number"] = _series_number
 templates.env.filters["nice_date"] = _date
 templates.env.globals["STATUS_LABELS"] = STATUS_LABELS
+templates.env.globals["is_upcoming"] = is_upcoming  # spec 007
+templates.env.globals["is_now_out"] = is_now_out
 
 
 def is_htmx(request: Request) -> bool:
@@ -53,6 +56,7 @@ def render(
     ctx: dict[str, Any] = {
         "current_user": auth.account if auth else None,
         "csrf_token": auth.csrf_token if auth else "",
+        "today": today(request),  # spec 007: "Coming" and "Now out" use the app clock
     }
     ctx.update(context or {})
     if status_code >= 400:

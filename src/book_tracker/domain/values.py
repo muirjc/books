@@ -1,4 +1,5 @@
-"""Value rules: ISBN-13, number in series, names (FR-011, FR-013, FR-015)."""
+"""Value rules: ISBN-13, number in series, names (FR-011, FR-013, FR-015), and release
+dates (spec 007)."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ import re
 import unicodedata
 import uuid
 from collections.abc import Iterable
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 SERIES_NUMBER_MAX = Decimal("999.99")
@@ -99,3 +101,21 @@ def similar_names(
             scored.append((score, label, record_id))
     scored.sort(key=lambda s: (-s[0], s[1].lower()))
     return [(record_id, label) for _, label, record_id in scored[:limit]]
+
+
+# --------------------------------------------------------------------------- spec 007
+
+NOW_OUT_DAYS = 30  # the release day is day 1; the notice shows through day 30
+
+
+def is_upcoming(release_date: date | None, today: date) -> bool:
+    """Not out yet: the release date is after today."""
+    return release_date is not None and release_date > today
+
+
+def is_now_out(release_date: date | None, today: date) -> bool:
+    """Released today or in the 29 days before (the Now out period)."""
+    return (
+        release_date is not None
+        and today - timedelta(days=NOW_OUT_DAYS - 1) <= release_date <= today
+    )

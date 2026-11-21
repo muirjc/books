@@ -65,9 +65,14 @@ description: "Task list for spec 005, confirm new author and series names"
 - [ ] T010 [US1] `test_use_similar_author` (AC-02):
   - the prompt offers "Use “J.D. Robb”" first (at most 3 choices);
   - posting `use_author_0=<id>` returns 303, and the book is saved with J.D. Robb and no
-    new author.
+    new author;
+  - a `use_author_0` naming no catalog author (a random UUID, or junk) is ignored, and the
+    prompt shows again.
 - [ ] T011 [US1] `test_confirm_new_author` (AC-03): posting `confirm_author_0="J DM Robb"`
   returns 303, and the author J DM Robb exists.
+  - **Added meanwhile (edge case):** if another member adds "J DM Robb" between the prompt
+    and the confirmation, the confirmation gives the existing "Already in the catalog"
+    choice, and no duplicate is created.
 - [ ] T012 [US1] `test_new_series_prompt_use_and_confirm` (AC-04): with "Dresdin Files",
   the prompt offers "Use “The Dresden Files”"; `use_series` saves to it, and
   `confirm_series` creates the new series.
@@ -156,6 +161,8 @@ description: "Task list for spec 005, confirm new author and series names"
   - the full pytest suite with coverage and `scripts/check_coverage.py`;
   - `-m a11y`, `-m perf` and `pip-audit`;
   - the OpenAPI contract check, which should show no JSON API change.
+
+  FR-009: the spec 002 import tests in the full suite pin that import is unchanged.
 - [ ] T030 Walk through quickstart.md with screenshots at 390 and 1,440 px, then set the
   spec status to Implemented.
 

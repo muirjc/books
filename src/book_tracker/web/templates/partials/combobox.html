@@ -8,10 +8,7 @@
          aria-controls="{{ name }}-listbox" data-id-field="{{ id_field }}"
          hx-get="/suggest/{{ kind }}" hx-trigger="input changed delay:250ms" hx-target="#{{ name }}-suggestions"
          hx-vals='{"field": "{{ name }}"}' hx-sync="this:replace"
-         {%- if describedby_extra is defined and describedby_extra %}
-         {%- if errors.get(name) %} aria-describedby="{{ name }}-error {{ describedby_extra }}" aria-invalid="true"
-         {%- else %} aria-describedby="{{ describedby_extra }}"{% endif %}
-         {%- else %}{{ described(errors, name) }}{% endif %}
+         {{- described(errors, name, extra=(describedby_extra if describedby_extra is defined else "")) }}
          {%- if autofocus is defined and autofocus %} autofocus{% endif %}>
   <div id="{{ name }}-suggestions">
     <ul class="suggestions" role="listbox" id="{{ name }}-listbox" aria-label="Suggestions"></ul>

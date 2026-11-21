@@ -18,9 +18,20 @@ ME = domain.UserRef(uuid.uuid4(), "Alice")
 
 
 @pytest.mark.ac("004/AC-09")
-@pytest.mark.parametrize(
+@pytest.mark.parametrize(  # fmt: skip
     ("number", "expected"),
-    [("3", "4"), ("4.5", "5"), ("0", "1"), ("12.25", "13"), ("3.00", "4"), (None, None)],
+    [
+        ("3", "4"),
+        ("4.5", "5"),
+        ("0", "1"),
+        ("12.25", "13"),
+        ("3.00", "4"),
+        (None, None),
+        # never past the highest number a book can have (999.99): no suggestion instead
+        ("998.5", "999"),
+        ("999", None),
+        ("999.99", None),
+    ],
 )
 def test_next_series_number(number: str | None, expected: str | None) -> None:
     result = next_series_number(Decimal(number) if number is not None else None)

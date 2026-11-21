@@ -34,6 +34,9 @@ In the add-book `<form>`, in DOM order:
    - `<button type="submit" name="then" value="another">Add and add another</button>`
 
 The ISBN-conflict form ("Add “…” to my list instead") also carries the hidden `then`.
+The "Already on your list" choices (Read again, Open it) are separate actions on the
+existing entry, not saves from this form, so they go to that entry as today; the member
+returns to Add a book to continue the run (AC-16).
 
 On the carry-over page only:
 

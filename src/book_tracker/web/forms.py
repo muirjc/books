@@ -16,7 +16,7 @@ from starlette.datastructures import FormData
 
 from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
-from book_tracker.domain.values import format_series_number, normalize_name
+from book_tracker.domain.values import SERIES_NUMBER_MAX, format_series_number, normalize_name
 from book_tracker.schemas.readings import ReadingEntryUpdate
 from book_tracker.schemas.types import (
     FinishedOn,
@@ -196,8 +196,12 @@ def parse_entry_update(
 
 
 def next_series_number(number: Decimal | None) -> Decimal | None:
-    """The next whole number after ``number`` (3 -> 4, 4.5 -> 5); None stays None (R4)."""
-    return None if number is None else Decimal(math.floor(number) + 1)
+    """The next whole number after ``number`` (3 -> 4, 4.5 -> 5), or None when there is no
+    number or the next one would pass the highest a book can have (R4)."""
+    if number is None:
+        return None
+    following = Decimal(math.floor(number) + 1)
+    return following if following <= SERIES_NUMBER_MAX else None
 
 
 def carry_over_form(entry: domain.ReadingEntry) -> AddBookForm:

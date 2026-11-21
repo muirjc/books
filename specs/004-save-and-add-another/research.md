@@ -47,7 +47,9 @@
 ## R4. The next number in the series
 
 - **Decision**: `next_series_number(n) = floor(n) + 1` for a `Decimal` number (3 → 4,
-  4.5 → 5, 0 → 1); `None` when the book has no series or no number. It is shown as a whole
+  4.5 → 5, 0 → 1); `None` when the book has no series or no number, or when the next number
+  would pass the highest allowed (999.99), so the form never suggests a number it would
+  reject (PR #20 review). It is shown as a whole
   number in the field ("4", not "4.0").
 - **Rationale**: matches the spec's "What carries over" table and the series-number
   validation (non-negative, up to 2 decimals). If the suggested number is taken, saving

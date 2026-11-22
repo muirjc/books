@@ -113,6 +113,22 @@ async def test_unknown_author_page(
     assert "No such author on Open Library" in page.text
 
 
+async def test_known_author_with_no_works_page(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """books-0tw.4: a real author Open Library lists no books for gets a 200 page saying
+    so, with a way to add a book by hand, and no Add button."""
+    book_source.works[KEY] = listing(KEY, [], name="Quiet Writer")
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    assert page.status_code == 200
+    assert "Books by Quiet Writer" in page.text
+    assert "Open Library lists no books for this author." in page.text
+    assert '<a href="/books/add">Add a book by hand</a>' in page.text
+    assert "No books match" not in page.text
+    assert "Add ticked books to my list" not in page.text
+
+
 @pytest.mark.ac("002/AC-07")
 async def test_imported_book_shows_its_source(
     factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
@@ -290,3 +306,91 @@ async def test_confirm_error_redisplays_from_the_cache(
     assert "Some books aren" in sent.text
     assert 'value="OL1W" id="work-OL1W" checked' in sent.text  # ticks kept
     assert book_source.calls == calls
+
+
+async def test_count_is_a_persistent_live_region(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """books-0tw.3: the "N shown" line is announced from a live region that stays on the
+    page; HTMX updates its text out of band instead of replacing it."""
+    book_source.works[KEY] = listing(KEY, [work(1, "Mist One"), work(2, "Other")])
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    region = re.search(
+        r'<p aria-live="polite" class="muted" id="import-count">(.*?)</p>', page.text, re.S
+    )
+    assert region and "2 books shown." in " ".join(region.group(1).split())
+    fragment_div = page.text.split('<div id="import-works">', 1)[1]
+    assert page.text.index('id="import-count"') < page.text.index('<div id="import-works">')
+    assert "aria-live" not in fragment_div.split("</form>", 1)[0]
+    fragment = await _view(client, q="mist")
+    assert "aria-live" not in fragment.text
+    oob = re.search(r'<div hx-swap-oob="innerHTML:#import-count">(.*?)</div>', fragment.text, re.S)
+    assert oob and "1 book shown." in " ".join(oob.group(1).split())
+    assert fragment.text.rstrip().endswith("</div>")
+
+
+async def test_ticks_hidden_by_the_filter_are_counted_and_fixable(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """books-0tw.5: the count says how many ticks the filter hides and offers to show
+    them; it counts only ids the form actually sends (not books already on my list)."""
+    book_source.works[KEY] = listing(KEY, [
+        work(1, "Mist One"), work(2, "Mist Two"), work(3, "Other"), work(4, "Another"),
+    ])  # fmt: skip
+    alice, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+    await confirm_via_page(client, ["OL2W"])  # Mist Two is now on Alice's list
+    fragment = await _view(client, q="mist", work=["OL2W", "OL3W", "OL4W", "OL1W"])
+    sent = submitted(fragment.text)
+    assert sorted(sent) == ["OL1W", "OL3W", "OL4W"]  # OL2W has no checkbox: not counted
+    count = " ".join(
+        re.sub(r"<[^>]+>", " ", fragment.text.split('innerHTML:#import-count">', 1)[1]).split()
+    )
+    assert count.startswith(f"2 books shown, {len(sent)} ticked (2 hidden by the filter).")
+    clear = re.search(
+        r'<button type="submit" formaction="/import/authors/OL1A/view" name="q" value="">'
+        r"([^<]+)</button>",
+        fragment.text,
+    )
+    assert clear and clear.group(1) == "Show all books"
+    # Pressing it: the browser sends q="" after the filter box's value; ticks are kept.
+    token = await ui_csrf(client)
+    page = await client.post(
+        f"/import/authors/{KEY}/view",
+        content=f"csrf_token={token}&q=mist&work=OL1W&work=OL3W&work=OL4W&q=".encode(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert page.status_code == 200
+    assert "Other</label>" in page.text and "Another</label>" in page.text
+    assert 'id="filter" name="q" value=""' in page.text
+    assert sorted(submitted(page.text)) == ["OL1W", "OL3W", "OL4W"]
+    assert "hidden by the filter" not in page.text
+
+
+async def test_hidden_tick_already_on_my_list_is_not_counted(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """PR #26 review: a tick the filter hides on a book that is now on my list (added in
+    another tab) is dropped, not counted as hidden."""
+    book_source.works[KEY] = listing(KEY, [work(1, "Mist One"), work(3, "Other")])
+    _, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+    await confirm_via_page(client, ["OL3W"])
+    fragment = await _view(client, q="mist", work=["OL3W"])
+    assert submitted(fragment.text) == []
+    assert "hidden by the filter" not in fragment.text
+    assert "Show all books" not in fragment.text
+
+
+async def test_all_works_dropped_is_not_a_filter_problem(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """PR #26 review: Open Library counts works but none could be listed; with no filter
+    the page says there are no books, without the toolbar or Add button."""
+    book_source.works[KEY] = listing(KEY, [], name="Quiet Writer", total=3)
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    assert "Open Library lists no books for this author." in page.text
+    assert "No books match" not in page.text
+    assert "Add ticked books to my list" not in page.text

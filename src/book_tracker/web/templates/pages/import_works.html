@@ -11,6 +11,7 @@
 {% endif %}
 <form method="post" action="/import/authors/{{ key }}" class="stack" id="import-form" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if view.works or form.q %}
   <div class="import-toolbar">
   <div class="field">
     <label for="status">Add the ticked books as</label>
@@ -42,7 +43,10 @@
             hx-include="closest form" hx-vals='{"select": "shown"}'>Select all shown</button>
   </div>
   </div>
+  {% endif %}
+  {#- books-0tw.3: a live region that stays put; HTMX updates its text out of band. -#}
+  <p aria-live="polite" class="muted" id="import-count">{% include "partials/import_count.html" %}</p>
   {% include "partials/import_works.html" %}
-  <button type="submit" class="button-primary">Add ticked books to my list</button>
+  {% if view.works or form.q %}<button type="submit" class="button-primary">Add ticked books to my list</button>{% endif %}
 </form>
 {% endblock %}

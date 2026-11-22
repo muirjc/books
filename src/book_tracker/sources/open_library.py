@@ -85,6 +85,10 @@ class _AuthorDoc(BaseModel):
     work_count: int = 0
 
 
+class _AuthorRecord(BaseModel):
+    name: str
+
+
 class _AuthorSearch(BaseModel):
     docs: list[dict[str, Any]] = []
 
@@ -176,7 +180,16 @@ class OpenLibrarySource:
         self._limiter = limiter or RateLimiter(clock=clock)
         self._clock = clock
 
-    async def _get(self, kind: str, path: str, params: dict[str, Any], deadline: float) -> Any:
+    async def _get(
+        self,
+        kind: str,
+        path: str,
+        params: dict[str, Any],
+        deadline: float,
+        *,
+        missing_ok: bool = False,
+    ) -> Any:
+        """The JSON body; with ``missing_ok``, None for a 404."""
         await self._limiter.acquire(deadline)
         started = self._clock()
         remaining = deadline - started
@@ -191,12 +204,33 @@ class OpenLibrarySource:
         logger.info(
             "open library %s: %s in %.2fs", kind, response.status_code, self._clock() - started
         )
+        if missing_ok and response.status_code == 404:
+            return None
         if response.status_code != 200:
             raise SourceUnavailable()
         try:
             return response.json()
         except ValueError:
             raise SourceUnavailable() from None
+
+    async def _author_record(self, author_key: str, deadline: float) -> AuthorCandidate:
+        data = await self._get(
+            "author", f"/authors/{author_key}.json", {}, deadline, missing_ok=True
+        )
+        if data is None:
+            raise SourceNotFound()
+        try:
+            record = _AuthorRecord.model_validate(data)
+        except ValidationError:
+            raise SourceUnavailable() from None
+        return AuthorCandidate(
+            source_id=author_key,
+            name=fit(record.name or author_key, NAME_MAX),
+            birth_date=None,
+            death_date=None,
+            top_work=None,
+            work_count=0,
+        )
 
     async def search_authors(self, name: str) -> list[AuthorCandidate]:
         deadline = self._clock() + self._budget
@@ -262,8 +296,10 @@ class OpenLibrarySource:
                 logger.info("open library author_works: dropped %d malformed works", dropped)
             if page * WORKS_PAGE_SIZE >= total or not result.docs:
                 break
-        if total == 0:
-            raise SourceNotFound()
+        if total == 0 and author is None:
+            # No works: a real author still gets an empty list (books-0tw.4). Without a
+            # cached search, ask Open Library for the author record; none means unknown.
+            author = await self._author_record(author_key, deadline)
         if author is None:
             author = AuthorCandidate(
                 source_id=author_key,

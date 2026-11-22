@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-21
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "books-4oc: let a member delete a catalog author that no book is
 linked to. Example: 'J DM Robb' (0 books), a mistyped duplicate of 'J.D. Robb'. Offer

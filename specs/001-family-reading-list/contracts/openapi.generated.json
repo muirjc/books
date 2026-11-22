@@ -2200,6 +2200,80 @@
       }
     },
     "/authors/{author_id}": {
+      "delete": {
+        "operationId": "delete_author_api_v1_authors__author_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Author Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No valid session"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "code=csrf_failed, password_change_required or not_admin"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Does not exist, or belongs to another member (indistinguishable)"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Request failed validation"
+          }
+        },
+        "summary": "Delete an author no book lists; any member (spec 008)",
+        "tags": [
+          "catalog"
+        ]
+      },
       "get": {
         "operationId": "get_author_api_v1_authors__author_id__get",
         "parameters": [

@@ -138,6 +138,7 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         {
             # Spec 007 R6: the full page only, so filtering never repeats or drops it.
             "now_out": await service.now_out(db, auth.account.id, on),
+            "unused_authors": await catalog_service.unused_author_count(db),  # spec 008
             "sort_options": SORT_OPTIONS,
             "statuses": STATUSES,
             "author_options": authors,

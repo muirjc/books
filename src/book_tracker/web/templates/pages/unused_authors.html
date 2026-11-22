@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Authors with no books{% endblock %}
+{% block content %}
+<h1>Authors with no books</h1>
+{% if deleted %}<p class="notice" role="status">Deleted “{{ deleted }}”.</p>{% endif %}
+{#- Spec 008: no book lists these authors, so they show on nobody's list. -#}
+{% if authors %}
+<p>No book in the family catalog lists these authors. Open one to delete it.</p>
+<ul class="link-list">
+  {% for author in authors %}<li><a href="/catalog/authors/{{ author.id }}/edit">{{ author.name }}</a></li>{% endfor %}
+</ul>
+{% else %}
+<p>Every author in the family catalog has at least one book.</p>
+{% endif %}
+<p><a href="/">Back to my books</a></p>
+{% endblock %}

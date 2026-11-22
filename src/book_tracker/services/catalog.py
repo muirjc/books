@@ -6,6 +6,7 @@ names the existing row, so the caller can offer it instead (research R9).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -31,6 +32,8 @@ from book_tracker.services.errors import (
     NotFoundError,
     ValidationFailed,
 )
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -163,6 +166,37 @@ async def similar_authors(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, 
 async def similar_series(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
     """Up to three catalog series whose name looks like ``name`` (spec 005 R3)."""
     return similar_names(name, await series_candidates(db))
+
+
+async def author_books(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Book]:
+    return await catalog.author_books(db, author_id)
+
+
+async def unused_authors(db: AsyncSession) -> list[domain.Author]:
+    return await catalog.unused_authors(db)
+
+
+async def unused_author_count(db: AsyncSession) -> int:
+    return await catalog.unused_author_count(db)
+
+
+async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.UUID) -> None:
+    """Delete an author no book lists; any member may (spec 008). Unknown → not found; with
+    books (even one linked a moment ago) → conflict, and nothing is deleted."""
+    author = await get_author(db, author_id)
+    try:
+        async with db.begin_nested():
+            deleted = await catalog.delete_unused_author(db, author_id)
+    except IntegrityError:  # pragma: no cover - the foreign key backstops the check above
+        deleted = False
+    if not deleted:
+        if await catalog.get_author(db, author_id) is None:
+            raise NotFoundError()  # deleted by someone else meanwhile
+        raise ConflictError(
+            "author_has_books", "This author has books", existing_id=author.id,
+            existing_label=author.name,
+        )  # fmt: skip
+    logger.info("author %s deleted by member %s", author_id, actor_id)
 
 
 async def upcoming_books(db: AsyncSession, today: date) -> list[domain.Book]:

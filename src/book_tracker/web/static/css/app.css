@@ -244,3 +244,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .checkbox-field .hint { flex-basis: 100%; margin: 0; }
 #now-out ul { margin: 0.25rem 0 0; padding-left: 1.25rem; }
 #now-out li a { display: inline-flex; align-items: center; min-height: var(--target); }
+
+/* Spec 008: lists of links (an author's books, authors with no books), 44 px targets. */
+.link-list { padding-left: 1.25rem; margin: 0; }
+.link-list a, .tidy-link a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }

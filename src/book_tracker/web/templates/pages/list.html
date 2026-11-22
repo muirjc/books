@@ -77,4 +77,8 @@
 <div id="reading-list" aria-live="polite">
   {% include "partials/reading_list.html" %}
 </div>
+{% if unused_authors %}
+{#- Spec 008: tidy the catalog. -#}
+<p class="tidy-link"><a href="/catalog/authors/unused">Authors with no books ({{ unused_authors }})</a></p>
+{% endif %}
 {% endblock %}

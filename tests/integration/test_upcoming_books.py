@@ -195,6 +195,45 @@ async def test_edit_release_date(
     assert re.search(r'name="release_date"[^>]*value="2027-08-01"', theirs.text)
 
 
+@pytest.mark.ac("007/AC-02")
+async def test_stale_form_keeps_a_newer_release_date(
+    member: httpx.AsyncClient,
+    other: httpx.AsyncClient,
+    factory: Factory,
+    shelf: dict[str, uuid.UUID],
+) -> None:
+    """PR #23 review: Alice's entry page was opened before Ben set the date. Saving only her
+    notes must not clear Ben's date; the same goes for a stale Edit book page."""
+    await factory.execute("UPDATE book SET release_date = NULL WHERE id = :id", id=shelf["mirror"])
+    entry = await member.get(f"/entries/{shelf['e_mirror']}")
+    assert re.search(r'name="release_date_was"[^>]*value=""', entry.text)
+    stale_edit = await member.get(f"/catalog/books/{shelf['mirror']}/edit")
+    assert re.search(r'name="release_date_was"[^>]*value=""', stale_edit.text)
+    saved = await other.post(
+        f"/catalog/books/{shelf['mirror']}/edit",
+        data=_book_fields(
+            "Mirror Mirror", shelf["author"], release_date="2027-03-01", release_date_was=""
+        ),
+    )
+    assert saved.status_code == 303
+    fields = {
+        **_book_fields("Mirror Mirror", shelf["author"], release_date="", release_date_was=""),
+        "status": "want_to_read", "times_read": "0", "notes": "only my notes", "pre_ordered": "",
+    }  # fmt: skip
+    assert (await member.post(f"/entries/{shelf['e_mirror']}", data=fields)).status_code == 303
+    assert await _release_date(factory, "Mirror Mirror") == date(2027, 3, 1)
+    stale = _book_fields("Mirror Mirror", shelf["author"], release_date="", release_date_was="")
+    edit = await member.post(f"/catalog/books/{shelf['mirror']}/edit", data=stale)
+    assert edit.status_code == 303
+    assert await _release_date(factory, "Mirror Mirror") == date(2027, 3, 1)
+    # Changing the field still saves, including clearing it on purpose.
+    cleared = _book_fields(
+        "Mirror Mirror", shelf["author"], release_date="", release_date_was="2027-03-01"
+    )
+    await member.post(f"/catalog/books/{shelf['mirror']}/edit", data=cleared)
+    assert await _release_date(factory, "Mirror Mirror") is None
+
+
 @pytest.mark.ac("007/AC-03")
 async def test_bad_release_date(
     member: httpx.AsyncClient, factory: Factory, shelf: dict[str, uuid.UUID]
@@ -246,6 +285,9 @@ async def test_released_and_undated(
     assert "Released 21 Nov 2026" in text(out_today)
     plain = await member.get(f"/entries/{undated_entry}")
     assert "Released" not in text(plain) and "Coming" not in text(plain)
+    # Out, and pre-ordered within the Now out period: both show (PR #23 review).
+    olympian = await member.get(f"/entries/{shelf['e_olympian']}")
+    assert "Released 7 Nov 2026 · Pre-ordered" in text(olympian)
 
 
 @pytest.mark.ac("007/AC-06")
@@ -363,6 +405,8 @@ async def test_upcoming_filter(
     assert titles_in(" | ".join(list_rows(by_author)), two) == [
         "Twelve Months", "Mirror Mirror",
     ]  # fmt: skip
+    # The sort is ignored under Upcoming only, so it isn't kept in links (PR #23 review).
+    assert "sort=-title" not in page.text
     junk = await member.get("/?upcoming=yes")
     assert any("Storm Front" in row for row in list_rows(junk))  # anything but 1 is off
 

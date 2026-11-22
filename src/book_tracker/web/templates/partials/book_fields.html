@@ -82,4 +82,9 @@
   <input id="release_date" name="release_date" type="date"
          value="{{ form.raw.get('release_date', '') }}"{{ described(form.errors, "release_date", hint=true) }}>
   {{ field_error(form.errors, "release_date") }}
+  {% if not suggest_title %}
+  {#- The date this page was shown with: an unchanged field never overwrites a date someone
+      else set meanwhile (PR #23 review). -#}
+  <input type="hidden" name="release_date_was" value="{{ form.raw.get('release_date_was', form.raw.get('release_date', '')) }}">
+  {% endif %}
 </div>

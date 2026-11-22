@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 from urllib.parse import urlencode
 
@@ -112,7 +113,8 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     )
     kept = {
         "q": q,
-        "sort": "" if sort == "title" else sort,
+        # Upcoming only ignores the sort, so links don't carry it (PR #23 review).
+        "sort": "" if sort == "title" or upcoming else sort,
         "status": status.value if status else "",
         "author_id": str(author_id) if author_id else "",
         "series_id": str(series_id) if series_id else "",
@@ -550,7 +552,7 @@ async def save_book_details(
         "series_id": series_id,
         "series_number": form.series_number,
         "isbn_13": form.isbn_13,
-        "release_date": form.release_date,
+        "release_date": _release_date_to_save(book, form),
     }
     if only_if_changed and _unchanged(book, changes):
         return None  # don't mark the book as edited by someone who only changed their notes
@@ -562,6 +564,18 @@ async def save_book_details(
         form.errors.update({e.field: e.message for e in exc.errors})
         return BookSaveProblem(422)
     return None
+
+
+def _release_date_to_save(book: domain.Book, form: AddBookForm) -> date | None:
+    """The book's current date when the member left the field as the page showed it, so a
+    stale page never clears or reverts a date another member set meanwhile (PR #23
+    review)."""
+    if (
+        form.release_date_was is not None
+        and form.raw.get("release_date", "") == form.release_date_was
+    ):
+        return book.release_date
+    return form.release_date
 
 
 def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:

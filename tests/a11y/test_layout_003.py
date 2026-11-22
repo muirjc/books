@@ -305,22 +305,10 @@ async def test_book_form_focus_order_and_rotation(ui: UI, seeded: Seeded) -> Non
         focused = await ui.page.evaluate(FOCUS_ID)
         if focused != seen[-1]:  # a date field has a Tab stop per part
             seen.append(focused)
-    assert seen == [
-        "title",
-        "author_name_0",
-        "author_name_1",
-        "author_name_2",
-        "series_name",
-        "series_number",
-        "isbn_13",
-        "release_date",
-        "status",
-        "finished_on",
-        "times_read",
-        "pre_ordered",
-        "notes",
-        "Save",
-    ]  # fmt: skip (+ spec 007)
+    # Spec 007 adds release_date and pre_ordered.
+    assert seen == ["title", "author_name_0", "author_name_1", "author_name_2", "series_name",
+                    "series_number", "isbn_13", "release_date", "status", "finished_on",
+                    "times_read", "pre_ordered", "notes", "Save"]  # fmt: skip
     await size(ui.page, IPAD)
     await ui.page.fill("#title", "Mort, typed")
     await ui.page.fill("#notes", "typed before turning")

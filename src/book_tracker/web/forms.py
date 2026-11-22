@@ -107,6 +107,8 @@ class AddBookForm:
     series_number: Decimal | None = None
     isbn_13: str | None = None
     release_date: date | None = None  # spec 007, a catalog field
+    # The release date the edit page was shown with; None when the form had no such field.
+    release_date_was: str | None = None
     status: ReadingStatus = ReadingStatus.FINISHED
     finished_on: date | None = None
     notes: str | None = None
@@ -185,6 +187,8 @@ def parse_add_book(form: FormData) -> AddBookForm:
             parsed.isbn_13 = _isbn.validate_python(text(form, "isbn_13"))
         except ValidationError as exc:
             errors["isbn_13"] = first_error(exc)
+        if "release_date_was" in form:
+            parsed.release_date_was = text(form, "release_date_was")
         try:
             parsed.release_date = _release_date.validate_python(text(form, "release_date") or None)
         except ValidationError:

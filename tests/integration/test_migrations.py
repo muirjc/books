@@ -85,7 +85,6 @@ def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     command.upgrade(cfg, "head")
     assert _tables(url) == EXPECTED_TABLES | {"alembic_version"}
     assert CONSTRAINTS_0002 <= _constraints(url)
-    assert _columns(url) == COLUMNS_0003
     assert _columns(url) == COLUMNS_0003  # spec 007 T004
     assert "book_release_date_idx" in _indexes(url)
 

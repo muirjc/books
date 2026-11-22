@@ -230,3 +230,20 @@ failing first.
   `openapi.yaml` and `openapi.generated.json` are updated.
 - **SC-002:** with 200 dated books in the 5,000-book dataset, p95 is 163 ms for My books
   with the notice, 137 ms with Upcoming only, and 149 ms for the Upcoming page.
+- **PR #23 review fixes:**
+  - **Released and Pre-ordered together:** the entry page now shows "Released <date> ·
+    Pre-ordered" for a pre-ordered book in its Now out period. Before, the Released date
+    was dropped.
+  - **Strict release dates:** only `YYYY-MM-DD` (or a date) from year 1000 is accepted, in
+    the forms and the API. Timestamps such as `0` or `86400` and years before 1000 get
+    "Enter a date like 2027-03-01".
+  - **A stale page keeps a newer date:**
+    - the entry and Edit book pages send a hidden `release_date_was`;
+    - when the field is unchanged from that, the book's current date is kept, so a page
+      opened before another member set the date no longer clears it.
+    - The same last-writer-wins problem for the other book fields predates this spec and
+      is filed as a bead.
+  - **Sort not kept under Upcoming only:** the ignored `sort` is left out of the list's
+    links.
+  - **Test tidy-ups:** a duplicated migration assertion is removed, and the focus-order list
+    is compact again under `# fmt: skip`.

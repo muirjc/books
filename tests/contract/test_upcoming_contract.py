@@ -83,6 +83,11 @@ async def test_bad_release_date_is_refused(api: httpx.AsyncClient) -> None:
     )
     assert bad.status_code == 422
     assert_matches_contract(bad)
+    book = (await _add(api, author, "Y", release_date="2027-01-01")).json()["book"]["id"]
+    for value in (86400, "0", "0099-01-01"):  # a timestamp, or before year 1000
+        refused = await api.patch(f"/api/v1/books/{book}", json={"release_date": value})
+        assert refused.status_code == 422, value
+        assert_matches_contract(refused)
 
 
 @pytest.mark.ac("007/AC-10")

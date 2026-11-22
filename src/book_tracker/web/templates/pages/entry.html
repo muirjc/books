@@ -3,9 +3,11 @@
 {% block title %}{{ entry.book.title }}{% endblock %}
 {% block content %}
 <h1>{{ entry.book.title }}</h1>
+{#- Spec 007: Coming (with Pre-ordered) while upcoming; once out, Released, plus
+    Pre-ordered during the Now out period (PR #23 review). -#}
 {% set release = release_label(entry.book, today, entry) %}
-{% if release | trim %}<p class="release">{{ release }}</p>
-{% elif entry.book.release_date %}<p class="release muted">Released {{ entry.book.release_date | nice_date }}</p>{% endif %}
+{% if is_upcoming(entry.book.release_date, today) %}<p class="release">{{ release }}</p>
+{% elif entry.book.release_date %}<p class="release">Released {{ entry.book.release_date | nice_date }}{% if release | trim %} · {{ release }}{% endif %}</p>{% endif %}
 {% include "partials/source_ref.html" %}
 {{ error_summary(all_errors) }}
 {% if conflict %}

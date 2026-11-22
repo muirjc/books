@@ -47,7 +47,8 @@ def test_add_book_defaults() -> None:
 
 
 def test_add_book_bad_release_date() -> None:
-    for bad in ("2027-02-30", "soon", "03/03/2027"):
+    # Not a real date, not YYYY-MM-DD, a timestamp, or before year 1000 (PR #23 review).
+    for bad in ("2027-02-30", "soon", "03/03/2027", "0", "86400", "0099-01-01", "2027-3-1"):
         form = parse_add_book(_add(release_date=bad))
         assert form.errors["release_date"] == "Enter a date like 2027-03-01", bad
 
@@ -69,3 +70,20 @@ def test_entry_update_pre_ordered_only_when_present() -> None:
     assert update is not None and update.pre_ordered is True
     update, _, _ = parse_entry_update(FormData({"pre_ordered": ""}))
     assert update is not None and update.pre_ordered is False
+
+
+def test_release_date_type_is_strict() -> None:
+    from pydantic import TypeAdapter, ValidationError
+
+    from book_tracker.schemas.types import ReleaseDateIn
+
+    adapter = TypeAdapter(ReleaseDateIn)
+    assert adapter.validate_python("2027-03-03") == date(2027, 3, 3)
+    assert adapter.validate_python(date(2027, 3, 3)) == date(2027, 3, 3)
+    assert adapter.validate_python(None) is None
+    for bad in (0, 86400, "86400", "0099-01-01", "2027-03-03T00:00:00", 2027.5):
+        try:
+            adapter.validate_python(bad)
+        except ValidationError:
+            continue
+        raise AssertionError(f"accepted {bad!r}")

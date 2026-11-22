@@ -122,8 +122,7 @@ def _works_context(
     notice: str | None = None,
 ) -> dict[str, Any]:
     # Only ids the form will send: a book already on my list has no checkbox (books-0tw.5).
-    on_list = {w.work.source_id for w in view.works if w.state is WorkState.ON_MY_LIST}
-    checked = _ticks(view, checked) - on_list
+    checked = _ticks(view, checked) - view.on_my_list
     shown = {w.work.source_id for w in view.works}
     return {
         "key": key,

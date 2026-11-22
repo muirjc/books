@@ -40,7 +40,7 @@
     </tbody>
   </table>
   </div>
-  {% elif view.total == 0 %}
+  {% elif not form.q %}
   {#- books-0tw.4: a real author with nothing listed on Open Library. -#}
   <p>Open Library lists no books for this author. <a href="/books/add">Add a book by hand</a>.</p>
   {% else %}

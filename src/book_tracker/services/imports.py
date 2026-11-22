@@ -176,6 +176,7 @@ async def _works_view(
         else:
             state = WorkState.IN_CATALOG
         rows.append(WorkListing(work, state, book_id))
+    on_my_list = frozenset(r.work.source_id for r in rows if r.state is WorkState.ON_MY_LIST)
     if q:
         needle = clean(q).casefold()
         rows = [r for r in rows if needle in r.work.title.casefold()]
@@ -186,6 +187,7 @@ async def _works_view(
         truncated=listing.truncated,
         fetched_at=fetched_at,
         lead_ids=_lead_ids(listing.works),
+        on_my_list=on_my_list,
     )
 
 

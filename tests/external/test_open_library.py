@@ -175,8 +175,31 @@ async def test_large_lists_stop_after_two_pages() -> None:
 
 
 async def test_unknown_author_key() -> None:
+    """No works and no author record (Open Library answers 404): not found."""
     recorder = Recorder({("/search.json", "OL9999999A"): "works_unknown_author.json"})
     with pytest.raises(SourceNotFound):
+        await source(recorder).author_works("OL9999999A")
+    assert [r.url.path for r in recorder.requests] == ["/search.json", "/authors/OL9999999A.json"]
+
+
+async def test_author_with_no_works_found_by_its_record() -> None:
+    """PR #26 review: with no cached search (an old link), an author Open Library has a
+    record for but no works still gets an empty list, named from the record."""
+    recorder = Recorder({
+        ("/search.json", "OL9999999A"): "works_unknown_author.json",
+        ("/authors/OL9999999A.json", ""): "author_OL9999999A.json",
+    })  # fmt: skip
+    result = await source(recorder).author_works("OL9999999A")
+    assert result.works == () and result.total == 0
+    assert result.author.name == "Quiet Writer" and result.author.source_id == "OL9999999A"
+
+
+async def test_author_record_error_is_unavailable() -> None:
+    recorder = Recorder({
+        ("/search.json", "OL9999999A"): "works_unknown_author.json",
+        ("/authors/OL9999999A.json", ""): 503,
+    })  # fmt: skip
+    with pytest.raises(SourceUnavailable):
         await source(recorder).author_works("OL9999999A")
 
 

@@ -171,9 +171,10 @@ books are added.
   time," and nothing is added; the member confirms in batches. *(AC-21)*
 - **An author key Open Library doesn't know** (for example from an old link). The page says
   "No such author on Open Library," and nothing changes. *(AC-23)*
-- **A real author Open Library lists no books for** (chosen from the search results). The
-  page names the author, says "Open Library lists no books for this author," and links to
-  adding a book by hand (books-0tw.4).
+- **A real author Open Library lists no books for** (from the search results, or a link
+  whose key Open Library has an author record for). The page names the author, says "Open
+  Library lists no books for this author," and links to adding a book by hand
+  (books-0tw.4).
 - **A ticked book is already on the member's list** by the time they confirm (for example
   added in another tab). It is skipped and listed in the summary as already on the list.
 - **An author with thousands of entries** (for example Shakespeare). The list shows the first

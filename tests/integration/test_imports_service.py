@@ -250,6 +250,20 @@ async def test_author_matched_despite_whitespace_runs(
 
 
 @pytest.mark.ac("002/AC-05")
+async def test_author_matched_despite_edge_whitespace(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    """PR #26 review: a stored name ending in a newline or starting with a tab matches."""
+    alice = await factory.user("alice")
+    stored = await factory.author("\tUrsula K. Le Guin\n", alice)
+    await factory.book("The Lathe of Heaven", alice, author_ids=[stored])
+    ol.works[KEY] = listing(
+        KEY, [work(1, "The Lathe of Heaven", ("Ursula K. Le Guin",))], name="Ursula K. Le Guin"
+    )
+    assert (await _states(app, ol, alice))["The Lathe of Heaven"] is WorkState.IN_CATALOG
+
+
+@pytest.mark.ac("002/AC-05")
 async def test_author_matched_across_case_mapping_edge_cases(
     app: Any, ol: FakeBookSource, factory: Factory
 ) -> None:

@@ -7,7 +7,9 @@ address. A wait that would end after the member request's deadline fails at once
 
 Each caller reserves its slot straight away and then sleeps without holding anything, so a
 request queued behind others is refused at once when its slot would come after its
-deadline, rather than waiting in line first (books-0tw.1).
+deadline, rather than waiting in line first (books-0tw.1). A waiter cancelled before its
+turn gives the slot back when nobody booked after it; a slot whose request then fails
+before sending is not given back (the next caller just waits a little longer).
 """
 
 from __future__ import annotations
@@ -42,6 +44,15 @@ class RateLimiter:
         slot = now if self._next is None else max(now, self._next)
         if slot > deadline:
             raise SourceUnavailable()
-        self._next = slot + self._interval
+        booked = slot + self._interval
+        self._next = booked
         if slot > now:
-            await self._sleep(slot - now)
+            try:
+                await self._sleep(slot - now)
+            except asyncio.CancelledError:
+                if self._next == booked:  # nobody booked after us: give the slot back
+                    self._next = slot
+                raise
+        # Space from when this request really goes out, in case the wake-up was late
+        # (PR #26 review).
+        self._next = max(self._next, self._clock() + self._interval)

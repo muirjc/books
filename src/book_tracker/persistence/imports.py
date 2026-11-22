@@ -36,10 +36,10 @@ def _array(name: str, values: Collection[str]) -> CollectionAggregate[bool]:
 
 
 def _key_of(value: SQLColumnExpression[str]) -> ColumnElement[str]:
-    collapsed = func.regexp_replace(
-        func.btrim(func.normalize(value, literal_column("NFKC"))), r"\s+", " ", "g"
-    )
-    return func.lower(collapsed)
+    # Collapse every whitespace run (tabs and newlines too) first, then trim the single
+    # spaces left at the ends (PR #26 review).
+    collapsed = func.regexp_replace(func.normalize(value, literal_column("NFKC")), r"\s+", " ", "g")
+    return func.lower(func.btrim(collapsed))
 
 
 def _name_key() -> ColumnElement[str]:

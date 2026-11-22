@@ -75,6 +75,8 @@ class WorksView:
     # Every id in the whole list, before filtering, merged ids included → the work's own id.
     lead_ids: Mapping[str, str] = field(default_factory=dict)
     refresh_failed: bool = False  # shown from the cache because Open Library was down
+    # Own ids of works already on my list, in the whole list (PR #26 review).
+    on_my_list: frozenset[str] = frozenset()
 
 
 class SkipReason(enum.StrEnum):

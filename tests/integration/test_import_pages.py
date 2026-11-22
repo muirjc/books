@@ -366,3 +366,31 @@ async def test_ticks_hidden_by_the_filter_are_counted_and_fixable(
     assert 'id="filter" name="q" value=""' in page.text
     assert sorted(submitted(page.text)) == ["OL1W", "OL3W", "OL4W"]
     assert "hidden by the filter" not in page.text
+
+
+async def test_hidden_tick_already_on_my_list_is_not_counted(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """PR #26 review: a tick the filter hides on a book that is now on my list (added in
+    another tab) is dropped, not counted as hidden."""
+    book_source.works[KEY] = listing(KEY, [work(1, "Mist One"), work(3, "Other")])
+    _, client = await member(factory, client_factory, "alice")
+    await client.get(f"/import/authors/{KEY}")
+    await confirm_via_page(client, ["OL3W"])
+    fragment = await _view(client, q="mist", work=["OL3W"])
+    assert submitted(fragment.text) == []
+    assert "hidden by the filter" not in fragment.text
+    assert "Show all books" not in fragment.text
+
+
+async def test_all_works_dropped_is_not_a_filter_problem(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """PR #26 review: Open Library counts works but none could be listed; with no filter
+    the page says there are no books, without the toolbar or Add button."""
+    book_source.works[KEY] = listing(KEY, [], name="Quiet Writer", total=3)
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    assert "Open Library lists no books for this author." in page.text
+    assert "No books match" not in page.text
+    assert "Add ticked books to my list" not in page.text

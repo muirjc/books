@@ -249,7 +249,7 @@ async def _author_ids(
             continue
         try:
             ids[key] = (await catalog_service.create_author(db, actor_id, name=name)).id
-        except ConflictError as exc:  # pragma: no cover - only if created since the look-up
+        except ConflictError as exc:  # created since the look-up (tested: books-0tw.6)
             if exc.code != "author_exists" or exc.existing_id is None:
                 raise
             ids[key] = exc.existing_id
@@ -313,7 +313,7 @@ async def confirm_import(
                     book_id=book_id, status=status, finished_on=None,
                     times_read=times_read, notes=None,
                 )  # fmt: skip
-        except IntegrityError as exc:  # pragma: no cover - added from another page meanwhile
+        except IntegrityError as exc:  # added from another page meanwhile (books-0tw.6)
             if _constraint(exc) != "reading_entry_user_book_key":
                 raise
             skipped.append(SkippedBook(book_id, work.title, SkipReason.ON_LIST))

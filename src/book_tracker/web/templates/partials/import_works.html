@@ -1,10 +1,11 @@
 <div id="import-works">
   {% for wid in hidden_ticks %}<input type="hidden" name="work" value="{{ wid }}">
   {% endfor %}
-  <p aria-live="polite" class="muted" id="import-count">
-    {{ view.works | length }} book{% if view.works | length != 1 %}s{% endif %} shown{% if checked %}, {{ checked | length }} ticked{% endif %}.
-    {% if note %}<strong>{{ note }}</strong>{% endif %}
-  </p>
+  {% if hidden_ticks %}
+  {#- books-0tw.5: ticks the filter hides are sent too; offer to show them. The button's
+      empty q comes after the filter box's value, so it wins. -#}
+  <p><button type="submit" formaction="/import/authors/{{ key }}/view" name="q" value="">Show all books</button></p>
+  {% endif %}
   {% if view.truncated %}
   <p class="notice">Showing the first 2,000 of {{ "{:,}".format(view.total) }} works. To add a book beyond these, <a href="/books/add">add it by hand</a>.</p>
   {% endif %}
@@ -46,3 +47,7 @@
   <p>No books match. Try a different filter.</p>
   {% endif %}
 </div>
+{% if oob %}
+{#- books-0tw.3: update the persistent live region's text, not the region itself. -#}
+<div hx-swap-oob="innerHTML:#import-count">{% include "partials/import_count.html" %}</div>
+{% endif %}

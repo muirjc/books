@@ -1,0 +1,2 @@
+{{ view.works | length }} book{% if view.works | length != 1 %}s{% endif %} shown{% if checked %}, {{ checked | length }} ticked{% if hidden_ticks %} ({{ hidden_ticks | length }} hidden by the filter){% endif %}{% endif %}.
+{% if note %}<strong>{{ note }}</strong>{% endif %}

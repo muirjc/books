@@ -121,7 +121,9 @@ def _works_context(
     note: str | None = None,
     notice: str | None = None,
 ) -> dict[str, Any]:
-    checked = _ticks(view, checked)
+    # Only ids the form will send: a book already on my list has no checkbox (books-0tw.5).
+    on_list = {w.work.source_id for w in view.works if w.state is WorkState.ON_MY_LIST}
+    checked = _ticks(view, checked) - on_list
     shown = {w.work.source_id for w in view.works}
     return {
         "key": key,
@@ -238,6 +240,7 @@ async def import_works_view(
         author_key, view, form, checked=checked, status=posted.status, note=note
     )
     template = "partials/import_works.html" if is_htmx(request) else "pages/import_works.html"
+    context["oob"] = is_htmx(request)  # books-0tw.3: the fragment updates the count
     return render(request, template, context, auth=auth)
 
 

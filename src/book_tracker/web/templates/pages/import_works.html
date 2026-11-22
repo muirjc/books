@@ -44,6 +44,8 @@
   </div>
   </div>
   {% endif %}
+  {#- books-0tw.3: a live region that stays put; HTMX updates its text out of band. -#}
+  <p aria-live="polite" class="muted" id="import-count">{% include "partials/import_count.html" %}</p>
   {% include "partials/import_works.html" %}
   {% if view.total %}<button type="submit" class="button-primary">Add ticked books to my list</button>{% endif %}
 </form>

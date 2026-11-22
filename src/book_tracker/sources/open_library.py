@@ -262,7 +262,9 @@ class OpenLibrarySource:
                 logger.info("open library author_works: dropped %d malformed works", dropped)
             if page * WORKS_PAGE_SIZE >= total or not result.docs:
                 break
-        if total == 0:
+        if total == 0 and author is None:
+            # Not a known author either: treat the key as unknown. An author picked from
+            # search results with no works gets an empty list instead (books-0tw.4).
             raise SourceNotFound()
         if author is None:
             author = AuthorCandidate(

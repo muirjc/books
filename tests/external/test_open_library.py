@@ -180,6 +180,16 @@ async def test_unknown_author_key() -> None:
         await source(recorder).author_works("OL9999999A")
 
 
+async def test_known_author_with_no_works() -> None:
+    """books-0tw.4: an author picked from search results whose works search is empty gets
+    an empty list, not "no such author"."""
+    recorder = Recorder({("/search.json", "OL9999999A"): "works_unknown_author.json"})
+    known = AuthorCandidate("OL9999999A", "Quiet Writer", None, None, None, 0)
+    result = await source(recorder).author_works("OL9999999A", author=known)
+    assert result.works == () and result.total == 0 and not result.truncated
+    assert result.author == known
+
+
 @pytest.mark.parametrize("status", [429, 500, 503])
 async def test_errors_from_the_site(status: int) -> None:
     recorder = Recorder({WORKS: status})

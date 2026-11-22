@@ -113,6 +113,22 @@ async def test_unknown_author_page(
     assert "No such author on Open Library" in page.text
 
 
+async def test_known_author_with_no_works_page(
+    factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource
+) -> None:
+    """books-0tw.4: a real author Open Library lists no books for gets a 200 page saying
+    so, with a way to add a book by hand, and no Add button."""
+    book_source.works[KEY] = listing(KEY, [], name="Quiet Writer")
+    _, client = await member(factory, client_factory, "alice")
+    page = await client.get(f"/import/authors/{KEY}")
+    assert page.status_code == 200
+    assert "Books by Quiet Writer" in page.text
+    assert "Open Library lists no books for this author." in page.text
+    assert '<a href="/books/add">Add a book by hand</a>' in page.text
+    assert "No books match" not in page.text
+    assert "Add ticked books to my list" not in page.text
+
+
 @pytest.mark.ac("002/AC-07")
 async def test_imported_book_shows_its_source(
     factory: Factory, client_factory: Callable[[], httpx.AsyncClient], book_source: FakeBookSource

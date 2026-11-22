@@ -28,6 +28,8 @@ from book_tracker.schemas.types import (
 )
 
 MAX_AUTHOR_ROWS = 20  # the API's limit
+# Book fields an edit page remembers as first shown, sent back as "<name>_was" (books-mbx).
+SHOWN_FIELDS = ("title", "authors", "series_id", "series_number", "isbn_13", "release_date")
 MIN_AUTHOR_ROWS = 3
 
 _series_number = TypeAdapter(SeriesNumberIn)
@@ -107,8 +109,13 @@ class AddBookForm:
     series_number: Decimal | None = None
     isbn_13: str | None = None
     release_date: date | None = None  # spec 007, a catalog field
-    # The release date the edit page was shown with; None when the form had no such field.
-    release_date_was: str | None = None
+    # The book's values as an edit page first showed them (books-mbx), by field; only
+    # fields the form remembered are present.
+    shown: dict[str, str] = field(default_factory=dict)
+    # Set by keep_unedited: book fields left as shown (kept as stored), and whether any of
+    # them had been changed by another member meanwhile.
+    kept: set[str] = field(default_factory=set)
+    others_kept: bool = False
     status: ReadingStatus = ReadingStatus.FINISHED
     finished_on: date | None = None
     notes: str | None = None
@@ -187,8 +194,9 @@ def parse_add_book(form: FormData) -> AddBookForm:
             parsed.isbn_13 = _isbn.validate_python(text(form, "isbn_13"))
         except ValidationError as exc:
             errors["isbn_13"] = first_error(exc)
-        if "release_date_was" in form:
-            parsed.release_date_was = text(form, "release_date_was")
+        parsed.shown = {
+            name: text(form, f"{name}_was") for name in SHOWN_FIELDS if f"{name}_was" in form
+        }
         try:
             parsed.release_date = _release_date.validate_python(text(form, "release_date") or None)
         except ValidationError:
@@ -287,6 +295,20 @@ def carry_over_form(entry: domain.ReadingEntry) -> AddBookForm:
             raw["series_number"] = format_series_number(number)
     raw["status"] = entry.status.value
     return AddBookForm(status=entry.status, then="another", raw=raw)
+
+
+def shown_values(book: domain.Book) -> dict[str, str]:
+    """The book as an edit page shows it, keyed "<field>_was" (books-mbx)."""
+    return {
+        "title_was": book.title,
+        "authors_was": ",".join(str(author.id) for author in book.authors),
+        "series_id_was": str(book.series.id) if book.series else "",
+        "series_number_was": (
+            format_series_number(book.series_number) if book.series_number is not None else ""
+        ),
+        "isbn_13_was": book.isbn_13 or "",
+        "release_date_was": book.release_date.isoformat() if book.release_date else "",
+    }
 
 
 def book_start_form(book: domain.Book) -> AddBookForm:

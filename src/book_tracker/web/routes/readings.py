@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 from urllib.parse import urlencode
 
@@ -34,16 +33,20 @@ from book_tracker.web.forms import (
     parse_add_book,
     parse_entry_update,
     series_start_form,
+    shown_values,
 )
 from book_tracker.web.rendering import is_htmx, render
 
 router = APIRouter(include_in_schema=False)
 
 PAGE_SIZE = 50
+# books-mbx: a save that kept another member's newer book edits says so.
+MERGED = "Saved. Another member changed this book while you had it open; their changes were kept."
 MESSAGES = {
     "added": "Added to your list.",
     "removed": "Removed from your list.",
     "saved": "Saved.",
+    "merged": MERGED,
     "reread": "Started a re-read.",
     "password": "Your password has been changed.",
 }
@@ -520,6 +523,7 @@ def book_form(book: domain.Book) -> AddBookForm:
     for i, author in enumerate(book.authors):
         raw[f"author_name_{i}"] = author.name
         raw[f"author_id_{i}"] = str(author.id)
+    raw.update(shown_values(book))  # books-mbx
     return AddBookForm(raw=raw)
 
 
@@ -560,10 +564,13 @@ async def save_book_details(
         "series_id": series_id,
         "series_number": form.series_number,
         "isbn_13": form.isbn_13,
-        "release_date": _release_date_to_save(book, form),
+        "release_date": form.release_date,
     }
     if only_if_changed and _unchanged(book, changes):
         return None  # don't mark the book as edited by someone who only changed their notes
+    for name in form.kept:  # books-mbx: don't write values another member may change
+        for key in KEPT_CHANGES[name]:
+            changes.pop(key, None)
     try:
         await catalog_service.update_book(db, auth.account.id, book.id, changes)
     except ConflictError as exc:
@@ -577,16 +584,69 @@ async def save_book_details(
     return None
 
 
-def _release_date_to_save(book: domain.Book, form: AddBookForm) -> date | None:
-    """The book's current date when the member left the field as the page showed it, so a
-    stale page never clears or reverts a date another member set meanwhile (PR #23
-    review)."""
+def keep_unedited(book: domain.Book, form: AddBookForm) -> None:
+    """books-mbx: book fields the member left as the page first showed them take the
+    book's current values, before any name checks, so a page opened before another
+    member's edit never writes old values back or asks about names that were renamed or
+    deleted meanwhile. The series and its number are one choice. Changed fields are saved
+    as typed. Kept fields are not written (see ``save_book_details``)."""
+    shown, now = form.shown, shown_values(book)
+    raw = form.raw
+
+    def left(name: str, posted: str) -> bool:
+        if name in shown and posted == shown[name]:
+            form.kept.add(name)
+            form.others_kept |= now[f"{name}_was"] != shown[name]
+            return True
+        return False
+
+    if left("title", form.title):
+        form.title = raw["title"] = book.title
+    rows = form.chosen_authors
+    posted_ids = ",".join(str(row.author_id) for row in rows if row.author_id is not None)
+    if len(posted_ids.split(",")) == len(rows) and left("authors", posted_ids):
+        for key in [
+            k
+            for k in raw
+            if k.startswith(("author_name_", "author_id_", "confirm_author_", "use_author_"))
+        ]:
+            del raw[key]
+        form.authors = []
+        for i, author in enumerate(book.authors):
+            raw[f"author_name_{i}"], raw[f"author_id_{i}"] = author.name, str(author.id)
+            form.authors.append(AuthorRow(i, author.id, author.name))
+    number = form.series_number
+    posted_number = format_series_number(number) if number is not None else ""
     if (
-        form.release_date_was is not None
-        and form.raw.get("release_date", "") == form.release_date_was
+        "series_id" in shown
+        and "series_number" in shown
+        and raw.get("series_id", "") == shown["series_id"]
+        and posted_number == shown["series_number"]
     ):
-        return book.release_date
-    return form.release_date
+        left("series_id", shown["series_id"])
+        left("series_number", posted_number)
+        form.series_id = book.series.id if book.series else None
+        form.series_name = book.series.name if book.series else ""
+        form.series_number = book.series_number
+        form.series_confirmed, form.use_series_id = "", None
+        raw["series_id"] = str(form.series_id or "")
+        raw["series_name"] = form.series_name
+        raw["series_number"] = now["series_number_was"]
+    if left("isbn_13", form.isbn_13 or ""):
+        form.isbn_13 = book.isbn_13
+        raw["isbn_13"] = book.isbn_13 or ""
+    released = form.release_date
+    if left("release_date", released.isoformat() if released else ""):
+        form.release_date = book.release_date
+        raw["release_date"] = now["release_date_was"]
+
+
+# Keys of ``save_book_details``' changes for each kept field.
+KEPT_CHANGES = {
+    "title": ("title",), "authors": ("author_ids",), "series_id": ("series_id",),
+    "series_number": ("series_number",), "isbn_13": ("isbn_13",),
+    "release_date": ("release_date",),
+}  # fmt: skip
 
 
 def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:
@@ -661,6 +721,7 @@ async def update_entry(
     if details is not None:
         for name in ENTRY_FIELDS:  # checked by parse_entry_update
             details.errors.pop(name, None)
+        keep_unedited(current.book, details)  # books-mbx, before any name checks
         await new_name_prompts(db, details)  # spec 005: shown with any field errors
     if update is None or (details is not None and details.field_errors):
         return _entry_page(
@@ -679,7 +740,8 @@ async def update_entry(
         # finishing a re-read still adds one (FR-029).
         del changes["times_read"]
     await service.update_entry(db, auth.account.id, entry_id, changes, today=today(request))
-    return RedirectResponse(f"/entries/{entry_id}?msg=saved", status_code=303)
+    msg = "merged" if details is not None and details.others_kept else "saved"
+    return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
 
 
 @router.post("/entries/{entry_id}/read-again")

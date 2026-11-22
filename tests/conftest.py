@@ -194,6 +194,9 @@ def app(settings: Settings) -> Any:
 
 
 TABLES = (
+    "book_story",
+    "story_author",
+    "story",
     "book_source_ref",
     "source_lookup_cache",
     "reading_entry",
@@ -401,6 +404,39 @@ class Factory:
                 )
             await session.commit()
         return book_id
+
+    async def story(
+        self,
+        title: str,
+        actor: TestUser,
+        *,
+        series_id: uuid.UUID,
+        series_number: str,
+        author_ids: list[uuid.UUID],
+        book_ids: list[uuid.UUID],
+    ) -> uuid.UUID:
+        """A catalog story (spec 009) in the given books."""
+        story_id = uuid.uuid4()
+        async with self._app.state.db.sessionmaker() as session:
+            session.add(
+                models.Story(
+                    id=story_id,
+                    title=title,
+                    series_id=series_id,
+                    series_number=Decimal(series_number),
+                    created_by=actor.id,
+                    updated_by=actor.id,
+                )
+            )
+            await session.flush()
+            for position, author_id in enumerate(author_ids, start=1):
+                session.add(
+                    models.StoryAuthor(story_id=story_id, author_id=author_id, position=position)
+                )
+            for book_id in book_ids:
+                session.add(models.BookStory(book_id=book_id, story_id=story_id))
+            await session.commit()
+        return story_id
 
     async def entry(
         self,

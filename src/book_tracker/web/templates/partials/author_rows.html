@@ -1,0 +1,26 @@
+{#- Author rows with type-ahead, new-name prompts and conflicts (book and story forms).
+    Expects: form (AddBookForm), author_conflicts -#}
+{% from "macros.html" import field_error %}
+<fieldset>
+  <legend>Authors</legend>
+  {% for i in range(form.author_rows) %}
+  {% set id_key = "author_id_" ~ i %}
+  {% set name_key = "author_name_" ~ i %}
+  <div class="field">
+    <label for="{{ name_key }}">{% if i == 0 %}Author{% else %}Another author (optional){% endif %}</label>
+    {% with name=name_key, kind="authors", id_field=id_key, value=form.raw.get(name_key, ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
+    <input type="hidden" id="{{ id_key }}" name="{{ id_key }}" value="{{ '' if author_conflicts.get(i) else form.raw.get(id_key, '') }}">
+    {%- set confirm_key = "confirm_author_" ~ i %}
+    {% if form.raw.get(confirm_key) %}<input type="hidden" name="{{ confirm_key }}" value="{{ form.raw.get(confirm_key) }}">{% endif %}
+    {{ field_error(form.errors, name_key) }}
+    {% if form.new_names.get(name_key) %}{% with nn=form.new_names.get(name_key) %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
+    {% if author_conflicts.get(i) %}
+    {% set c = author_conflicts.get(i) %}
+    <div class="conflict" id="{{ name_key }}-conflict">
+      <p class="field-error">Already in the catalog: “{{ c.existing_label }}”.</p>
+      <button type="submit" name="{{ id_key }}" value="{{ c.existing_id }}">Use existing author “{{ c.existing_label }}”</button>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</fieldset>

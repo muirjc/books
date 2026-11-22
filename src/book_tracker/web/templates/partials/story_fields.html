@@ -1,0 +1,21 @@
+{#- Title, authors, series and number of a story (spec 009), for the add and edit story
+    pages. Expects: form (AddBookForm), author_conflicts, series_conflict, suggest_title -#}
+{% from "macros.html" import described, field_error %}
+{#- The form's default button, so Enter in a field saves rather than choosing a "Use …" or
+    "Add … as new" button further down (as on the book form). -#}
+<span class="visually-hidden"><button type="submit" tabindex="-1" aria-hidden="true">Save</button></span>
+<div class="field">
+  <label for="title">Story title</label>
+  {% if suggest_title %}
+  <p class="hint" id="title-hint">Start typing: if the story is already in the family catalog, in another book, pick it from the list.</p>
+  {% with name="title", kind="stories", id_field="story_id", value=form.raw.get("title", ""), errors=form.errors, maxlength=300, describedby_extra="title-hint" %}{% include "partials/combobox.html" %}{% endwith %}
+  <input type="hidden" id="story_id" name="story_id" value="{{ form.raw.get('story_id', '') }}">
+  {% else %}
+  <input id="title" name="title" type="text" required maxlength="300" value="{{ form.raw.get('title', '') }}"{{ described(form.errors, "title") }}>
+  {% endif %}
+  {{ field_error(form.errors, "title") }}
+</div>
+
+{% include "partials/author_rows.html" %}
+
+{% with series_legend="Place in a series", number_hint="Where the story falls in the series' reading order, for example 2.5." %}{% include "partials/series_fields.html" %}{% endwith %}

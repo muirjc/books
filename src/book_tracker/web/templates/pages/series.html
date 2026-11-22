@@ -7,12 +7,25 @@
 <p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list.</p>
 {% endif %}
 {% if view.rows %}
-<p>You've finished {{ view.finished }} of {{ view.total }} book{{ "" if view.total == 1 else "s" }} in this series.</p>
+<p>You've finished {{ view.finished }} of {{ view.total }} book{{ "" if view.total == 1 else "s" }}
+{%- if view.stories_total %} and {{ view.stories_finished }} of {{ view.stories_total }} stor{{ "y" if view.stories_total == 1 else "ies" }}{% endif %} in this series.</p>
 {#- Every catalog book in the series with my own status, and gaps (spec 006). Each row
     reads number, title, authors, status, then its action (R5). -#}
 <ol class="book-list series-rows" role="list">
   {% for row in view.rows %}
-  {% if row.book %}
+  {% if row.story %}
+  {#- Spec 009: a story at its number, in the book(s) that contain it, with my place in it
+      from my own entries for those books. -#}
+  {% set story = row.story %}
+  <li class="series-story">
+    <span class="badge">#{{ story.series_number | series_number }}</span>
+    <span class="book-title"><span class="story-label">Story</span> {{ story.title }}</span>
+    <span class="series-detail"><span class="book-meta">In {% for ref, held in row.story_books %}{% if held %}<a href="/entries/{{ held.id }}">{{ ref.title }}</a>{% else %}{{ ref.title }}{% endif %}{{ ", " if not loop.last }}{% endfor %}</span> · <span class="series-status">{% if row.story_status %}{{ STATUS_LABELS[row.story_status] }}{% if row.story_finished_on %} · {{ row.story_finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}</span></span>
+    {% if not row.story_status %}
+    <span class="series-action story-adds">{% for ref, held in row.story_books %}<a href="/books/add?book={{ ref.id }}&amp;from_series={{ series.id }}">Add “{{ ref.title }}” to my list</a>{% endfor %}</span>
+    {% endif %}
+  </li>
+  {% elif row.book %}
   {% set book = row.book %}
   <li>
     <span class="badge">{% if book.series_number is not none %}#{{ book.series_number | series_number }}{% else %}No number{% endif %}</span>
@@ -21,7 +34,7 @@
     {% else %}
     <span class="book-title">{{ book.title }}</span>
     {% endif %}
-    <span class="series-detail"><span class="book-meta">{{ authors_line(book) }}</span> · <span class="series-status">{% if row.entry %}{{ STATUS_LABELS[row.entry.status] }}{% if row.entry.finished_on %} · {{ row.entry.finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}{% set release = release_label(book, today, row.entry) %}{% if release | trim %} · {{ release }}{% endif %}</span></span>
+    <span class="series-detail"><span class="book-meta">{{ authors_line(book) }}</span> · <span class="series-status">{% if row.entry %}{{ STATUS_LABELS[row.entry.status] }}{% if row.entry.finished_on %} · {{ row.entry.finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}{% set release = release_label(book, today, row.entry) %}{% if release | trim %} · {{ release }}{% endif %}{% if row.contains %} · Contains {% for n in row.contains %}#{{ n | series_number }}{{ ", " if not loop.last }}{% endfor %}{% endif %}</span></span>
     {% if not row.entry %}
     <a class="series-action" href="/books/add?book={{ book.id }}&amp;from_series={{ series.id }}"><span>Add<span class="visually-hidden"> “{{ book.title }}”</span> to my list</span></a>
     {% endif %}

@@ -181,3 +181,21 @@ def import_result_out(result: imports_domain.ImportResult) -> i.ImportResult:
             for s in result.skipped
         ],
     )  # fmt: skip
+
+
+def story_out(story: domain.Story) -> c.Story:
+    return c.Story(
+        id=story.id,
+        title=story.title,
+        authors=[
+            c.BookAuthorRef(id=a.id, name=a.name, real_name=a.real_name, position=a.position)
+            for a in story.authors
+        ],
+        series=c.SeriesRef(id=story.series.id, name=story.series.name),
+        series_number=format_series_number(story.series_number),
+        books=[c.BookRef(id=ref.id, title=ref.title) for ref in story.books],
+        created_by=user_ref_out(story.created_by),
+        created_at=story.created_at,
+        updated_by=user_ref_out(story.updated_by),
+        updated_at=story.updated_at,
+    )

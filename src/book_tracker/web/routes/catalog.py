@@ -50,9 +50,30 @@ def _message(request: Request) -> str | None:
 # --------------------------------------------------------------------------- books
 
 
-def _book_page(
+STORY_MESSAGES = {
+    "story_already": "That story is already in this book.",
+    "story_removed": "Story removed from this book.",
+    "story_deleted": "Story deleted from the catalog.",
+}
+
+
+def _story_message(request: Request, stories: list[domain.Story]) -> str | None:
+    """Spec 009 R6: "Added the story …" names a story only if it is in this book, looked
+    up by id, so a crafted link can't show made-up text."""
+    msg = request.query_params.get("msg", "")
+    if msg == "story_added":
+        added = request.query_params.get("story", "")
+        for story in stories:
+            if str(story.id) == added:
+                return f"Added the story “{story.title}”."
+        return None
+    return STORY_MESSAGES.get(msg)
+
+
+async def _book_page(
     request: Request,
     auth: Authenticated,
+    db: DbSession,
     book: domain.Book,
     form: AddBookForm,
     *,
@@ -62,11 +83,14 @@ def _book_page(
     series_conflict: ConflictError | None = None,
     source_ref: SourceRef | None = None,
 ) -> Response:
+    stories = await service.book_stories(db, book.id)
     return render(
         request,
         "pages/edit_book.html",
         {
             "book": book,
+            "stories": stories,
+            "story_message": _story_message(request, stories),
             "form": form,
             "conflict": conflict,
             "author_conflicts": author_conflicts or {},
@@ -85,7 +109,7 @@ async def edit_book_form(
 ) -> Response:
     book = await service.get_book(db, book_id)
     source_ref = await imports_service.source_ref(db, book_id)
-    return _book_page(request, auth, book, book_form(book), source_ref=source_ref)
+    return await _book_page(request, auth, db, book, book_form(book), source_ref=source_ref)
 
 
 @router.post("/books/{book_id}/edit")
@@ -95,11 +119,11 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
     keep_unedited(book, form)  # books-mbx, before any name checks
     await new_name_prompts(db, form)  # spec 005: shown with any field errors
     if form.field_errors:
-        return _book_page(request, auth, book, form, status_code=422)
+        return await _book_page(request, auth, db, book, form, status_code=422)
     problem = await save_book_details(db, auth, book, form)
     if problem is not None:
-        return _book_page(
-            request, auth, book, form, status_code=problem.status_code,
+        return await _book_page(
+            request, auth, db, book, form, status_code=problem.status_code,
             conflict=problem.conflict, author_conflicts=problem.author_conflicts,
             series_conflict=problem.series_conflict,
         )  # fmt: skip
@@ -110,11 +134,11 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
 # --------------------------------------------------------------------------- authors
 
 
-def _author_page(
+async def _author_page(
     request: Request,
     auth: Authenticated,
+    db: DbSession,
     author: domain.Author,
-    books: list[domain.Book],
     values: dict[str, Any] | None = None,
     errors: dict[str, str] | None = None,
     status_code: int = 200,
@@ -132,7 +156,8 @@ def _author_page(
         "pages/edit_author.html",
         {
             "author": author,
-            "books": books,
+            "books": await service.author_books(db, author.id),
+            "stories": await service.author_stories(db, author.id),  # spec 009
             "values": values,
             "errors": errors or {},
             "message": _message(request),
@@ -148,7 +173,7 @@ async def edit_author_form(
     author_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     author = await service.get_author(db, author_id)
-    return _author_page(request, auth, author, await service.author_books(db, author_id))
+    return await _author_page(request, auth, db, author)
 
 
 @router.post("/authors/{author_id}/edit")
@@ -176,11 +201,11 @@ async def edit_author(
         for error in exc.errors():
             field = str(error["loc"][0]) if error["loc"] else "name"
             errors.setdefault(field, AUTHOR_MESSAGES.get(field, "Check this field"))
-        return _author_page(
+        return await _author_page(
             request,
             auth,
+            db,
             author,
-            await service.author_books(db, author_id),
             values,
             errors,
             status_code=422,
@@ -190,22 +215,22 @@ async def edit_author(
         await service.update_author(db, auth.account.id, author_id, changes)
     except ValidationFailed as exc:
         errors = {e.field: e.message for e in exc.errors}
-        return _author_page(
+        return await _author_page(
             request,
             auth,
+            db,
             author,
-            await service.author_books(db, author_id),
             values,
             errors,
             status_code=422,
         )
     except ConflictError as exc:
         errors = {"name": f"{exc.title}: “{exc.existing_label}”"}
-        return _author_page(
+        return await _author_page(
             request,
             auth,
+            db,
             author,
-            await service.author_books(db, author_id),
             values,
             errors,
             status_code=409,
@@ -240,6 +265,16 @@ async def unused_authors(request: Request, auth: UiUser, db: DbSession) -> Respo
     )
 
 
+async def _has_works(db: DbSession, author: domain.Author, outcome: str) -> str | None:
+    """Why the author can't be deleted after all: a book (spec 008) or a story (spec 009)
+    lists them now."""
+    if await service.author_books(db, author.id):
+        return f"“{author.name}” now has a book, so it {outcome}."
+    if await service.author_stories(db, author.id):
+        return f"“{author.name}” now has a story, so it {outcome}."
+    return None
+
+
 @router.post("/authors/{author_id}/delete")
 async def delete_author(
     author_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
@@ -248,19 +283,22 @@ async def delete_author(
     author = await service.get_author(db, author_id)  # 404 if unknown
     form = await request.form()
     if form.get("confirm") != "yes":
-        books = await service.author_books(db, author_id)
-        if books:  # linked since Edit author was shown: don't claim it has none
-            problem = f"“{author.name}” now has a book, so it can't be deleted."
-            return _author_page(
-                request, auth, author, books, delete_problem=problem, status_code=409
+        problem = await _has_works(db, author, "can't be deleted")
+        if problem:  # linked since Edit author was shown: don't claim it has none
+            return await _author_page(
+                request, auth, db, author, delete_problem=problem, status_code=409
             )
         return render(request, "pages/confirm_delete_author.html", {"author": author}, auth=auth)
     try:
         await service.delete_author(db, auth.account.id, author_id)
     except ConflictError:
-        books = await service.author_books(db, author_id)
-        problem = f"“{author.name}” now has a book, so it wasn't deleted."
-        return _author_page(request, auth, author, books, delete_problem=problem, status_code=409)
+        # The foreign key caught a link made in the same instant (spec 008).
+        problem = await _has_works(db, author, "wasn't deleted") or (
+            f"“{author.name}” now has a book, so it wasn't deleted."
+        )
+        return await _author_page(
+            request, auth, db, author, delete_problem=problem, status_code=409
+        )
     query = urlencode(
         {"msg": "deleted", "author": author.name, "sig": _deleted_sig(request, author.name)}
     )

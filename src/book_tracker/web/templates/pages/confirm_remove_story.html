@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Remove {{ story.title }}{% endblock %}
+{% block content %}
+<h1>Remove “{{ story.title }}” from “{{ book.title }}”?</h1>
+{% if elsewhere %}
+<p>It stays in: {{ elsewhere | map(attribute="title") | join(", ") }}.</p>
+{% else %}
+<p>It isn't in any other book, so it will be deleted from the family catalog.</p>
+{% endif %}
+<form method="post" action="/catalog/books/{{ book.id }}/stories/{{ story.id }}/remove" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" name="confirm" value="yes" class="button-danger">Remove</button>
+  <a href="/catalog/books/{{ book.id }}/edit#stories">Cancel</a>
+</form>
+{% endblock %}

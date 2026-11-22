@@ -53,6 +53,14 @@
   <p><a href="/catalog/books/{{ entry.book.id }}/summary">{% if entry.book.current_summary %}Write a new summary{% else %}Write a summary{% endif %}</a></p>
 </section>
 
+{% if stories %}
+<section aria-labelledby="stories-heading">
+  <h2 id="stories-heading">Stories in this book</h2>
+  {% with editable=false, book=entry.book %}{% include "partials/book_stories.html" %}{% endwith %}
+  <p><a href="/catalog/books/{{ entry.book.id }}/edit#stories">Edit the stories</a></p>
+</section>
+{% endif %}
+
 <section aria-labelledby="more-heading">
   <h2 id="more-heading">More</h2>
   <ul>

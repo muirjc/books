@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "macros.html" import error_summary %}
+{% block title %}Add a story to {{ book.title }}{% endblock %}
+{% block content %}
+<h1>Add a story to “{{ book.title }}”</h1>
+<p class="muted">For a collection: each story gets its own place in its series, so the series page shows where it falls.</p>
+{{ error_summary(form.errors) }}
+<form method="post" action="/catalog/books/{{ book.id }}/stories/add" class="stack" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if taken %}{% with offer=true %}{% include "partials/story_taken.html" %}{% endwith %}{% endif %}
+  {% with suggest_title=true %}{% include "partials/story_fields.html" %}{% endwith %}
+  <div class="actions">
+    <button type="submit" class="button-primary">Add story</button>
+    <a href="/catalog/books/{{ book.id }}/edit#stories">Cancel</a>
+  </div>
+</form>
+{% endblock %}

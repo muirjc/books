@@ -184,3 +184,64 @@ async def test_unused_authors_under_one_second(
     }
     print("\nspec 008 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert all(value < 1.0 for value in results.values()), results
+
+
+STORIES = [
+    # Spec 009: ten collections (in no series) holding 100 stories of the long series at
+    # n.5, ten each; the reader has finished half of the collections.
+    """INSERT INTO book (id, title, created_by, updated_by)
+       SELECT gen_random_uuid(), 'Collection ' || i, u.id, u.id
+       FROM generate_series(1, 10) AS i
+       CROSS JOIN (SELECT id FROM app_user WHERE login = 'reader') u""",
+    """INSERT INTO book_author (book_id, author_id, position)
+       SELECT b.id, (SELECT id FROM author ORDER BY name LIMIT 1), 1
+       FROM book b WHERE b.title LIKE 'Collection %'""",
+    """INSERT INTO story (id, title, series_id, series_number, created_by, updated_by)
+       SELECT gen_random_uuid(), 'Story ' || i, s.id, i + 0.5, u.id, u.id
+       FROM generate_series(1, 100) AS i
+       CROSS JOIN (SELECT id FROM series WHERE name = 'A long series') s
+       CROSS JOIN (SELECT id FROM app_user WHERE login = 'reader') u""",
+    """INSERT INTO story_author (story_id, author_id, position)
+       SELECT st.id, (SELECT id FROM author ORDER BY name LIMIT 1), 1 FROM story st""",
+    """INSERT INTO book_story (book_id, story_id)
+       SELECT b.id, st.id FROM story st
+       JOIN book b ON b.title = 'Collection ' || ((floor(st.series_number)::int % 10) + 1)""",
+    """INSERT INTO reading_entry (id, user_id, book_id, status, times_read)
+       SELECT gen_random_uuid(), u.id, b.id, 'finished', 1
+       FROM book b CROSS JOIN (SELECT id FROM app_user WHERE login = 'reader') u
+       WHERE b.title IN ('Collection 1', 'Collection 3', 'Collection 5', 'Collection 7',
+                         'Collection 9')""",
+    # One more collection with 50 stories, for Edit book.
+    """INSERT INTO book (id, title, created_by, updated_by)
+       SELECT gen_random_uuid(), 'Big collection', id, id FROM app_user WHERE login = 'reader'""",
+    """INSERT INTO book_author (book_id, author_id, position)
+       SELECT id, (SELECT id FROM author ORDER BY name LIMIT 1), 1 FROM book
+       WHERE title = 'Big collection'""",
+    """INSERT INTO book_story (book_id, story_id)
+       SELECT (SELECT id FROM book WHERE title = 'Big collection'), id FROM story
+       WHERE series_number < 51""",
+]
+
+
+async def test_series_page_with_stories_under_one_second(
+    big_list: httpx.AsyncClient, factory: Factory
+) -> None:
+    """Spec 009 SC-002: a series of 100 books and 100 stories in the 5,000-book catalog,
+    and Edit book for a collection of 50 stories."""
+    for statement in BIG_SERIES + STORIES:
+        await factory.execute(statement)
+    await factory.execute("ANALYZE")
+    series = await factory.scalar("SELECT id FROM series WHERE name = 'A long series'")
+    big = await factory.scalar("SELECT id FROM book WHERE title = 'Big collection'")
+    assert await factory.scalar("SELECT count(*) FROM story") == 100
+    assert await factory.scalar(f"SELECT count(*) FROM book_story WHERE book_id = '{big}'") == 50
+    results = {
+        "series page": await p95(lambda i: big_list.get(f"/series/{series}")),
+        "edit book": await p95(lambda i: big_list.get(f"/catalog/books/{big}/edit")),
+        "type-ahead": await p95(
+            lambda i: big_list.get("/suggest/books", params={"field": "title", "title": "Story 4"})
+        ),
+    }
+    print("\nspec 009 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
+    assert results["series page"] < 1.0 and results["edit book"] < 1.0, results
+    assert results["type-ahead"] < 0.3, results

@@ -413,6 +413,9 @@ async def _chosen_series(db: DbSession, form: AddBookForm) -> domain.Series | No
     return None
 
 
+chosen_series = _chosen_series  # also used by the story forms (spec 009)
+
+
 async def new_name_prompts(db: DbSession, form: AddBookForm) -> None:
     """Spec 005: record a prompt for every typed author or series that isn't picked,
     confirmed, or an exact catalog name (that one keeps today's "Already in the catalog"
@@ -674,6 +677,7 @@ def _entry_page(
     problem: BookSaveProblem | None = None,
     status_code: int = 200,
     source_ref: Any = None,
+    stories: list[domain.Story] | None = None,
 ) -> Response:
     form = form or book_form(entry.book)
     return render(
@@ -681,6 +685,7 @@ def _entry_page(
         "pages/entry.html",
         {
             "entry": entry,
+            "stories": stories or [],
             "source_ref": source_ref,
             "statuses": STATUSES,
             "errors": errors or {},
@@ -703,7 +708,8 @@ async def entry_page(
 ) -> Response:
     entry = await service.get_entry(db, auth.account.id, entry_id)
     source_ref = await imports_service.source_ref(db, entry.book.id)
-    return _entry_page(request, auth, entry, source_ref=source_ref)
+    stories = await catalog_service.book_stories(db, entry.book.id)  # spec 009
+    return _entry_page(request, auth, entry, source_ref=source_ref, stories=stories)
 
 
 @router.post("/entries/{entry_id}")

@@ -17,57 +17,9 @@
   {{ field_error(form.errors, "title") }}
 </div>
 
-<fieldset>
-  <legend>Authors</legend>
-  {% for i in range(form.author_rows) %}
-  {% set id_key = "author_id_" ~ i %}
-  {% set name_key = "author_name_" ~ i %}
-  <div class="field">
-    <label for="{{ name_key }}">{% if i == 0 %}Author{% else %}Another author (optional){% endif %}</label>
-    {% with name=name_key, kind="authors", id_field=id_key, value=form.raw.get(name_key, ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
-    <input type="hidden" id="{{ id_key }}" name="{{ id_key }}" value="{{ '' if author_conflicts.get(i) else form.raw.get(id_key, '') }}">
-    {%- set confirm_key = "confirm_author_" ~ i %}
-    {% if form.raw.get(confirm_key) %}<input type="hidden" name="{{ confirm_key }}" value="{{ form.raw.get(confirm_key) }}">{% endif %}
-    {{ field_error(form.errors, name_key) }}
-    {% if form.new_names.get(name_key) %}{% with nn=form.new_names.get(name_key) %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
-    {% if author_conflicts.get(i) %}
-    {% set c = author_conflicts.get(i) %}
-    <div class="conflict" id="{{ name_key }}-conflict">
-      <p class="field-error">Already in the catalog: “{{ c.existing_label }}”.</p>
-      <button type="submit" name="{{ id_key }}" value="{{ c.existing_id }}">Use existing author “{{ c.existing_label }}”</button>
-    </div>
-    {% endif %}
-  </div>
-  {% endfor %}
-</fieldset>
+{% include "partials/author_rows.html" %}
 
-<fieldset>
-  <legend>Series (optional)</legend>
-  <div class="field-row">
-  <div class="field">
-    <label for="series_name">Series</label>
-    {% with name="series_name", kind="series", id_field="series_id", value=form.raw.get("series_name", ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
-    <input type="hidden" id="series_id" name="series_id" value="{{ '' if series_conflict else form.raw.get('series_id', '') }}">
-    {% if form.raw.get("confirm_series") %}<input type="hidden" name="confirm_series" value="{{ form.raw.get('confirm_series') }}">{% endif %}
-    {{ field_error(form.errors, "series_name") }}
-    {% if form.new_names.get("series_name") %}{% with nn=form.new_names.get("series_name") %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
-    {% if series_conflict %}
-    <div class="conflict" id="series_name-conflict">
-      <p class="field-error">Already in the catalog: “{{ series_conflict.existing_label }}”.</p>
-      <button type="submit" name="series_id" value="{{ series_conflict.existing_id }}">Use existing series “{{ series_conflict.existing_label }}”</button>
-    </div>
-    {% endif %}
-  </div>
-  <div class="field">
-    <label for="series_number">Number in series</label>
-    <input id="series_number" name="series_number" type="text" inputmode="decimal" maxlength="6"
-           value="{{ form.raw.get('series_number', '') }}"{{ described(form.errors, "series_number", hint=true) }}>
-    {# Below the box, so the label lines up with Series beside it (spec 003). #}
-    <p class="hint" id="series_number-hint">Decimals are fine, for example 2.5 for a novella.</p>
-    {{ field_error(form.errors, "series_number") }}
-  </div>
-  </div>
-</fieldset>
+{% with series_legend="Series (optional)", number_hint="Decimals are fine, for example 2.5 for a novella." %}{% include "partials/series_fields.html" %}{% endwith %}
 
 <div class="field">
   <label for="isbn_13">ISBN-13 (optional)</label>

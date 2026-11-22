@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request
 from starlette.responses import Response
 
 from book_tracker.auth.dependencies import UiUser
+from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
 from book_tracker.services import catalog as service
 from book_tracker.web.rendering import render
@@ -41,20 +42,55 @@ def _query(request: Request) -> tuple[str, str]:
 
 @router.get("/{kind}")
 async def suggest(
-    kind: Literal["books", "authors", "series"], request: Request, auth: UiUser, db: DbSession
+    kind: Literal["books", "authors", "series", "stories"],
+    request: Request,
+    auth: UiUser,
+    db: DbSession,
 ) -> Response:
     field, q = _query(request)
     items: list[Suggestion] = []
     if q:
         if kind == "books":
+            books = await service.search_books(db, q, LIMIT)
+            lowered = q.lower()
+            # Spec 009 R7: a book found only by a story's title says which story.
+            stories = await service.story_matches(
+                db,
+                [
+                    b.id
+                    for b in books
+                    if lowered not in b.title.lower()
+                    and not any(
+                        lowered in a.name.lower() or lowered in (a.real_name or "").lower()
+                        for a in b.authors
+                    )
+                ],
+                q,
+            )
             items = [
-                Suggestion(str(b.id), b.title, ", ".join(a.name for a in b.authors))
-                for b in await service.search_books(db, q, LIMIT)
+                Suggestion(
+                    str(b.id),
+                    b.title,
+                    f"contains “{stories[b.id]}”"
+                    if b.id in stories
+                    else ", ".join(a.name for a in b.authors),
+                )
+                for b in books
             ]
         elif kind == "authors":
             items = [
                 Suggestion(str(a.id), a.name, f"pen name of {a.real_name}" if a.real_name else "")
                 for a in await service.search_authors(db, q, LIMIT)
+            ]
+        elif kind == "stories":  # spec 009: a story already in another book
+            items = [
+                Suggestion(
+                    str(s.id),
+                    s.title,
+                    f"#{format_series_number(s.series_number)} {s.series.name} · in "
+                    + ", ".join(ref.title for ref in s.books),
+                )
+                for s in await service.search_stories(db, q, LIMIT)
             ]
         else:
             items = [

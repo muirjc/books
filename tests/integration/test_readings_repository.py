@@ -97,3 +97,14 @@ def test_no_method_accepts_a_user_id() -> None:
         if name.startswith("_"):
             continue
         assert "user_id" not in inspect.signature(member).parameters, name
+
+
+@pytest.mark.ac("009/AC-15")
+async def test_list_books_returns_only_own_entries(app: Any, world: dict[str, Any]) -> None:
+    """Spec 009 R3: the entries behind a story's status are the bound user's only."""
+    async with app.state.db.sessionmaker() as db:
+        ben = ReadingEntryRepository(db, world["ben"].id)
+        assert [e.id for e in await ben.list_books({world["hobbit"], world["dune"]})] == [
+            world["ben_hobbit"]
+        ]
+        assert await ben.list_books(set()) == ()

@@ -34,7 +34,7 @@ async def get_book(book_id: uuid.UUID, auth: ApiUser, db: DbSession) -> Book:
 @router.get(
     "",
     response_model=list[Book],
-    summary="Type-ahead search of catalog books by title, author name, real name or exact ISBN",
+    summary="Type-ahead search of catalog books by title, author, real name, story title or ISBN",
     responses=r.READ,
 )
 async def search_books(

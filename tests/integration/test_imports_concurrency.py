@@ -108,3 +108,119 @@ async def test_other_database_errors_are_not_swallowed(app: Any, factory: Factor
             await imports._add_new_work(  # noqa: SLF001
                 db, alice.id, work(9, "Orphan"), [uuid.uuid4()], NOW
             )
+
+
+# --------------------------------------------------------------------------- races (books-0tw.6)
+
+
+async def test_author_created_since_the_look_up_is_reused(
+    app: Any, factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another member creates the author between the import's look-up and its insert: the
+    import uses that author instead of failing or duplicating it."""
+    from book_tracker.persistence import imports as store
+
+    alice = await factory.user("alice")
+    ol = FakeBookSource()
+    ol.works[KEY] = listing(KEY, [work(1, "Racing")])
+    await _list(app, ol, alice)
+    real = store.find_authors_by_names
+
+    async def created_meanwhile(db: Any, keys: Any) -> dict[str, uuid.UUID]:
+        found = await real(db, keys)
+        await db.execute(
+            text(
+                "INSERT INTO author (id, name, sort_name, created_by, updated_by) "
+                "VALUES (gen_random_uuid(), 'Ann Author', 'Author, Ann', :u, :u)"
+            ),
+            {"u": alice.id},
+        )
+        return found  # as looked up: before the other member's insert
+
+    monkeypatch.setattr(store, "find_authors_by_names", created_meanwhile)
+    result = await _confirm(app, alice, ["OL1W"])
+    assert [b.title for b in result.added] == ["Racing"]
+    assert await factory.scalar("SELECT count(*) FROM author") == 1
+    author_of_book = await factory.scalar("SELECT author_id FROM book_author")
+    assert author_of_book == await factory.scalar("SELECT id FROM author")
+
+
+async def test_other_author_conflicts_are_not_swallowed(
+    app: Any, factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from book_tracker.services import catalog as catalog_service
+    from book_tracker.services.errors import ConflictError
+
+    alice = await factory.user("alice")
+    ol = FakeBookSource()
+    ol.works[KEY] = listing(KEY, [work(1, "Racing")])
+    await _list(app, ol, alice)
+
+    async def refused(*_: Any, **__: Any) -> Any:
+        raise ConflictError("something_else", "Something else")
+
+    monkeypatch.setattr(catalog_service, "create_author", refused)
+    with pytest.raises(ConflictError):
+        await _confirm(app, alice, ["OL1W"])
+
+
+async def test_entry_added_from_another_page_meanwhile_is_skipped(
+    app: Any, factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Principle I ownership path: the member adds the same book from another page while
+    the import runs. The import reports it as already on the list; no duplicate entry,
+    and nothing of any other member's is touched."""
+    from book_tracker.persistence.readings import ReadingEntryRepository
+
+    alice, ben = await factory.user("alice"), await factory.user("ben")
+    ann = await factory.author("Ann Author", alice)
+    book = await factory.book("Racing", alice, author_ids=[ann])
+    await factory.entry(ben, book)  # Ben's own entry for the same book is unaffected
+    ol = FakeBookSource()
+    ol.works[KEY] = listing(KEY, [work(1, "Racing")])
+    await _list(app, ol, alice)
+    real = ReadingEntryRepository.book_ids_on_list
+
+    async def added_meanwhile(self: ReadingEntryRepository, ids: Any) -> set[uuid.UUID]:
+        on_list = await real(self, ids)
+        await self._db.execute(
+            text(
+                "INSERT INTO reading_entry (id, user_id, book_id, status, times_read) "
+                "VALUES (gen_random_uuid(), :u, :b, 'reading', 0)"
+            ),
+            {"u": alice.id, "b": book},
+        )
+        return on_list  # as checked: before the other page's insert
+
+    monkeypatch.setattr(ReadingEntryRepository, "book_ids_on_list", added_meanwhile)
+    result = await _confirm(app, alice, ["OL1W"])
+    assert result.added == ()
+    assert [(s.title, s.reason.value) for s in result.skipped] == [("Racing", "on_list")]
+    rows = await factory.scalar(
+        "SELECT array_agg(status ORDER BY status) FROM reading_entry WHERE book_id = :b", b=book
+    )
+    assert rows == ["finished", "reading"]  # Ben's, and Alice's from the other page
+
+
+async def test_other_entry_integrity_errors_are_not_swallowed(
+    app: Any, factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from book_tracker.persistence.readings import ReadingEntryRepository
+
+    alice = await factory.user("alice")
+    ol = FakeBookSource()
+    ol.works[KEY] = listing(KEY, [work(1, "Racing")])
+    await _list(app, ol, alice)
+
+    class Diag:
+        constraint_name = "reading_entry_status_check"
+
+    class Orig(Exception):
+        diag = Diag()
+
+    async def broken(*_: Any, **__: Any) -> Any:
+        raise IntegrityError("INSERT INTO reading_entry", {}, Orig())
+
+    monkeypatch.setattr(ReadingEntryRepository, "add", broken)
+    with pytest.raises(IntegrityError):
+        await _confirm(app, alice, ["OL1W"])

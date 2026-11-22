@@ -135,7 +135,7 @@ async def guarded[T](
         )
         if conflict is not None:
             raise conflict from None
-        if _constraint(exc) == "book_author_author_id_fkey":
+        if _constraint(exc) in ("book_author_author_id_fkey", "story_author_author_id_fkey"):
             # A chosen author was deleted after the check (spec 008, PR #24 review).
             raise ValidationFailed.single("author_ids", AUTHOR_DELETED) from None
         raise

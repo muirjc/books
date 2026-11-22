@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import Select, delete, exists, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from book_tracker.domain import models as domain
@@ -599,15 +600,22 @@ async def unlink_story(
     )
     if removed.scalar_one_or_none() is None:
         return False, False
-    deleted = await db.execute(
-        delete(models.Story)
-        .where(
-            models.Story.id == story_id,
-            ~exists().where(models.BookStory.story_id == models.Story.id),
-        )
-        .returning(models.Story.id)
-    )
-    return True, deleted.scalar_one_or_none() is not None
+    try:
+        async with db.begin_nested():
+            deleted = await db.execute(
+                delete(models.Story)
+                .where(
+                    models.Story.id == story_id,
+                    ~exists().where(models.BookStory.story_id == models.Story.id),
+                )
+                .returning(models.Story.id)
+            )
+            return True, deleted.scalar_one_or_none() is not None
+    except IntegrityError:
+        # Another member put the story in a book while this delete waited on their lock:
+        # the NOT EXISTS above didn't see it, and the RESTRICT foreign key did (PR #28
+        # review). The story stays, in that book.
+        return True, False
 
 
 async def update_story(

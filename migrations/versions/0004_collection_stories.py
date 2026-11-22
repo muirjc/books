@@ -90,7 +90,7 @@ def upgrade() -> None:
         sa.Column(
             "story_id",
             UUID,
-            sa.ForeignKey("story.id", ondelete="CASCADE", name="book_story_story_id_fkey"),
+            sa.ForeignKey("story.id", ondelete="RESTRICT", name="book_story_story_id_fkey"),
             primary_key=True,
         ),
     )

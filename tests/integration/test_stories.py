@@ -271,6 +271,7 @@ async def test_link_to_a_story_deleted_meanwhile_is_not_found(
 
     async def vanish(db: Any, story_id: uuid.UUID) -> Any:
         found = await real(db, story_id)
+        await factory.execute("DELETE FROM book_story WHERE story_id = :id", id=story_id)
         await factory.execute("DELETE FROM story WHERE id = :id", id=story_id)
         return found
 
@@ -773,3 +774,65 @@ async def test_book_suggested_by_story_title(
     # A title match keeps its usual detail (the authors).
     plain = await member.get("/suggest/books", params={"field": "title", "title": "Side"})
     assert "contains" not in plain.text and "Jim Butcher" in plain.text
+
+
+# --------------------------------------------------------------------------- PR #28 review
+
+
+async def test_removing_the_last_link_while_another_member_links_it(
+    app: Any, factory: Factory, alice: TestUser, world: dict[str, uuid.UUID]
+) -> None:
+    """Ben puts the story in Brief Cases (not yet committed) while Alice takes it out of
+    Side Jobs, its only book. Alice's delete waits for Ben; once he commits, the story
+    must stay, in Brief Cases, rather than vanish with his new link (research R2)."""
+    import asyncio
+
+    from book_tracker.persistence import catalog as persistence
+
+    async with app.state.db.sessionmaker() as ben_db, app.state.db.sessionmaker() as alice_db:
+        assert await persistence.link_story(ben_db, world["brief_cases"], world["restoration"])
+        removal = asyncio.create_task(
+            catalog.remove_story(alice_db, alice.id, world["side_jobs"], world["restoration"])
+        )
+        await asyncio.sleep(0.5)  # Alice's delete is now waiting on Ben's lock
+        assert not removal.done()
+        await ben_db.commit()
+        deleted = await removal
+        await alice_db.commit()
+    assert deleted is False
+    books = await factory.scalar(
+        "SELECT string_agg(b.title, ', ') FROM book_story bs JOIN book b ON b.id = bs.book_id "
+        "WHERE bs.story_id = :id",
+        id=world["restoration"],
+    )
+    assert books == "Brief Cases"
+
+
+async def test_author_deleted_while_saving_a_story(
+    app: Any, factory: Factory, alice: TestUser, world: dict[str, uuid.UUID], monkeypatch: Any
+) -> None:
+    """The chosen author is deleted after the check: a field error, not a server error, as
+    for books (PR #24)."""
+    from book_tracker.persistence import catalog as persistence
+
+    gone = await factory.author("Soon Gone", alice)
+    real = persistence.existing_author_ids
+
+    async def then_deleted(db: Any, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+        found = await real(db, ids)
+        await factory.execute("DELETE FROM author WHERE id = :id", id=gone)
+        return found
+
+    monkeypatch.setattr(persistence, "existing_author_ids", then_deleted)
+    new = catalog.NewStory("Late", [gone], world["dresden"], Decimal("9.5"))
+    with pytest.raises(ValidationFailed) as raised:
+        await _run(app, lambda db: catalog.add_new_story(db, alice.id, world["side_jobs"], new))
+    assert raised.value.errors[0].message == catalog.AUTHOR_DELETED
+    gone = await factory.author("Also Gone", alice)
+    with pytest.raises(ValidationFailed):
+        await _run(
+            app,
+            lambda db: catalog.update_story(
+                db, alice.id, world["restoration"], {"author_ids": [gone]}
+            ),
+        )

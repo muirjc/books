@@ -328,7 +328,7 @@ class BookStory(Base):
     )
     story_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("story.id", ondelete="CASCADE", name="book_story_story_id_fkey"),
+        ForeignKey("story.id", ondelete="RESTRICT", name="book_story_story_id_fkey"),
         primary_key=True,
     )
 

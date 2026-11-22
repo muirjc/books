@@ -118,6 +118,7 @@ async def test_progress_mentions_stories(
 ) -> None:
     page = await member.get(f"/series/{dresden['series']}")
     assert "You've finished 2 of 3 books and 3 of 3 stories in this series." in text_of(page)
+    await factory.execute("DELETE FROM book_story")
     await factory.execute("DELETE FROM story")
     page = await member.get(f"/series/{dresden['series']}")
     assert "You've finished 2 of 3 books in this series." in text_of(page)

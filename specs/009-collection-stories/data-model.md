@@ -31,7 +31,7 @@ Index: `story_author_author_id_idx` (author_id), for spec 008's "has works" chec
 | Column | Type | Rules |
 |---|---|---|
 | book_id | uuid | PK part; FK book.id ON DELETE CASCADE |
-| story_id | uuid | PK part; FK story.id ON DELETE CASCADE (`book_story_story_id_fkey`) |
+| story_id | uuid | PK part; FK story.id ON DELETE RESTRICT (`book_story_story_id_fkey`): a story still in a book can't be deleted (research R2) |
 
 Index: `book_story_story_id_idx` (story_id).
 

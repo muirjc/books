@@ -34,6 +34,11 @@ deferred constraint trigger would do it, but nothing else in the schema uses tri
 
 **Race**: someone links the story to a book while another member removes its last link.
 - If the link commits first, the conditional delete sees it and keeps the story.
+- If both overlap, the delete's `NOT EXISTS` was evaluated before the link committed, and
+  PostgreSQL doesn't re-check it after waiting on the linker's lock. So
+  `book_story.story_id` is `ON DELETE RESTRICT`: the database refuses the delete, and that
+  is read as "story kept" (PR #28 review). `CASCADE` would have silently deleted the new
+  link with the story.
 - If the delete wins, the link insert fails on `book_story_story_id_fkey`. That is mapped to
   Not Found ("That story was just deleted").
 

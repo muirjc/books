@@ -377,15 +377,17 @@ async def search_series(db: AsyncSession, q: str, limit: int) -> list[domain.Ser
 
 async def update_author(
     db: AsyncSession, author_id: uuid.UUID, actor_id: uuid.UUID, **fields: object
-) -> domain.Author:
-    await db.execute(
+) -> domain.Author | None:
+    """None when the author no longer exists (deleted meanwhile, spec 008)."""
+    updated = await db.execute(
         update(models.Author)
         .where(models.Author.id == author_id)
         .values(**fields, updated_by=actor_id, updated_at=func.now())
+        .returning(models.Author.id)
     )
-    author = await get_author(db, author_id)
-    assert author is not None  # noqa: S101 - checked by the service
-    return author
+    if updated.scalar_one_or_none() is None:
+        return None
+    return await get_author(db, author_id)
 
 
 async def update_series(

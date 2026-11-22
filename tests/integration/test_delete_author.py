@@ -101,17 +101,21 @@ async def test_delete_author(
 ) -> None:
     done = await member.post(f"/catalog/authors/{authors['typo']}/delete", data={"confirm": "yes"})
     assert done.status_code == 303
-    assert done.headers["location"] == "/catalog/authors/unused?msg=deleted&author=J+DM+Robb"
+    location = done.headers["location"]
+    assert location.startswith("/catalog/authors/unused?msg=deleted&author=J+DM+Robb&sig=")
     assert not await exists(factory, authors["typo"])
-    page = await member.get(done.headers["location"])
+    page = await member.get(location)
     assert re.search(r'role="status"[^>]*>\s*Deleted “J DM Robb”\.', page.text)
     assert "J DM Robb</a>" not in page.text
     found = await member.get("/api/v1/authors", params={"q": "Robb"})
     assert [a["name"] for a in found.json()] == ["J.D. Robb"]
     assert (await member.get(f"/catalog/authors/{authors['typo']}/edit")).status_code == 404
-    # The name in the message is text only.
-    sneaky = await member.get("/catalog/authors/unused?msg=deleted&author=<b>x</b>")
-    assert "<b>x</b>" not in sneaky.text and "&lt;b&gt;x&lt;/b&gt;" in sneaky.text
+    # A crafted link (no valid signature) shows no message (PR #24 review).
+    for crafted in (
+        "/catalog/authors/unused?msg=deleted&author=Terry+Pratchett",
+        "/catalog/authors/unused?msg=deleted&author=J+DM+Robb&sig=" + "0" * 64,
+    ):
+        assert "Deleted" not in text(await member.get(crafted)), crafted
 
 
 @pytest.mark.ac("008/AC-05")
@@ -178,3 +182,89 @@ async def test_signed_out_cannot_delete(
     assert response.status_code in (303, 401, 403)
     assert await exists(factory, authors["typo"])
     assert (await anonymous.get("/catalog/authors/unused")).status_code in (303, 401)
+
+
+@pytest.mark.ac("008/AC-07")
+async def test_confirm_page_rechecks_books(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, authors: dict[str, uuid.UUID]
+) -> None:
+    """A book linked after Edit author was shown: the confirm step says so instead of
+    claiming the author has none (PR #24 review)."""
+    await factory.book("Typo Book", alice, author_ids=[authors["typo"]])
+    asked = await member.post(f"/catalog/authors/{authors['typo']}/delete", data={})
+    assert asked.status_code == 409
+    assert "“J DM Robb” now has a book, so it can't be deleted." in text(asked)
+    assert "from the family catalog?" not in text(asked)
+
+
+@pytest.mark.ac("008/AC-07")
+async def test_foreign_key_backstop(
+    member: httpx.AsyncClient,
+    factory: Factory,
+    authors: dict[str, uuid.UUID],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the delete statement trips the foreign key (a book linked in the same instant),
+    the member gets the 409 explanation, not an error page."""
+    from sqlalchemy.exc import IntegrityError
+
+    from book_tracker.persistence import catalog as persistence
+
+    async def tripped(*_: object) -> bool:
+        raise IntegrityError("DELETE FROM author", {}, Exception("book_author_author_id_fkey"))
+
+    monkeypatch.setattr(persistence, "delete_unused_author", tripped)
+    refused = await member.post(
+        f"/catalog/authors/{authors['typo']}/delete", data={"confirm": "yes"}
+    )
+    assert refused.status_code == 409
+    assert "wasn't deleted" in text(refused)
+    assert await exists(factory, authors["typo"])
+
+
+async def test_author_deleted_while_saving_or_adding(
+    member: httpx.AsyncClient,
+    factory: Factory,
+    alice: TestUser,
+    authors: dict[str, uuid.UUID],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #24 review: an author deleted between the checks and the write gives a 404 when
+    saving that author, and a field error when adding a book that names it, not a 500."""
+    from book_tracker.services import catalog as service
+
+    typo = authors["typo"]
+    real_get = service.get_author
+
+    async def deleted_meanwhile(db: object, author_id: uuid.UUID) -> object:
+        author = await real_get(db, author_id)  # type: ignore[arg-type]
+        await factory.execute("DELETE FROM author WHERE id = :id", id=typo)
+        return author
+
+    monkeypatch.setattr(service, "get_author", deleted_meanwhile)
+    saved = await member.post(
+        f"/catalog/authors/{typo}/edit",
+        data={"name": "J. D. M. Robb", "sort_name": "Robb, J. D. M.", "real_name": ""},
+    )
+    assert saved.status_code == 404
+    monkeypatch.undo()
+
+    nobody = authors["nobody"]
+
+    async def references_ok(*_: object) -> None:
+        await factory.execute("DELETE FROM author WHERE id = :id", id=nobody)
+
+    monkeypatch.setattr(service, "_check_references", references_ok)
+    added = await member.post(
+        "/books/add",
+        data={
+            "title": "Ghost Book",
+            "author_id_0": str(nobody),
+            "author_name_0": "Nobody Writes",
+            "status": "want_to_read",
+            "then": "list",
+        },  # fmt: skip
+    )
+    assert added.status_code == 422
+    assert "An author you chose was just deleted from the catalog." in text(added)
+    assert await factory.scalar("SELECT count(*) FROM book WHERE title = 'Ghost Book'") == 0

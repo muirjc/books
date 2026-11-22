@@ -455,7 +455,7 @@ paths:
           description: Books list this author (code author_has_books); nothing was deleted
           content:
             application/problem+json:
-              schema: { $ref: "#/components/schemas/Conflict" }
+              schema: { $ref: "#/components/schemas/Problem" }
         "422": { $ref: "#/components/responses/ValidationError" }
 
   /series:

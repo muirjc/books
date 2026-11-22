@@ -56,6 +56,9 @@ class NewBook:
     release_date: date | None = None  # spec 007
 
 
+AUTHOR_DELETED = "An author you chose was just deleted from the catalog. Choose the author again."
+
+
 def _constraint(exc: IntegrityError) -> str | None:
     diag = getattr(exc.orig, "diag", None)
     name = getattr(diag, "constraint_name", None)
@@ -109,9 +112,12 @@ async def guarded[T](
         conflict = await _conflict(
             db, exc, name=name, isbn_13=isbn_13, series_id=series_id, series_number=series_number
         )
-        if conflict is None:
-            raise
-        raise conflict from None
+        if conflict is not None:
+            raise conflict from None
+        if _constraint(exc) == "book_author_author_id_fkey":
+            # A chosen author was deleted after the check (spec 008, PR #24 review).
+            raise ValidationFailed.single("author_ids", AUTHOR_DELETED) from None
+        raise
 
 
 # --------------------------------------------------------------------------- reads
@@ -183,19 +189,15 @@ async def unused_author_count(db: AsyncSession) -> int:
 async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.UUID) -> None:
     """Delete an author no book lists; any member may (spec 008). Unknown → not found; with
     books (even one linked a moment ago) → conflict, and nothing is deleted."""
-    author = await get_author(db, author_id)
     try:
         async with db.begin_nested():
             deleted = await catalog.delete_unused_author(db, author_id)
-    except IntegrityError:  # pragma: no cover - the foreign key backstops the check above
+    except IntegrityError:  # the foreign key backstops the NOT EXISTS check
         deleted = False
     if not deleted:
         if await catalog.get_author(db, author_id) is None:
-            raise NotFoundError()  # deleted by someone else meanwhile
-        raise ConflictError(
-            "author_has_books", "This author has books", existing_id=author.id,
-            existing_label=author.name,
-        )  # fmt: skip
+            raise NotFoundError()  # unknown, or deleted by someone else meanwhile
+        raise ConflictError("author_has_books", "This author has books")
     logger.info("author %s deleted by member %s", author_id, actor_id)
 
 
@@ -337,11 +339,14 @@ async def update_author(
             raise ValidationFailed.single("real_name", PEN_NAME_FIRST)
         real = None  # unmarking a pen name drops its real name
     fields["real_name"] = normalize_name(real) if real else None
-    return await guarded(
+    author = await guarded(
         db,
         lambda: catalog.update_author(db, author_id, actor_id, **fields),
         name=fields.get("name"),
     )
+    if author is None:
+        raise NotFoundError()  # deleted by another member meanwhile (spec 008)
+    return author
 
 
 async def update_series(

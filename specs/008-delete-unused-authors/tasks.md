@@ -76,3 +76,19 @@ Each test task comes before its code and is seen failing first.
   meets the target size.
 - **SC-003:** with 200 unused authors beside the 1,500-author dataset, p95 is 16 ms for
   the list and 155 ms for My books with the link.
+- **PR #24 review fixes:**
+  - **Saving an author deleted meanwhile:** gives 404, not 500. `update_author` returns
+    the updated row, or None.
+  - **Adding or editing a book whose author was deleted meanwhile:** the
+    `book_author_author_id_fkey` violation becomes a field error ("An author you chose was
+    just deleted from the catalog. Choose the author again."), not a 500.
+  - **The confirm step re-checks:** if a book now lists the author, it shows the 409
+    explanation instead of claiming there are none.
+  - **The "Deleted" message is signed:**
+    - the redirect carries an HMAC of the name;
+    - a crafted link shows no message.
+  - **The API's 409** is a plain Problem with code `author_has_books`, without
+    `existing_id`, matching the generated document.
+  - **The foreign-key backstop** is covered by a test, and the pragma is removed.
+  - **Fewer queries:** the author's books are loaded only when a page is shown again, and
+    the delete no longer looks the author up twice.

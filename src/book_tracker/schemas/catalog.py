@@ -93,6 +93,28 @@ class Book(BaseModel):
     updated_at: datetime
 
 
+class BookRef(BaseModel):
+    id: uuid.UUID
+    title: str
+
+
+class Story(BaseModel):
+    """A story in a series, contained in one or more books (spec 009)."""
+
+    id: uuid.UUID
+    title: str
+    authors: list[BookAuthorRef]
+    series: SeriesRef
+    series_number: str = Field(
+        description='Decimal as a string, e.g. "2.5"', pattern=r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
+    )
+    books: list[BookRef] = Field(description="The books that contain it, by title")
+    created_by: UserRef
+    created_at: datetime
+    updated_by: UserRef
+    updated_at: datetime
+
+
 # --------------------------------------------------------------------------- input
 
 AuthorIds = Annotated[list[uuid.UUID], Field(min_length=1, max_length=20)]
@@ -188,3 +210,46 @@ def _require_changes(model: BaseModel, nullable: set[str]) -> None:
 
 class SummaryCreate(RequestModel):
     text: SummaryText
+
+
+class StoryAdd(RequestModel):
+    """Add an existing story (``story_id``) or a new one (the other four fields) to a book
+    (spec 009); not both."""
+
+    story_id: uuid.UUID | None = None
+    title: Title | None = None
+    author_ids: AuthorIds | None = None
+    series_id: uuid.UUID | None = None
+    series_number: SeriesNumberIn = None
+
+    _unique_authors = field_validator("author_ids")(
+        lambda ids: _unique(ids) if ids is not None else ids
+    )
+
+    @model_validator(mode="after")
+    def _one_shape(self) -> Self:
+        new = {"title", "author_ids", "series_id", "series_number"}
+        if self.story_id is not None:
+            if self.model_fields_set & new:
+                raise ValueError("Give either story_id or a new story's details, not both")
+            return self
+        missing = sorted(name for name in new if getattr(self, name) is None)
+        if missing:
+            raise ValueError(f"A new story needs {', '.join(missing)}")
+        return self
+
+
+class StoryUpdate(RequestModel):
+    title: Title | None = None
+    author_ids: AuthorIds | None = None
+    series_id: uuid.UUID | None = None
+    series_number: SeriesNumberIn = None
+
+    _unique_authors = field_validator("author_ids")(
+        lambda ids: _unique(ids) if ids is not None else ids
+    )
+
+    @model_validator(mode="after")
+    def _something(self) -> Self:
+        _require_changes(self, nullable=set())
+        return self

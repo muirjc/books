@@ -31,15 +31,25 @@
   <button type="submit" class="button-primary">Save author</button>
 </form>
 
-{#- Spec 008: the books that list this author; delete only when there are none. -#}
+{#- Spec 008: the books (and spec 009 stories) that list this author; delete only when
+    there are none. -#}
 <section aria-labelledby="author-books-heading" class="stack">
   <h2 id="author-books-heading">Books</h2>
   {% if delete_problem %}<p class="field-error" role="alert">{{ delete_problem }}</p>{% endif %}
+  {% if books or stories %}
   {% if books %}
   <ul class="link-list">
     {% for book in books %}<li><a href="/catalog/books/{{ book.id }}/edit">{{ book.title }}</a></li>{% endfor %}
   </ul>
-  <p class="muted">This author can't be deleted while books list them. Change those books' authors first.</p>
+  {% endif %}
+  {% if stories %}
+  {#- Spec 009: stories count too; an author they list can't be deleted. -#}
+  <h3>Stories</h3>
+  <ul class="link-list">
+    {% for story in stories %}<li><a href="/catalog/stories/{{ story.id }}/edit">{{ story.title }}</a></li>{% endfor %}
+  </ul>
+  {% endif %}
+  <p class="muted">{% if stories %}This author can't be deleted while books or stories list them. Change their authors first.{% else %}This author can't be deleted while books list them. Change those books' authors first.{% endif %}</p>
   {% else %}
   <p>No book in the family catalog lists this author.</p>
   <form method="post" action="/catalog/authors/{{ author.id }}/delete" class="inline-form">

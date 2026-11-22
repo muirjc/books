@@ -1,0 +1,12 @@
+{#- Another story already holds the series and number (spec 009 AC-05, AC-16). Expects:
+    taken (Story), offer (bool: offer adding it to this book). -#}
+<div class="conflict" role="alert" id="story-taken">
+  <p><strong>#{{ taken.series_number | series_number }} “{{ taken.title }}”</strong>
+  {%- if offer %} is already in the catalog, in {{ taken.books | map(attribute="title") | join(", ") }}.{% else %} already has this number in the series.{% endif %}</p>
+  {% if offer %}
+  <p>If it's the same story, add it to this book; otherwise change the number below.</p>
+  <button type="submit" name="use_story" value="{{ taken.id }}">Add that story to this book</button>
+  {% else %}
+  <p>Change the number, or <a href="/catalog/stories/{{ taken.id }}/edit">change that story's number</a> first.</p>
+  {% endif %}
+</div>

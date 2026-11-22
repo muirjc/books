@@ -1,0 +1,30 @@
+{#- Series and number (book and story forms). Expects: form (AddBookForm), series_conflict,
+    series_legend, number_hint -#}
+{% from "macros.html" import described, field_error %}
+<fieldset>
+  <legend>{{ series_legend }}</legend>
+  <div class="field-row">
+  <div class="field">
+    <label for="series_name">Series</label>
+    {% with name="series_name", kind="series", id_field="series_id", value=form.raw.get("series_name", ""), errors=form.errors, maxlength=200 %}{% include "partials/combobox.html" %}{% endwith %}
+    <input type="hidden" id="series_id" name="series_id" value="{{ '' if series_conflict else form.raw.get('series_id', '') }}">
+    {% if form.raw.get("confirm_series") %}<input type="hidden" name="confirm_series" value="{{ form.raw.get('confirm_series') }}">{% endif %}
+    {{ field_error(form.errors, "series_name") }}
+    {% if form.new_names.get("series_name") %}{% with nn=form.new_names.get("series_name") %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
+    {% if series_conflict %}
+    <div class="conflict" id="series_name-conflict">
+      <p class="field-error">Already in the catalog: “{{ series_conflict.existing_label }}”.</p>
+      <button type="submit" name="series_id" value="{{ series_conflict.existing_id }}">Use existing series “{{ series_conflict.existing_label }}”</button>
+    </div>
+    {% endif %}
+  </div>
+  <div class="field">
+    <label for="series_number">Number in series</label>
+    <input id="series_number" name="series_number" type="text" inputmode="decimal" maxlength="6"
+           value="{{ form.raw.get('series_number', '') }}"{{ described(form.errors, "series_number", hint=true) }}>
+    {# Below the box, so the label lines up with Series beside it (spec 003). #}
+    <p class="hint" id="series_number-hint">{{ number_hint }}</p>
+    {{ field_error(form.errors, "series_number") }}
+  </div>
+  </div>
+</fieldset>

@@ -14,6 +14,16 @@
   {% with suggest_title=false %}{% include "partials/book_fields.html" %}{% endwith %}
   <button type="submit" class="button-primary">Save book details</button>
 </form>
+<section aria-labelledby="stories" class="stories">
+<h2 id="stories">Stories in this book</h2>
+{% if story_message %}<p class="notice" role="status">{{ story_message }}</p>{% endif %}
+{% if stories %}
+{% with editable=true %}{% include "partials/book_stories.html" %}{% endwith %}
+{% else %}
+<p class="muted">No stories recorded for this book.</p>
+{% endif %}
+<p><a href="/catalog/books/{{ book.id }}/stories/add">Add a story</a> <span class="muted">(for a collection whose stories belong at places in a series)</span></p>
+</section>
 <h2>Related</h2>
 <ul>
   {% for a in book.authors %}<li><a href="/catalog/authors/{{ a.id }}/edit">Edit author “{{ a.name }}”</a></li>{% endfor %}

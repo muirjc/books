@@ -21,6 +21,7 @@ from book_tracker.domain import models as domain
 from book_tracker.domain.values import (
     PEN_NAME_FIRST,
     default_sort_name,
+    format_series_number,
     normalize_name,
     parse_isbn13,
     similar_names,
@@ -42,6 +43,7 @@ CONFLICT_TITLES = {
     "series_exists": "A series with this name is already in the catalog",
     "isbn_exists": "A book with this ISBN is already in the catalog",
     "series_number_taken": "Another book already has this number in the series",
+    "story_number_taken": "Another story already has this number in the series",
 }
 
 
@@ -56,7 +58,18 @@ class NewBook:
     release_date: date | None = None  # spec 007
 
 
+@dataclass(frozen=True, slots=True)
+class NewStory:
+    """A story to add to a book (spec 009)."""
+
+    title: str
+    author_ids: list[uuid.UUID]
+    series_id: uuid.UUID
+    series_number: Decimal
+
+
 AUTHOR_DELETED = "An author you chose was just deleted from the catalog. Choose the author again."
+STORY_DELETED = "That story was just deleted from the catalog."
 
 
 def _constraint(exc: IntegrityError) -> str | None:
@@ -90,6 +103,14 @@ async def _conflict(
     ):
         code = "series_number_taken"
         found = await catalog.find_book_by_series_number(db, series_id, series_number)
+    elif (
+        constraint == "story_series_number_uq"
+        and series_id is not None
+        and series_number is not None
+    ):
+        story = await catalog.find_story_by_series_number(db, series_id, series_number)
+        if story is not None:
+            return story_conflict(story)
     if code is None or found is None:
         return None
     return ConflictError(code, CONFLICT_TITLES[code], existing_id=found[0], existing_label=found[1])
@@ -114,10 +135,24 @@ async def guarded[T](
         )
         if conflict is not None:
             raise conflict from None
-        if _constraint(exc) == "book_author_author_id_fkey":
+        if _constraint(exc) in ("book_author_author_id_fkey", "story_author_author_id_fkey"):
             # A chosen author was deleted after the check (spec 008, PR #24 review).
             raise ValidationFailed.single("author_ids", AUTHOR_DELETED) from None
         raise
+
+
+def story_label(story: domain.Story) -> str:
+    """ "#2.5 Publicity and Advertising" """
+    return f"#{format_series_number(story.series_number)} {story.title}"
+
+
+def story_conflict(story: domain.Story) -> ConflictError:
+    return ConflictError(
+        "story_number_taken",
+        CONFLICT_TITLES["story_number_taken"],
+        existing_id=story.id,
+        existing_label=story_label(story),
+    )
 
 
 # --------------------------------------------------------------------------- reads
@@ -400,3 +435,134 @@ async def update_book(
         series_id=series_id,
         series_number=number,
     )
+
+
+# --------------------------------------------------------------------------- stories (spec 009)
+
+
+async def get_story(db: AsyncSession, story_id: uuid.UUID) -> domain.Story:
+    story = await catalog.get_story(db, story_id)
+    if story is None:
+        raise NotFoundError()
+    return story
+
+
+async def book_stories(db: AsyncSession, book_id: uuid.UUID) -> list[domain.Story]:
+    return await catalog.book_stories(db, book_id)
+
+
+async def series_stories(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Story]:
+    return await catalog.series_stories(db, series_id)
+
+
+async def author_stories(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Story]:
+    return await catalog.author_stories(db, author_id)
+
+
+async def story_at(db: AsyncSession, series_id: uuid.UUID, number: Decimal) -> domain.Story | None:
+    """The story holding this number in the series, if any (AC-05: offered, not doubled)."""
+    return await catalog.find_story_by_series_number(db, series_id, number)
+
+
+async def search_stories(db: AsyncSession, q: str, limit: int = 10) -> list[domain.Story]:
+    return await catalog.search_stories(db, q.strip(), limit)
+
+
+async def story_matches(
+    db: AsyncSession, book_ids: list[uuid.UUID], q: str
+) -> dict[uuid.UUID, str]:
+    return await catalog.story_matches(db, book_ids, q.strip())
+
+
+def _story_deleted(exc: IntegrityError) -> bool:
+    return _constraint(exc) == "book_story_story_id_fkey"
+
+
+async def add_new_story(
+    db: AsyncSession, actor_id: uuid.UUID, book_id: uuid.UUID, new: NewStory
+) -> domain.Story:
+    """Create a story and put it in the book, in one savepoint. A number another story
+    holds is a ``story_number_taken`` conflict naming it."""
+    if not await catalog.book_exists(db, book_id):
+        raise NotFoundError()
+    await _check_references(db, new.author_ids, new.series_id)
+    title = normalize_name(new.title)
+
+    async def create() -> uuid.UUID:
+        story_id = await catalog.create_story(
+            db,
+            title=title,
+            author_ids=new.author_ids,
+            series_id=new.series_id,
+            series_number=new.series_number,
+            actor_id=actor_id,
+        )
+        await catalog.link_story(db, book_id, story_id)
+        return story_id
+
+    story_id = await guarded(db, create, series_id=new.series_id, series_number=new.series_number)
+    logger.info("story %s added to book %s by member %s", story_id, book_id, actor_id)
+    return await get_story(db, story_id)
+
+
+async def add_existing_story(
+    db: AsyncSession, actor_id: uuid.UUID, book_id: uuid.UUID, story_id: uuid.UUID
+) -> tuple[domain.Story, bool]:
+    """Put an existing story in the book as well (AC-17). Returns (story, added); added is
+    False when the book already had it."""
+    if not await catalog.book_exists(db, book_id):
+        raise NotFoundError()
+    await get_story(db, story_id)
+    try:
+        async with db.begin_nested():
+            added = await catalog.link_story(db, book_id, story_id)
+    except IntegrityError as exc:
+        if _story_deleted(exc):  # its last link was removed meanwhile (research R2)
+            raise NotFoundError() from None
+        raise
+    if added:
+        logger.info("story %s added to book %s by member %s", story_id, book_id, actor_id)
+    return await get_story(db, story_id), added
+
+
+async def update_story(
+    db: AsyncSession, actor_id: uuid.UUID, story_id: uuid.UUID, changes: dict[str, Any]
+) -> domain.Story:
+    current = await get_story(db, story_id)
+    author_ids = changes.get("author_ids")
+    if author_ids is not None and not author_ids:
+        raise ValidationFailed.single("author_ids", "A story needs at least one author")
+    series_id = changes.get("series_id") or current.series.id
+    number = changes.get("series_number")
+    if number is None:
+        number = current.series_number
+    await _check_references(
+        db, author_ids or [], series_id if series_id != current.series.id else None
+    )
+    fields: dict[str, Any] = {"series_id": series_id, "series_number": number}
+    if changes.get("title") is not None:
+        fields["title"] = normalize_name(changes["title"])
+    updated = await guarded(
+        db,
+        lambda: catalog.update_story(db, story_id, actor_id, author_ids=author_ids, **fields),
+        series_id=series_id,
+        series_number=number,
+    )
+    if not updated:
+        raise NotFoundError()  # deleted by another member meanwhile
+    return await get_story(db, story_id)
+
+
+async def remove_story(
+    db: AsyncSession, actor_id: uuid.UUID, book_id: uuid.UUID, story_id: uuid.UUID
+) -> bool:
+    """Take the story out of the book; True when that deleted it from the catalog (it was
+    in no other book). Not in this book → not found."""
+    removed, deleted = await catalog.unlink_story(db, book_id, story_id)
+    if not removed:
+        raise NotFoundError()
+    logger.info(
+        "story %s removed from book %s by member %s%s",
+        story_id, book_id, actor_id, " (deleted)" if deleted else "",
+    )  # fmt: skip
+    return deleted

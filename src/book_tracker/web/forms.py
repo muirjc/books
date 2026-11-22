@@ -341,3 +341,55 @@ def series_start_form(series: domain.Series, number: str) -> AddBookForm:
         raw["series_number"] = format_series_number(value)
     raw["status"] = ReadingStatus.WANT_TO_READ.value
     return AddBookForm(status=ReadingStatus.WANT_TO_READ, raw=raw)
+
+
+# --------------------------------------------------------------------------- stories (spec 009)
+
+STORY_NUMBER_MISSING = "Enter the story's number in the series"
+
+
+def parse_story(form: FormData) -> tuple[AddBookForm, uuid.UUID | None, uuid.UUID | None]:
+    """The Add or Edit story form: the book form's title, author, series and number checks
+    (new-name prompts included, spec 005), plus a required series and number. Returns the
+    form, a story picked from the title suggestions, and a story chosen with "Add that
+    story to this book" (research R5)."""
+    # Never a book id, so the book form's field checks always run.
+    parsed = parse_add_book(FormData([(k, v) for k, v in form.multi_items() if k != "book_id"]))
+    for name in ("isbn_13", "release_date", "summary"):
+        parsed.errors.pop(name, None)
+    if not parsed.series_name:
+        parsed.errors.setdefault("series_name", "Choose a series")
+    if parsed.series_number is None:
+        parsed.errors.setdefault("series_number", STORY_NUMBER_MISSING)
+    return parsed, optional_uuid(form, "story_id"), optional_uuid(form, "use_story")
+
+
+def _author_raw(authors: tuple[domain.BookAuthor, ...]) -> dict[str, str]:
+    raw: dict[str, str] = {}
+    for i, author in enumerate(authors):
+        raw[f"author_name_{i}"] = author.name
+        raw[f"author_id_{i}"] = str(author.id)
+    return raw
+
+
+def story_start_form(book: domain.Book) -> AddBookForm:
+    """Add a story to ``book``: its authors and series filled in (AC-02)."""
+    raw = _author_raw(book.authors)
+    if book.series is not None:
+        raw["series_name"] = book.series.name
+        raw["series_id"] = str(book.series.id)
+    return AddBookForm(raw=raw)
+
+
+def story_form(story: domain.Story) -> AddBookForm:
+    """A story's current details as a filled-in form."""
+    raw = _author_raw(story.authors)
+    raw.update(
+        {
+            "title": story.title,
+            "series_name": story.series.name,
+            "series_id": str(story.series.id),
+            "series_number": format_series_number(story.series_number),
+        }
+    )
+    return AddBookForm(raw=raw)

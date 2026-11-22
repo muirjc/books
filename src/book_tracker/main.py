@@ -19,6 +19,7 @@ from book_tracker.api import imports as api_imports
 from book_tracker.api import me as api_me
 from book_tracker.api import readings as api_readings
 from book_tracker.api import series as api_series
+from book_tracker.api import stories as api_stories
 from book_tracker.api.errors import (
     Conflict,
     FieldProblem,
@@ -38,6 +39,7 @@ from book_tracker.web.routes import catalog as web_catalog
 from book_tracker.web.routes import health as web_health
 from book_tracker.web.routes import imports as web_imports
 from book_tracker.web.routes import readings as web_readings
+from book_tracker.web.routes import stories as web_stories
 from book_tracker.web.routes import suggest as web_suggest
 from book_tracker.web.security import SecurityHeadersMiddleware
 
@@ -102,6 +104,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     api.include_router(api_books.router)
     api.include_router(api_authors.router)
     api.include_router(api_series.router)
+    api.include_router(api_stories.router)
     api.include_router(api_admin.router)
     api.include_router(api_imports.router)
     app.include_router(api)
@@ -110,6 +113,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     app.include_router(web_readings.router)
     app.include_router(web_admin.router)
     app.include_router(web_catalog.router)
+    app.include_router(web_stories.router)
     app.include_router(web_suggest.router)
     app.include_router(web_health.router)
     app.include_router(web_imports.router)

@@ -1,0 +1,18 @@
+{#- A book's stories (spec 009), "#n Series — Title". Expects: stories, and editable (bool):
+    Edit book adds Edit and Remove for each. -#}
+<ul class="story-list" role="list">
+  {% for story in stories %}
+  <li>
+    <span class="story-place">#{{ story.series_number | series_number }} <a href="/series/{{ story.series.id }}">{{ story.series.name }}</a> — </span><span class="story-title">{{ story.title }}</span>
+    {% if editable %}
+    <span class="story-actions">
+      <a href="/catalog/stories/{{ story.id }}/edit">Edit<span class="visually-hidden"> “{{ story.title }}”</span></a>
+      <form method="post" action="/catalog/books/{{ book.id }}/stories/{{ story.id }}/remove" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Remove<span class="visually-hidden"> “{{ story.title }}”</span></button>
+      </form>
+    </span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>

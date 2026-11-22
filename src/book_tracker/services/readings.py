@@ -17,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from book_tracker.domain.enums import ReadingStatus
-from book_tracker.domain.models import Book, ReadingEntry, ReadingEntryPage, Series
+from book_tracker.domain.models import Book, BookRef, ReadingEntry, ReadingEntryPage, Series, Story
 from book_tracker.persistence import catalog
 from book_tracker.persistence.readings import SORTS, FilterOptions, ReadingEntryRepository
 from book_tracker.services import catalog as catalog_service
@@ -120,25 +120,40 @@ GAP_RUN_ROWS = 3  # a run of missing numbers longer than this is one row (spec 0
 
 @dataclass(frozen=True, slots=True)
 class SeriesRow:
-    """A series page row: a catalog book with my entry (or none), or a gap in the
-    numbering from ``first`` to ``last``."""
+    """A series page row: a catalog book with my entry (or none); a story (spec 009) with
+    the books it's in, my entry for each, and my derived status; or a gap in the numbering
+    from ``first`` to ``last``."""
 
     book: Book | None = None
     entry: ReadingEntry | None = None
     first: int = 0
     last: int = 0
+    contains: tuple[Decimal, ...] = ()  # a book's story numbers in this series (AC-14)
+    story: Story | None = None
+    story_books: tuple[tuple[BookRef, ReadingEntry | None], ...] = ()
+    story_status: ReadingStatus | None = None
+    story_finished_on: date | None = None
+
+    @property
+    def number(self) -> Decimal | None:
+        if self.story is not None:
+            return self.story.series_number
+        return self.book.series_number if self.book is not None else None
 
 
 @dataclass(frozen=True, slots=True)
 class SeriesView:
     rows: tuple[SeriesRow, ...]
     finished: int  # my Finished entries among the listed books
-    total: int  # catalog books listed; gaps don't count
+    total: int  # catalog books listed; gaps and stories don't count
+    stories_finished: int = 0  # stories in a book I've finished (spec 009 AC-13)
+    stories_total: int = 0
 
 
 def _gap_runs(numbers: set[Decimal], top: int) -> list[tuple[int, int]]:
-    """Runs of whole numbers 1..top that no book has exactly; long runs as one. A book
-    numbered between two missing numbers (say 3.5) ends a run, so it keeps its place."""
+    """Runs of whole numbers 1..top that no book or story has exactly; long runs as one. A
+    book or story numbered between two missing numbers (say 3.5) ends a run, so it keeps
+    its place."""
     missing = [n for n in range(1, top + 1) if n not in numbers]
     between = {math.floor(n) for n in numbers if n != math.floor(n)}  # 3.5 → between 3 and 4
     runs: list[list[int]] = []
@@ -156,23 +171,68 @@ def _gap_runs(numbers: set[Decimal], top: int) -> list[tuple[int, int]]:
     return out
 
 
-def series_rows(books: Sequence[Book], entries: Sequence[ReadingEntry]) -> SeriesView:
-    """Merge a series' catalog books (in catalog order: by number, then unnumbered) with
-    my entries, adding gap rows for missing whole numbers (spec 006, research R2)."""
-    mine = {entry.book.id: entry for entry in entries}
-    numbers = {book.series_number for book in books if book.series_number is not None}
-    top = math.floor(max(numbers)) if numbers else 0
-    gaps = _gap_runs(numbers, top)
-    rows: list[SeriesRow] = []
-    for book in books:
-        while gaps and book.series_number is not None and book.series_number > gaps[0][1]:
-            rows.append(SeriesRow(first=gaps[0][0], last=gaps[0][1]))
-            gaps.pop(0)
-        rows.append(SeriesRow(book=book, entry=mine.get(book.id)))
-    finished = sum(
-        1 for row in rows if row.entry is not None and row.entry.status is ReadingStatus.FINISHED
+STATUS_RANK = {ReadingStatus.FINISHED: 0, ReadingStatus.READING: 1, ReadingStatus.WANT_TO_READ: 2}
+
+
+def _story_row(story: Story, mine: dict[uuid.UUID, ReadingEntry]) -> SeriesRow:
+    """My place in a story is my best entry among the books it's in (research R3): Finished
+    (latest date), else Reading, else Want to read."""
+    books = tuple((ref, mine.get(ref.id)) for ref in story.books)
+    held = [found for _, found in books if found is not None]
+    status = min((e.status for e in held), key=STATUS_RANK.__getitem__, default=None)
+    dates = [e.finished_on for e in held if e.status is status and e.finished_on is not None]
+    finished_on = max(dates) if status is ReadingStatus.FINISHED and dates else None
+    return SeriesRow(
+        story=story, story_books=books, story_status=status, story_finished_on=finished_on
     )
-    return SeriesView(rows=tuple(rows), finished=finished, total=len(books))
+
+
+def series_rows(
+    books: Sequence[Book], entries: Sequence[ReadingEntry], stories: Sequence[Story] = ()
+) -> SeriesView:
+    """Merge a series' catalog books (in catalog order: by number, then unnumbered) and its
+    stories (by number) with my entries, adding gap rows for missing whole numbers
+    (spec 006 research R2, spec 009 R4). At one number the book comes first. ``entries``
+    are mine for the series' books and for every book containing one of its stories."""
+    mine = {entry.book.id: entry for entry in entries}
+    holds: dict[uuid.UUID, list[Decimal]] = {}
+    for story in stories:
+        for ref in story.books:
+            holds.setdefault(ref.id, []).append(story.series_number)
+    rows = [
+        SeriesRow(
+            book=book, entry=mine.get(book.id), contains=tuple(sorted(holds.get(book.id, ())))
+        )
+        for book in books
+    ] + [_story_row(story, mine) for story in stories]
+    numbered = sorted(
+        (row for row in rows if row.number is not None),
+        key=lambda row: (row.number, row.story is not None),
+    )
+    unnumbered = [row for row in rows if row.number is None]
+    numbers = {row.number for row in numbered if row.number is not None}
+    gaps = _gap_runs(numbers, math.floor(max(numbers)) if numbers else 0)
+    ordered: list[SeriesRow] = []
+    for row in numbered:
+        while gaps and row.number is not None and row.number > gaps[0][1]:
+            ordered.append(SeriesRow(first=gaps[0][0], last=gaps[0][1]))
+            gaps.pop(0)
+        ordered.append(row)
+    ordered += unnumbered
+    finished = sum(
+        1
+        for row in ordered
+        if row.story is None
+        and row.entry is not None
+        and row.entry.status is ReadingStatus.FINISHED
+    )
+    return SeriesView(
+        rows=tuple(ordered),
+        finished=finished,
+        total=len(books),
+        stories_finished=sum(1 for row in ordered if row.story_status is ReadingStatus.FINISHED),
+        stories_total=len(stories),
+    )
 
 
 async def series_view(
@@ -187,11 +247,15 @@ async def series_view(
 async def whole_series_view(
     db: AsyncSession, user_id: uuid.UUID, series_id: uuid.UUID
 ) -> tuple[Series, SeriesView]:
-    """Every catalog book in a series with my own entries, and gaps (spec 006, the series
-    page). Only my entries are read (Principle I). Unknown series → not found."""
-    series, entries = await series_view(db, user_id, series_id)
+    """Every catalog book and story in a series with my own entries, and gaps (spec 006,
+    spec 009, the series page). Only my entries are read (Principle I). Unknown series →
+    not found."""
+    series = await catalog_service.get_series(db, series_id)
     books = await catalog_service.series_books(db, series_id)
-    return series, series_rows(books, entries)
+    stories = await catalog_service.series_stories(db, series_id)
+    book_ids = {book.id for book in books} | {ref.id for s in stories for ref in s.books}
+    entries = await ReadingEntryRepository(db, user_id).list_books(book_ids)
+    return series, series_rows(books, entries, stories)
 
 
 async def filter_options(

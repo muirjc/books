@@ -7,12 +7,14 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, exists, func, insert, or_, select, update
+from sqlalchemy import Select, delete, exists, func, insert, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from book_tracker.domain import models as domain
 from book_tracker.persistence import models
-from book_tracker.persistence.mappers import to_author, to_book, to_series, to_summary
+from book_tracker.persistence.mappers import to_author, to_book, to_series, to_story, to_summary
 
 # --------------------------------------------------------------------------- reads
 
@@ -143,7 +145,10 @@ async def list_series_books(db: AsyncSession, series_id: uuid.UUID) -> list[doma
 
 
 def _has_no_books() -> Any:
-    return ~exists().where(models.BookAuthor.author_id == models.Author.id)
+    """No book and no story lists the author (spec 008, spec 009 R8)."""
+    return ~exists().where(models.BookAuthor.author_id == models.Author.id) & ~exists().where(
+        models.StoryAuthor.author_id == models.Author.id
+    )
 
 
 async def author_books(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Book]:
@@ -186,7 +191,7 @@ async def unused_author_count(db: AsyncSession) -> int:
 
 
 async def delete_unused_author(db: AsyncSession, author_id: uuid.UUID) -> bool:
-    """Delete the author only if no book lists it, in one statement, so a book linked
+    """Delete the author only if no book or story lists it, in one statement, so a book linked
     meanwhile keeps it (spec 008 FR-003). False when it wasn't deleted."""
     deleted = await db.execute(
         delete(models.Author)
@@ -298,7 +303,8 @@ def like_patterns(q: str) -> tuple[str, str]:
 async def search_books(
     db: AsyncSession, q: str, limit: int, isbn_13: str | None = None
 ) -> list[domain.Book]:
-    """Title, author name or real name; an exact ISBN match ranks first (research R7)."""
+    """Title, author name, real name or a story's title (spec 009); an exact ISBN match
+    ranks first (research R7)."""
     contains, prefix = like_patterns(q)
     by_author = exists().where(
         models.BookAuthor.book_id == models.Book.id,
@@ -308,7 +314,12 @@ async def search_books(
             models.Author.real_name.ilike(contains, escape="\\"),
         ),
     )
-    conditions = [models.Book.title.ilike(contains, escape="\\"), by_author]
+    by_story = exists().where(  # spec 009: a collection found by one of its stories
+        models.BookStory.book_id == models.Book.id,
+        models.BookStory.story_id == models.Story.id,
+        models.Story.title.ilike(contains, escape="\\"),
+    )
+    conditions = [models.Book.title.ilike(contains, escape="\\"), by_author, by_story]
     order: list[Any] = []
     if isbn_13 is not None:
         conditions.append(models.Book.isbn_13 == isbn_13)
@@ -429,6 +440,204 @@ async def update_book(
     book = await get_book(db, book_id)
     assert book is not None  # noqa: S101 - checked by the service
     return book
+
+
+# --------------------------------------------------------------------------- stories (spec 009)
+
+
+def _stories() -> Select[models.Story]:
+    return select(models.Story).execution_options(populate_existing=True)
+
+
+async def _story_list(db: AsyncSession, query: Select[models.Story]) -> list[domain.Story]:
+    rows = (await db.execute(query)).scalars().unique().all()
+    return [to_story(row) for row in rows]
+
+
+async def get_story(db: AsyncSession, story_id: uuid.UUID) -> domain.Story | None:
+    row = (await db.execute(_stories().where(models.Story.id == story_id))).scalar_one_or_none()
+    return to_story(row) if row else None
+
+
+async def book_stories(db: AsyncSession, book_id: uuid.UUID) -> list[domain.Story]:
+    """The stories a book contains, by series name, then number."""
+    return await _story_list(
+        db,
+        _stories()
+        .join(models.BookStory, models.BookStory.story_id == models.Story.id)
+        .join(models.Series, models.Series.id == models.Story.series_id)
+        .where(models.BookStory.book_id == book_id)
+        .order_by(func.lower(models.Series.name), models.Story.series_number),
+    )
+
+
+async def series_stories(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Story]:
+    """Every story in a series, by number."""
+    return await _story_list(
+        db,
+        _stories().where(models.Story.series_id == series_id).order_by(models.Story.series_number),
+    )
+
+
+async def author_stories(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Story]:
+    """The stories that list this author, by title."""
+    return await _story_list(
+        db,
+        _stories()
+        .join(models.StoryAuthor, models.StoryAuthor.story_id == models.Story.id)
+        .where(models.StoryAuthor.author_id == author_id)
+        .order_by(func.lower(models.Story.title), models.Story.id),
+    )
+
+
+async def find_story_by_series_number(
+    db: AsyncSession, series_id: uuid.UUID, number: Decimal
+) -> domain.Story | None:
+    row = (
+        await db.execute(
+            _stories().where(
+                models.Story.series_id == series_id, models.Story.series_number == number
+            )
+        )
+    ).scalar_one_or_none()
+    return to_story(row) if row else None
+
+
+async def search_stories(db: AsyncSession, q: str, limit: int) -> list[domain.Story]:
+    contains, prefix = like_patterns(q)
+    return await _story_list(
+        db,
+        _stories()
+        .where(models.Story.title.ilike(contains, escape="\\"))
+        .order_by(
+            models.Story.title.ilike(prefix, escape="\\").desc(),
+            func.lower(models.Story.title),
+            models.Story.id,
+        )
+        .limit(limit),
+    )
+
+
+async def story_matches(
+    db: AsyncSession, book_ids: list[uuid.UUID], q: str
+) -> dict[uuid.UUID, str]:
+    """For each of these books, the first of its story titles that matches ``q`` (R7)."""
+    if not book_ids:
+        return {}
+    contains = like_patterns(q)[0]
+    rows = await db.execute(
+        select(models.BookStory.book_id, models.Story.title)
+        .join(models.Story, models.Story.id == models.BookStory.story_id)
+        .where(
+            models.BookStory.book_id.in_(book_ids),
+            models.Story.title.ilike(contains, escape="\\"),
+        )
+        .order_by(models.BookStory.book_id, models.Story.series_number, models.Story.id)
+    )
+    found: dict[uuid.UUID, str] = {}
+    for book_id, title in rows:
+        found.setdefault(book_id, title)
+    return found
+
+
+async def create_story(
+    db: AsyncSession,
+    *,
+    title: str,
+    author_ids: list[uuid.UUID],
+    series_id: uuid.UUID,
+    series_number: Decimal,
+    actor_id: uuid.UUID,
+) -> uuid.UUID:
+    story_id = uuid.uuid4()
+    await db.execute(
+        insert(models.Story).values(
+            id=story_id,
+            title=title,
+            series_id=series_id,
+            series_number=series_number,
+            created_by=actor_id,
+            updated_by=actor_id,
+        )
+    )
+    await _set_story_authors(db, story_id, author_ids)
+    return story_id
+
+
+async def _set_story_authors(
+    db: AsyncSession, story_id: uuid.UUID, author_ids: list[uuid.UUID]
+) -> None:
+    await db.execute(delete(models.StoryAuthor).where(models.StoryAuthor.story_id == story_id))
+    await db.execute(
+        insert(models.StoryAuthor),
+        [
+            {"story_id": story_id, "author_id": author_id, "position": position}
+            for position, author_id in enumerate(author_ids, start=1)
+        ],
+    )
+
+
+async def link_story(db: AsyncSession, book_id: uuid.UUID, story_id: uuid.UUID) -> bool:
+    """Put the story in the book; False when it already was."""
+    linked = await db.execute(
+        pg_insert(models.BookStory)
+        .values(book_id=book_id, story_id=story_id)
+        .on_conflict_do_nothing()
+        .returning(models.BookStory.story_id)
+    )
+    return linked.scalar_one_or_none() is not None
+
+
+async def unlink_story(
+    db: AsyncSession, book_id: uuid.UUID, story_id: uuid.UUID
+) -> tuple[bool, bool]:
+    """Take the story out of the book, then delete it if no book holds it any more, so a
+    story is never in no book (research R2). Returns (removed, deleted)."""
+    removed = await db.execute(
+        delete(models.BookStory)
+        .where(models.BookStory.book_id == book_id, models.BookStory.story_id == story_id)
+        .returning(models.BookStory.story_id)
+    )
+    if removed.scalar_one_or_none() is None:
+        return False, False
+    try:
+        async with db.begin_nested():
+            deleted = await db.execute(
+                delete(models.Story)
+                .where(
+                    models.Story.id == story_id,
+                    ~exists().where(models.BookStory.story_id == models.Story.id),
+                )
+                .returning(models.Story.id)
+            )
+            return True, deleted.scalar_one_or_none() is not None
+    except IntegrityError:
+        # Another member put the story in a book while this delete waited on their lock:
+        # the NOT EXISTS above didn't see it, and the RESTRICT foreign key did (PR #28
+        # review). The story stays, in that book.
+        return True, False
+
+
+async def update_story(
+    db: AsyncSession,
+    story_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    *,
+    author_ids: list[uuid.UUID] | None = None,
+    **fields: object,
+) -> bool:
+    """False when the story no longer exists."""
+    updated = await db.execute(
+        update(models.Story)
+        .where(models.Story.id == story_id)
+        .values(**fields, updated_by=actor_id, updated_at=func.now())
+        .returning(models.Story.id)
+    )
+    if updated.scalar_one_or_none() is None:
+        return False
+    if author_ids is not None:
+        await _set_story_authors(db, story_id, author_ids)
+    return True
 
 
 # --------------------------------------------------------------------------- summaries

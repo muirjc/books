@@ -89,6 +89,34 @@ def to_book(row: orm.Book) -> domain.Book:
     )
 
 
+def to_story(row: orm.Story) -> domain.Story:
+    return domain.Story(
+        id=row.id,
+        title=row.title,
+        authors=tuple(
+            domain.BookAuthor(
+                id=link.author.id,
+                name=link.author.name,
+                real_name=link.author.real_name,
+                position=link.position,
+            )
+            for link in sorted(row.author_links, key=lambda link: link.position)
+        ),
+        series=domain.SeriesRef(id=row.series.id, name=row.series.name),
+        series_number=row.series_number,
+        books=tuple(
+            domain.BookRef(id=link.book_id, title=link.book_title)
+            for link in sorted(
+                row.book_links, key=lambda link: (link.book_title.lower(), link.book_id)
+            )
+        ),
+        created_by=to_user_ref(row.created_by_user),
+        created_at=row.created_at,
+        updated_by=to_user_ref(row.updated_by_user),
+        updated_at=row.updated_at,
+    )
+
+
 def to_reading_entry(row: orm.ReadingEntry) -> domain.ReadingEntry:
     return domain.ReadingEntry(
         id=row.id,

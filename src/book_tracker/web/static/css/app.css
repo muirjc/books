@@ -248,3 +248,16 @@ main p, main .hint, main .notice { max-width: 75ch; }
 /* Spec 008: lists of links (an author's books, authors with no books), 44 px targets. */
 .link-list { padding-left: 1.25rem; margin: 0; }
 .link-list a, .tidy-link a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
+
+/* Spec 009: stories. On the series page a story row reads like a book row, with a "Story"
+   tag before its title and its containing books as links (44 px targets). */
+.story-label { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 0 0.3rem; margin-right: 0.25rem; font-size: 0.85rem; font-weight: 400; }
+.series-rows .series-detail a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
+.story-adds { display: inline-flex; flex-wrap: wrap; gap: 0 0.75rem; }
+.story-adds a { display: inline-flex; align-items: center; min-height: var(--target); }
+/* A book's stories (Edit book, entry page): place, title, then Edit and Remove. */
+.story-list { list-style: none; margin: 0; padding: 0; }
+.story-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; border-bottom: 1px solid #d5dae1; min-height: var(--target); }
+.story-list a, .story-list button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--target); min-width: var(--target); }
+.story-title { font-weight: 600; }
+.story-actions { display: inline-flex; align-items: center; gap: 0.5rem; margin-left: auto; }

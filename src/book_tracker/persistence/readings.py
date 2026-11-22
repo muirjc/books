@@ -185,6 +185,15 @@ class ReadingEntryRepository:
         )
         return tuple(to_reading_entry(row) for row in rows)
 
+    async def list_books(self, book_ids: Collection[uuid.UUID]) -> tuple[ReadingEntry, ...]:
+        """My entries for these catalog books, if any (spec 009: the series page's story
+        statuses)."""
+        if not book_ids:
+            return ()
+        return await self._books_where(
+            models.Book.id.in_(list(book_ids)), order=[models.ReadingEntry.id.asc()]
+        )
+
     async def list_upcoming(self, today: date) -> tuple[ReadingEntry, ...]:
         """My books not out yet, soonest first (spec 007, the Upcoming page)."""
         return await self._books_where(models.Book.release_date > today, order=_soonest_first())

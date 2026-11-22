@@ -104,6 +104,28 @@ class Book:
 
 
 @dataclass(frozen=True, slots=True)
+class BookRef:
+    id: uuid.UUID
+    title: str
+
+
+@dataclass(frozen=True, slots=True)
+class Story:
+    """A story in a series, contained in one or more books (spec 009)."""
+
+    id: uuid.UUID
+    title: str
+    authors: tuple[BookAuthor, ...]
+    series: SeriesRef
+    series_number: Decimal
+    books: tuple[BookRef, ...]  # by title
+    created_by: UserRef
+    created_at: datetime
+    updated_by: UserRef
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class ReadingEntry:
     id: uuid.UUID
     book: Book

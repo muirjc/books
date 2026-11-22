@@ -1,4 +1,4 @@
-"""SQLAlchemy models for the nine tables in data-model.md.
+"""SQLAlchemy models for the tables in the specs' data-model.md files.
 
 Every constraint and index is named explicitly so services can map ``IntegrityError`` to a
 conflict code by constraint name (research R9). Migration 0001 creates the same schema.
@@ -25,10 +25,11 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    select,
 )
 from sqlalchemy import text as sql_text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, column_property, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -254,6 +255,87 @@ class BookAuthor(Base):
 
     book: Mapped[Book] = relationship(back_populates="author_links")
     author: Mapped[Author] = relationship(lazy="joined", innerjoin=True)
+
+
+class Story(Base):
+    """A story in a series, contained in one or more books (spec 009)."""
+
+    __tablename__ = "story"
+    __table_args__ = (
+        CheckConstraint(
+            "series_number >= 0 AND series_number <= 999.99", name="story_series_number_range"
+        ),
+        Index("story_series_number_uq", "series_id", "series_number", unique=True),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    series_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("series.id", ondelete="RESTRICT", name="story_series_id_fkey"),
+        nullable=False,
+    )
+    series_number: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    created_by: Mapped[uuid.UUID] = _user_fk("story_created_by_fkey")
+    updated_by: Mapped[uuid.UUID] = _user_fk("story_updated_by_fkey")
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = _updated_at()
+
+    series: Mapped[Series] = relationship(lazy="joined", innerjoin=True)
+    author_links: Mapped[list[StoryAuthor]] = relationship(
+        lazy="selectin", order_by="StoryAuthor.position", viewonly=True
+    )
+    book_links: Mapped[list[BookStory]] = relationship(lazy="selectin", viewonly=True)
+    created_by_user: Mapped[AppUser] = relationship(
+        foreign_keys="Story.created_by", lazy="joined", innerjoin=True
+    )
+    updated_by_user: Mapped[AppUser] = relationship(
+        foreign_keys="Story.updated_by", lazy="joined", innerjoin=True
+    )
+
+
+class StoryAuthor(Base):
+    __tablename__ = "story_author"
+    __table_args__ = (
+        CheckConstraint("position >= 1", name="story_author_position_check"),
+        UniqueConstraint("story_id", "position", name="story_author_position_key"),
+        Index("story_author_author_id_idx", "author_id"),
+    )
+
+    story_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("story.id", ondelete="CASCADE", name="story_author_story_id_fkey"),
+        primary_key=True,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("author.id", ondelete="RESTRICT", name="story_author_author_id_fkey"),
+        primary_key=True,
+    )
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+    author: Mapped[Author] = relationship(lazy="joined", innerjoin=True)
+
+
+class BookStory(Base):
+    __tablename__ = "book_story"
+    __table_args__ = (Index("book_story_story_id_idx", "story_id"),)
+
+    book_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("book.id", ondelete="CASCADE", name="book_story_book_id_fkey"),
+        primary_key=True,
+    )
+    story_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("story.id", ondelete="RESTRICT", name="book_story_story_id_fkey"),
+        primary_key=True,
+    )
+
+    # A story lists its books by id and title only, not the whole Book graph.
+    book_title: Mapped[str] = column_property(
+        select(Book.title).where(Book.id == book_id).correlate_except(Book).scalar_subquery()
+    )
 
 
 class BookSummary(Base):

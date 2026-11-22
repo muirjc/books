@@ -4,4 +4,4 @@
   <li role="option" id="{{ field }}-option-{{ loop.index }}" data-id="{{ item.id }}" data-value="{{ item.value }}" aria-selected="false">{{ item.value }}{% if item.detail %} <span class="muted">— {{ item.detail }}</span>{% endif %}</li>
   {%- endfor %}
 </ul>
-{% if q and not items %}<p class="muted">No matches. {% if kind == "books" %}Fill in the details below to add a new book.{% else %}A new entry will be created.{% endif %}</p>{% endif %}
+{% if q and not items %}<p class="muted">No matches. {% if kind == "books" %}Fill in the details below to add a new book.{% elif kind == "stories" %}Fill in the details below to add a new story.{% else %}A new entry will be created.{% endif %}</p>{% endif %}

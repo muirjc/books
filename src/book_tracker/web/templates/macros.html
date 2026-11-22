@@ -38,3 +38,13 @@
   To swap two books' numbers, clear one of them first.</p>
 {%- endif %}
 {%- endmacro %}
+
+{#- Spec 007 R9: "Coming 3 Mar 2027" while a book isn't out yet, and "Pre-ordered" for my
+    own entry while the book is upcoming or in its Now out period. Empty otherwise. -#}
+{% macro release_label(book, today, entry=none) -%}
+{%- set coming = is_upcoming(book.release_date, today) -%}
+{%- set pre = entry is not none and entry.pre_ordered and (coming or is_now_out(book.release_date, today)) -%}
+{%- if coming %}<span class="coming">Coming {{ book.release_date | nice_date }}</span>{% endif -%}
+{%- if coming and pre %} · {% endif -%}
+{%- if pre %}<span class="pre-ordered">Pre-ordered</span>{% endif -%}
+{%- endmacro %}

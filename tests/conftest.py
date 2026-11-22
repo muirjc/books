@@ -376,6 +376,7 @@ class Factory:
         series_id: uuid.UUID | None = None,
         series_number: str | None = None,
         isbn_13: str | None = None,
+        release_date: date | None = None,
     ) -> uuid.UUID:
         if author_ids is None:
             author_ids = [await self.author(f"Author of {title}", actor)]
@@ -388,6 +389,7 @@ class Factory:
                     series_id=series_id,
                     series_number=Decimal(series_number) if series_number is not None else None,
                     isbn_13=isbn_13,
+                    release_date=release_date,
                     created_by=actor.id,
                     updated_by=actor.id,
                 )
@@ -409,6 +411,7 @@ class Factory:
         finished_on: date | None = None,
         times_read: int | None = None,
         notes: str | None = None,
+        pre_ordered: bool = False,
     ) -> uuid.UUID:
         row = models.ReadingEntry(
             id=uuid.uuid4(),
@@ -418,6 +421,7 @@ class Factory:
             finished_on=finished_on,
             times_read=times_read if times_read is not None else (1 if status == "finished" else 0),
             notes=notes,
+            pre_ordered=pre_ordered,
         )
         await self._add(row)
         return row.id

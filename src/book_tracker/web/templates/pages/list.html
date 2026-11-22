@@ -6,6 +6,16 @@
   <p><a class="button button-primary" href="/books/add">Add a book</a></p>
 </div>
 
+{% if now_out %}
+{#- Spec 007 R6: books on my list I still want to read, out in the last 30 days. -#}
+<div class="notice" role="status" id="now-out">
+  <p><strong>Now out:</strong></p>
+  <ul>
+    {% for entry in now_out %}<li><a href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>{% if entry.pre_ordered %} (pre-ordered){% endif %}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 <form method="get" action="/" role="search" aria-label="Search and filter my books" class="filters"
       data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/" hx-target="#reading-list" hx-push-url="true"
       hx-trigger="submit, change, input changed delay:300ms from:#q">
@@ -51,6 +61,11 @@
       <option value="{{ id }}"{% if id | string == filters.series_id %} selected{% endif %}>{{ name }}</option>
       {% endfor %}
     </select>
+  </div>
+  <div class="field checkbox-field">
+    <input type="checkbox" id="upcoming" name="upcoming" value="1"{% if filters.upcoming %} checked{% endif %} aria-describedby="upcoming-hint">
+    <label for="upcoming">Upcoming only</label>
+    <p class="hint" id="upcoming-hint">Soonest first</p>
   </div>
   <div class="actions">
     <button type="submit">Apply</button>

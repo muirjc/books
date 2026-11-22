@@ -73,8 +73,10 @@ async def list_entries(
     series_id: uuid.UUID | None = None,
     status: ReadingStatus | None = None,
     sort: str = "title",
+    upcoming_after: date | None = None,
 ) -> ReadingEntryPage:
-    """My list, sorted, filtered and searched (FR-021, FR-023)."""
+    """My list, sorted, filtered and searched (FR-021, FR-023). With ``upcoming_after``
+    (today), only books not out yet, soonest first (spec 007)."""
     return await ReadingEntryRepository(db, user_id).list(
         page=page,
         page_size=page_size,
@@ -83,7 +85,34 @@ async def list_entries(
         series_id=series_id,
         status=status,
         sort=sort if sort in SORTS else "title",
+        upcoming_after=upcoming_after,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class UpcomingView:
+    """The Upcoming page (spec 007 R5): my books not out yet, then the family catalog's
+    other books not out yet."""
+
+    mine: tuple[ReadingEntry, ...]
+    others: tuple[Book, ...]
+
+
+async def upcoming_view(db: AsyncSession, user_id: uuid.UUID, today: date) -> UpcomingView:
+    """Only my own entries are read (Principle I); "others" is catalog data minus my
+    books."""
+    repo = ReadingEntryRepository(db, user_id)
+    mine = await repo.list_upcoming(today)
+    books = await catalog_service.upcoming_books(db, today)
+    on_my_list = await repo.book_ids_on_list([book.id for book in books])
+    return UpcomingView(
+        mine=mine, others=tuple(book for book in books if book.id not in on_my_list)
+    )
+
+
+async def now_out(db: AsyncSession, user_id: uuid.UUID, today: date) -> tuple[ReadingEntry, ...]:
+    """My Want to read books released in the last 30 days (spec 007 R6)."""
+    return await ReadingEntryRepository(db, user_id).list_now_out(today)
 
 
 GAP_RUN_ROWS = 3  # a run of missing numbers longer than this is one row (spec 006)
@@ -187,6 +216,7 @@ async def add_entry(
     status: ReadingStatus = ReadingStatus.FINISHED,
     finished_on: date | None = None,
     notes: str | None = None,
+    pre_ordered: bool = False,
 ) -> ReadingEntry:
     repo = ReadingEntryRepository(db, user_id)
     if new_book is not None:
@@ -213,6 +243,7 @@ async def add_entry(
                 finished_on=finished_on,
                 times_read=times_read,
                 notes=notes,
+                pre_ordered=pre_ordered,
             )
     except IntegrityError:
         # Added concurrently by another request from the same member.
@@ -230,7 +261,9 @@ async def update_entry(
     if entry is None:
         raise NotFoundError()
     new_status: ReadingStatus = changes.get("status") or entry.status
-    fields: dict[str, Any] = {k: v for k, v in changes.items() if k in {"finished_on", "notes"}}
+    fields: dict[str, Any] = {
+        k: v for k, v in changes.items() if k in {"finished_on", "notes", "pre_ordered"}
+    }
     fields["status"] = new_status
     fields["times_read"] = apply_status_change(
         entry.status, new_status, entry.times_read, changes.get("times_read")

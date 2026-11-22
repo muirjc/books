@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import described, field_error, error_summary, conflict_notice, authors_line, series_line %}
+{% from "macros.html" import described, field_error, error_summary, conflict_notice, authors_line, series_line, release_label %}
 {% block title %}Add a book{% endblock %}
 {% block content %}
 <h1>Add a book</h1>
@@ -27,6 +27,7 @@
     <input type="hidden" name="status" value="{{ form.status }}">
     <input type="hidden" name="finished_on" value="{{ form.raw.get('finished_on', '') }}">
     <input type="hidden" name="notes" value="{{ form.raw.get('notes', '') }}">
+    <input type="hidden" name="pre_ordered" value="{{ 'yes' if form.pre_ordered else '' }}">
     <input type="hidden" name="then" value="{{ form.then }}">
     {% if form.from_series %}<input type="hidden" name="from_series" value="{{ form.from_series }}">{% endif %}
     <button type="submit" name="book_id" value="{{ conflict.existing_id }}">Add “{{ conflict.existing_label }}” to my list instead</button>
@@ -51,7 +52,7 @@
       are shown, not offered as fields whose edits would be ignored. -#}
   <div class="field chosen-book">
     <p class="legend">Book</p>
-    <p><strong>{{ chosen.title }}</strong> · {{ authors_line(chosen) }}{% if chosen.series %} · {{ series_line(chosen) }}{% endif %}</p>
+    <p><strong>{{ chosen.title }}</strong> · {{ authors_line(chosen) }}{% if chosen.series %} · {{ series_line(chosen) }}{% endif %}{% set release = release_label(chosen, today) %}{% if release | trim %} · {{ release }}{% endif %}</p>
     <input type="hidden" name="book_id" value="{{ chosen.id }}">
     <p><a href="/books/add{% if form.from_series %}?from_series={{ form.from_series }}{% endif %}">Add a different book</a></p>
   </div>

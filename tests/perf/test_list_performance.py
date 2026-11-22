@@ -134,3 +134,34 @@ async def test_series_page_under_one_second(big_list: httpx.AsyncClient, factory
     page = await p95(lambda i: big_list.get(f"/series/{series}"))
     print(f"\nseries page p95 {page * 1000:.0f} ms")
     assert page < 1.0
+
+
+UPCOMING_DATES = [
+    # 200 dated books: 150 not out yet (about a third on the reader's list), and 50 out in
+    # the last 20 days (some on the list as Want to read, for the notice).
+    """UPDATE book SET release_date = CURRENT_DATE + ((n % 365) + 1)::int
+       FROM (SELECT id, row_number() OVER (ORDER BY title) AS n FROM book) b
+       WHERE book.id = b.id AND b.n % 25 = 0 AND b.n <= 3750""",
+    """UPDATE book SET release_date = CURRENT_DATE - (n % 20)::int
+       FROM (SELECT id, row_number() OVER (ORDER BY title) AS n FROM book) b
+       WHERE book.id = b.id AND b.n % 25 = 1 AND b.n <= 1250""",
+    "UPDATE reading_entry SET pre_ordered = true WHERE status = 'want_to_read'",
+]
+
+
+async def test_upcoming_views_under_one_second(
+    big_list: httpx.AsyncClient, factory: Factory
+) -> None:
+    """Spec 007 SC-002: My books with the notice, the Upcoming filter and the Upcoming page,
+    with 200 dated books in the 5,000-book catalog."""
+    for statement in UPCOMING_DATES:
+        await factory.execute(statement)
+    await factory.execute("ANALYZE")
+    assert await factory.scalar("SELECT count(*) FROM book WHERE release_date IS NOT NULL") == 200
+    results = {
+        "my books + notice": await p95(lambda i: big_list.get("/")),
+        "upcoming filter": await p95(lambda i: big_list.get("/", params={"upcoming": "1"})),
+        "upcoming page": await p95(lambda i: big_list.get("/upcoming")),
+    }
+    print("\nspec 007 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
+    assert all(value < 1.0 for value in results.values()), results

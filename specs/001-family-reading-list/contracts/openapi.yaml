@@ -135,6 +135,10 @@ paths:
             type: string
             enum: [title, -title, author, -author, series, -series, finished_on, -finished_on]
             default: title
+        - name: upcoming
+          in: query
+          description: Only books not out yet, soonest first; sort is ignored (spec 007)
+          schema: { type: boolean, default: false }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -908,7 +912,7 @@ components:
     Book:
       allOf:
         - type: object
-          required: [id, title, authors, series, series_number, isbn_13, current_summary]
+          required: [id, title, authors, series, series_number, isbn_13, release_date, current_summary]
           properties:
             id: { type: string, format: uuid }
             title: { type: string }
@@ -922,6 +926,7 @@ components:
                 - type: "null"
             series_number: { $ref: "#/components/schemas/SeriesNumber" }
             isbn_13: { $ref: "#/components/schemas/Isbn13" }
+            release_date: { $ref: "#/components/schemas/ReleaseDate" }
             current_summary:
               oneOf:
                 - $ref: "#/components/schemas/Summary"
@@ -951,6 +956,7 @@ components:
         series_id: { type: [string, "null"], format: uuid }
         series_number: { $ref: "#/components/schemas/SeriesNumber" }
         isbn_13: { $ref: "#/components/schemas/Isbn13" }
+        release_date: { $ref: "#/components/schemas/ReleaseDate" }
         summary:
           type: [string, "null"]
           maxLength: 5000
@@ -971,6 +977,12 @@ components:
         series_id: { type: [string, "null"], format: uuid }
         series_number: { $ref: "#/components/schemas/SeriesNumber" }
         isbn_13: { $ref: "#/components/schemas/Isbn13" }
+        release_date: { $ref: "#/components/schemas/ReleaseDate" }
+
+    ReleaseDate:
+      type: [string, "null"]
+      format: date
+      description: Expected or actual release date, entered by hand (spec 007)
 
     Summary:
       type: object
@@ -1001,7 +1013,7 @@ components:
 
     ReadingEntry:
       type: object
-      required: [id, book, status, finished_on, times_read, notes, created_at, updated_at]
+      required: [id, book, status, finished_on, times_read, notes, pre_ordered, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         book: { $ref: "#/components/schemas/Book" }
@@ -1009,6 +1021,7 @@ components:
         finished_on: { type: [string, "null"], format: date }
         times_read: { type: integer, minimum: 0, maximum: 99 }
         notes: { type: [string, "null"] }
+        pre_ordered: { type: boolean, description: "The owner's own Pre-ordered flag (spec 007)" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -1027,6 +1040,7 @@ components:
           format: date
           description: Not in the future
         notes: { type: [string, "null"], maxLength: 10000 }
+        pre_ordered: { type: boolean, default: false }
       oneOf:
         - required: [book_id]
           not: { required: [new_book] }
@@ -1046,6 +1060,7 @@ components:
           maximum: 99
           description: Overrides the automatic increment when sent with a status change
         notes: { type: [string, "null"], maxLength: 10000 }
+        pre_ordered: { type: boolean }
 
     ReadingEntryPage:
       type: object

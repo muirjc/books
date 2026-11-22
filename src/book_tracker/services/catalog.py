@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from typing import Any, TypeVar
 
@@ -49,6 +50,7 @@ class NewBook:
     series_number: Decimal | None = None
     isbn_13: str | None = None
     summary: str | None = None
+    release_date: date | None = None  # spec 007
 
 
 def _constraint(exc: IntegrityError) -> str | None:
@@ -163,6 +165,11 @@ async def similar_series(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, s
     return similar_names(name, await series_candidates(db))
 
 
+async def upcoming_books(db: AsyncSession, today: date) -> list[domain.Book]:
+    """Catalog books not out yet, soonest first (spec 007)."""
+    return await catalog.upcoming_books(db, today)
+
+
 async def series_books(db: AsyncSession, series_id: uuid.UUID) -> list[domain.Book]:
     """The shared catalog's books in a series, so one held by nobody's list can still be
     reached and renumbered (books-cay)."""
@@ -237,6 +244,7 @@ async def create_book(db: AsyncSession, actor_id: uuid.UUID, new: NewBook) -> do
             series_id=new.series_id,
             series_number=new.series_number,
             isbn_13=new.isbn_13,
+            release_date=new.release_date,
             actor_id=actor_id,
         ),
         isbn_13=new.isbn_13,
@@ -343,6 +351,8 @@ async def update_book(
         fields["title"] = normalize_name(changes["title"])
     if "isbn_13" in changes:
         fields["isbn_13"] = changes["isbn_13"]
+    if "release_date" in changes:
+        fields["release_date"] = changes["release_date"]
     isbn = fields.get("isbn_13")
     return await guarded(
         db,

@@ -79,6 +79,7 @@ def book_out(book: domain.Book) -> c.Book:
             format_series_number(book.series_number) if book.series_number is not None else None
         ),
         isbn_13=book.isbn_13,
+        release_date=book.release_date,
         current_summary=summary_out(book.current_summary) if book.current_summary else None,
         created_by=user_ref_out(book.created_by),
         created_at=book.created_at,
@@ -95,6 +96,7 @@ def reading_entry_out(entry: domain.ReadingEntry) -> r.ReadingEntry:
         finished_on=entry.finished_on,
         times_read=entry.times_read,
         notes=entry.notes,
+        pre_ordered=entry.pre_ordered,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
     )

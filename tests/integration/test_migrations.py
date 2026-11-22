@@ -55,6 +55,29 @@ def _constraints(url: str) -> set[str]:
     return {row[0] for row in rows}
 
 
+def _columns(url: str) -> set[tuple[str, str, str, str | None]]:
+    """(table, column, nullable, default) for the spec 007 columns."""
+    with psycopg.connect(_plain(url)) as conn:
+        rows = conn.execute(
+            "SELECT table_name, column_name, is_nullable, column_default "
+            "FROM information_schema.columns WHERE (table_name, column_name) IN "
+            "(('book', 'release_date'), ('reading_entry', 'pre_ordered'))"
+        ).fetchall()
+    return {(r[0], r[1], r[2], r[3]) for r in rows}
+
+
+def _indexes(url: str) -> set[str]:
+    with psycopg.connect(_plain(url)) as conn:
+        rows = conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'book'").fetchall()
+    return {row[0] for row in rows}
+
+
+COLUMNS_0003 = {
+    ("book", "release_date", "YES", None),
+    ("reading_entry", "pre_ordered", "NO", "false"),
+}
+
+
 def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     url = create_database(postgres_server_url, "book_tracker_migration_test")
     cfg = alembic_config(url)
@@ -62,6 +85,13 @@ def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     command.upgrade(cfg, "head")
     assert _tables(url) == EXPECTED_TABLES | {"alembic_version"}
     assert CONSTRAINTS_0002 <= _constraints(url)
+    assert _columns(url) == COLUMNS_0003  # spec 007 T004
+    assert "book_release_date_idx" in _indexes(url)
+
+    command.downgrade(cfg, "0002_author_import")
+    assert _tables(url) == EXPECTED_TABLES | {"alembic_version"}
+    assert _columns(url) == set()
+    assert "book_release_date_idx" not in _indexes(url)
 
     command.downgrade(cfg, "0001_initial")
     assert _tables(url) == TABLES_0001 | {"alembic_version"}
@@ -72,3 +102,4 @@ def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     command.upgrade(cfg, "head")
     assert _tables(url) == EXPECTED_TABLES | {"alembic_version"}
     assert CONSTRAINTS_0002 <= _constraints(url)
+    assert _columns(url) == COLUMNS_0003

@@ -85,6 +85,7 @@ def to_book(row: orm.Book) -> domain.Book:
         created_at=row.created_at,
         updated_by=to_user_ref(row.updated_by_user),
         updated_at=row.updated_at,
+        release_date=row.release_date,
     )
 
 
@@ -98,4 +99,5 @@ def to_reading_entry(row: orm.ReadingEntry) -> domain.ReadingEntry:
         notes=row.notes,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        pre_ordered=row.pre_ordered,
     )

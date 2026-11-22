@@ -44,6 +44,7 @@ Sort = Literal[
     responses=r.merge(r.READ, r.VALIDATION),
 )
 async def list_readings(
+    request: Request,
     auth: ApiUser,
     db: DbSession,
     q: Annotated[str | None, Query(max_length=200)] = None,
@@ -53,6 +54,10 @@ async def list_readings(
     sort: Sort = "title",
     page: Page = 1,
     page_size: PageSize = 50,
+    upcoming: Annotated[
+        bool,
+        Query(description="Only books not out yet, soonest first; sort is ignored (spec 007)"),
+    ] = False,
 ) -> ReadingEntryPage:
     result = await service.list_entries(
         db,
@@ -64,6 +69,7 @@ async def list_readings(
         series_id=series_id,
         status=status,
         sort=sort,
+        upcoming_after=today(request) if upcoming else None,
     )
     return reading_entry_page_out(result)
 
@@ -97,6 +103,7 @@ async def add_reading(body: ReadingEntryCreate, auth: ApiUser, db: DbSession) ->
             series_number=nb.series_number,
             isbn_13=nb.isbn_13,
             summary=nb.summary,
+            release_date=nb.release_date,
         )
     entry = await service.add_entry(
         db,
@@ -106,6 +113,7 @@ async def add_reading(body: ReadingEntryCreate, auth: ApiUser, db: DbSession) ->
         status=body.status,
         finished_on=body.finished_on,
         notes=body.notes,
+        pre_ordered=body.pre_ordered,
     )
     return reading_entry_out(entry)
 
@@ -123,7 +131,7 @@ async def get_reading(entry_id: uuid.UUID, auth: ApiUser, db: DbSession) -> Read
 @router.patch(
     "/readings/{entry_id}",
     response_model=ReadingEntry,
-    summary="Update status, date finished, times read or notes",
+    summary="Update status, date finished, times read, notes or Pre-ordered",
     responses=r.merge(r.WRITE, r.NOT_FOUND),
 )
 async def update_reading(

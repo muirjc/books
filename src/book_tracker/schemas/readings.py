@@ -22,6 +22,7 @@ class ReadingEntryCreate(RequestModel):
     status: ReadingStatus = ReadingStatus.FINISHED
     finished_on: FinishedOn = None
     notes: Notes = None
+    pre_ordered: bool = False  # spec 007
 
     @model_validator(mode="after")
     def _one_book(self) -> Self:
@@ -35,6 +36,7 @@ class ReadingEntryUpdate(RequestModel):
     finished_on: FinishedOn = None
     times_read: int | None = Field(default=None, ge=0, le=99)
     notes: Notes = None
+    pre_ordered: bool = False  # spec 007: changed only when given
 
     @model_validator(mode="after")
     def _something(self) -> Self:
@@ -54,6 +56,7 @@ class ReadingEntry(BaseModel):
     finished_on: date | None
     times_read: int = Field(ge=0, le=99)
     notes: str | None
+    pre_ordered: bool = Field(description="The owner's own Pre-ordered flag (spec 007)")
     created_at: datetime
     updated_at: datetime
 

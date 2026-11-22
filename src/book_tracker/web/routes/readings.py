@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 from urllib.parse import urlencode
 
@@ -96,6 +97,8 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     status = ReadingStatus(status_text) if status_text in ReadingStatus._value2member_map_ else None
     author_id = _uuid_param(request, "author_id")
     series_id = _uuid_param(request, "series_id")
+    upcoming = params.get("upcoming") == "1"  # spec 007 R4; anything else is off
+    on = today(request)
     page = await service.list_entries(
         db,
         auth.account.id,
@@ -106,13 +109,16 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         series_id=series_id,
         status=status,
         sort=sort,
+        upcoming_after=on if upcoming else None,
     )
     kept = {
         "q": q,
-        "sort": "" if sort == "title" else sort,
+        # Upcoming only ignores the sort, so links don't carry it (PR #23 review).
+        "sort": "" if sort == "title" or upcoming else sort,
         "status": status.value if status else "",
         "author_id": str(author_id) if author_id else "",
         "series_id": str(series_id) if series_id else "",
+        "upcoming": "1" if upcoming else "",
     }
     query = urlencode({k: v for k, v in kept.items() if v})
     context: dict[str, Any] = {
@@ -130,6 +136,8 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     authors, series = await service.filter_options(db, auth.account.id)
     context.update(
         {
+            # Spec 007 R6: the full page only, so filtering never repeats or drops it.
+            "now_out": await service.now_out(db, auth.account.id, on),
             "sort_options": SORT_OPTIONS,
             "statuses": STATUSES,
             "author_options": authors,
@@ -137,6 +145,13 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         }
     )
     return render(request, "pages/list.html", context, auth=auth)
+
+
+@router.get("/upcoming")
+async def upcoming_page(request: Request, auth: UiUser, db: DbSession) -> Response:
+    """My books not out yet, then the family catalog's (spec 007 R5)."""
+    view = await service.upcoming_view(db, auth.account.id, today(request))
+    return render(request, "pages/upcoming.html", {"view": view, "active": "upcoming"}, auth=auth)
 
 
 @router.get("/series/{series_id}")
@@ -284,6 +299,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                 status=form.status,
                 finished_on=form.finished_on,
                 notes=form.notes,
+                pre_ordered=form.pre_ordered,
             )
             entry = await service.add_entry(
                 db,
@@ -292,6 +308,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                 status=payload.status,
                 finished_on=payload.finished_on,
                 notes=payload.notes,
+                pre_ordered=payload.pre_ordered,
             )
         else:
             author_ids, author_conflicts = await resolve_authors(db, auth, form)
@@ -312,6 +329,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                     series_id=series_id,
                     series_number=form.series_number,
                     isbn_13=form.isbn_13,
+                    release_date=form.release_date,
                 )
             except ValidationError as exc:
                 form.errors.update(book_create_errors(exc))
@@ -326,10 +344,12 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                     series_number=book.series_number,
                     isbn_13=book.isbn_13,
                     summary=form.summary,
+                    release_date=book.release_date,
                 ),
                 status=form.status,
                 finished_on=form.finished_on,
                 notes=form.notes,
+                pre_ordered=form.pre_ordered,
             )
     except ConflictError as exc:
         return _add_form(request, auth, form, status_code=409, conflict=exc, chosen=chosen)
@@ -474,12 +494,16 @@ async def resolve_series(
 
 # --------------------------------------------------------------------------- book details
 
-ENTRY_FIELDS = frozenset({"status", "finished_on", "times_read", "notes"})
+ENTRY_FIELDS = frozenset({"status", "finished_on", "times_read", "notes", "pre_ordered"})
 
 
 def book_form(book: domain.Book) -> AddBookForm:
     """The book's current details as a filled-in form."""
-    raw: dict[str, str] = {"title": book.title, "isbn_13": book.isbn_13 or ""}
+    raw: dict[str, str] = {
+        "title": book.title,
+        "isbn_13": book.isbn_13 or "",
+        "release_date": book.release_date.isoformat() if book.release_date else "",
+    }
     if book.series:
         raw["series_name"] = book.series.name
         raw["series_id"] = str(book.series.id)
@@ -528,6 +552,7 @@ async def save_book_details(
         "series_id": series_id,
         "series_number": form.series_number,
         "isbn_13": form.isbn_13,
+        "release_date": _release_date_to_save(book, form),
     }
     if only_if_changed and _unchanged(book, changes):
         return None  # don't mark the book as edited by someone who only changed their notes
@@ -541,6 +566,18 @@ async def save_book_details(
     return None
 
 
+def _release_date_to_save(book: domain.Book, form: AddBookForm) -> date | None:
+    """The book's current date when the member left the field as the page showed it, so a
+    stale page never clears or reverts a date another member set meanwhile (PR #23
+    review)."""
+    if (
+        form.release_date_was is not None
+        and form.raw.get("release_date", "") == form.release_date_was
+    ):
+        return book.release_date
+    return form.release_date
+
+
 def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:
     return (
         normalize_name(changes["title"]) == book.title
@@ -548,6 +585,7 @@ def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:
         and changes["series_id"] == (book.series.id if book.series else None)
         and changes["series_number"] == book.series_number
         and changes["isbn_13"] == book.isbn_13
+        and changes["release_date"] == book.release_date
     )
 
 

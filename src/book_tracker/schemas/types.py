@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
+import re
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -69,6 +70,31 @@ OptionalName = Annotated[
     BeforeValidator(lambda v: _normalize(v) or None),
 ]
 FinishedOn = Annotated[date | None, AfterValidator(_not_future)]
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _release_date(value: Any) -> date | None:
+    """Strictly YYYY-MM-DD (or a date), years 1000–9999: no timestamps or other formats
+    (spec 007 R7, PR #23 review)."""
+    message = "Enter a date like 2027-03-01"
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and _ISO_DATE.match(value):
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError:  # a day that doesn't exist, such as 2027-02-30
+            raise ValueError(message) from None
+    else:
+        raise ValueError(message)
+    if parsed.year < 1000:
+        raise ValueError(message)
+    return parsed
+
+
+# Spec 007: an expected or actual release date.
+ReleaseDateIn = Annotated[date | None, BeforeValidator(_release_date)]
 Notes = Annotated[str | None, StringConstraints(max_length=10000)]
 
 

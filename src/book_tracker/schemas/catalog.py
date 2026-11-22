@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Self
 
@@ -17,6 +17,7 @@ from book_tracker.schemas.types import (
     Name,
     OptionalName,
     OptionalSummary,
+    ReleaseDateIn,
     SeriesNumberIn,
     SummaryText,
     Title,
@@ -84,6 +85,7 @@ class Book(BaseModel):
         description='Decimal as a string, e.g. "2.5"', pattern=r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
     )
     isbn_13: str | None
+    release_date: date | None = Field(description="Expected or actual release date (spec 007)")
     current_summary: Summary | None
     created_by: UserRef
     created_at: datetime
@@ -124,6 +126,7 @@ class BookCreate(RequestModel):
     series_id: uuid.UUID | None = None
     series_number: SeriesNumberIn = None
     isbn_13: Isbn13In = None
+    release_date: ReleaseDateIn = None
     summary: OptionalSummary = None
 
     _unique_authors = field_validator("author_ids")(_unique)
@@ -163,6 +166,7 @@ class BookUpdate(RequestModel):
     series_id: uuid.UUID | None = None
     series_number: SeriesNumberIn = None
     isbn_13: Isbn13In = None
+    release_date: ReleaseDateIn = None
 
     _unique_authors = field_validator("author_ids")(
         lambda ids: _unique(ids) if ids is not None else ids
@@ -170,7 +174,7 @@ class BookUpdate(RequestModel):
 
     @model_validator(mode="after")
     def _something(self) -> Self:
-        _require_changes(self, nullable={"series_id", "series_number", "isbn_13"})
+        _require_changes(self, nullable={"series_id", "series_number", "isbn_13", "release_date"})
         return self
 
 

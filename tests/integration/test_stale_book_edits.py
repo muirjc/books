@@ -222,3 +222,73 @@ async def test_remembered_values_survive_an_error_page(
     now = await current(factory, book["mort"])
     for key, value in BEN.items():
         assert now[key] == value, key
+
+
+MERGED = "Saved. Another member changed this book while you had it open; their changes were kept."
+
+
+async def test_renamed_or_deleted_names_do_not_prompt(
+    member: httpx.AsyncClient,
+    other: httpx.AsyncClient,
+    factory: Factory,
+    book: dict[str, uuid.UUID],
+) -> None:
+    """PR #25 review: Ben renames the series and moves the book to another author, then
+    deletes the old one. Alice's stale page, with only her notes changed, saves without any
+    new-name prompt, and nothing of Ben's is undone or duplicated."""
+    url = f"/entries/{book['entry']}"
+    stale = page_form(await member.get(url))
+    await factory.execute(
+        "UPDATE series SET name = 'Discworld (Pratchett)' WHERE id = :id", id=book["discworld"]
+    )
+    await factory.execute(
+        "UPDATE book_author SET author_id = :g WHERE book_id = :b",
+        g=book["gaiman"], b=book["mort"],
+    )  # fmt: skip
+    await factory.execute("DELETE FROM author WHERE id = :id", id=book["pratchett"])
+    stale["notes"] = "only my notes"
+    saved = await member.post(url, data=stale)
+    assert saved.status_code == 303, saved.text
+    now = await current(factory, book["mort"])
+    assert now["authors"] == "Neil Gaiman"
+    assert now["series_id"] == book["discworld"]
+    assert await factory.scalar("SELECT count(*) FROM author") == 1
+    assert await factory.scalar("SELECT count(*) FROM series WHERE name = 'Discworld'") == 0
+    page = await member.get(saved.headers["location"])
+    assert MERGED in page.text
+
+
+async def test_series_and_number_are_one_choice(
+    member: httpx.AsyncClient,
+    other: httpx.AsyncClient,
+    factory: Factory,
+    book: dict[str, uuid.UUID],
+) -> None:
+    """PR #25 review: Ben takes the book out of its series; Alice, on a stale page, changes
+    only the number. The series and number are saved together as she typed them."""
+    edit = f"/catalog/books/{book['mort']}/edit"
+    stale = page_form(await member.get(edit))
+    await factory.execute(
+        "UPDATE book SET series_id = NULL, series_number = NULL WHERE id = :id", id=book["mort"]
+    )
+    stale["series_number"] = "5"
+    saved = await member.post(edit, data=stale)
+    assert saved.status_code == 303, saved.text
+    now = await current(factory, book["mort"])
+    assert now["series_id"] == book["discworld"]
+    assert str(now["series_number"]) == "5.00"
+
+
+async def test_saved_message_says_when_others_changes_were_kept(
+    member: httpx.AsyncClient,
+    other: httpx.AsyncClient,
+    factory: Factory,
+    book: dict[str, uuid.UUID],
+) -> None:
+    edit = f"/catalog/books/{book['mort']}/edit"
+    plain = await member.post(edit, data=page_form(await member.get(edit)))
+    assert MERGED not in (await member.get(plain.headers["location"])).text
+    stale = page_form(await member.get(edit))
+    await ben_changes_everything(other, book)
+    saved = await member.post(edit, data=stale)
+    assert MERGED in (await member.get(saved.headers["location"])).text

@@ -112,6 +112,10 @@ class AddBookForm:
     # The book's values as an edit page first showed them (books-mbx), by field; only
     # fields the form remembered are present.
     shown: dict[str, str] = field(default_factory=dict)
+    # Set by keep_unedited: book fields left as shown (kept as stored), and whether any of
+    # them had been changed by another member meanwhile.
+    kept: set[str] = field(default_factory=set)
+    others_kept: bool = False
     status: ReadingStatus = ReadingStatus.FINISHED
     finished_on: date | None = None
     notes: str | None = None

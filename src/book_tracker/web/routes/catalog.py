@@ -24,7 +24,13 @@ from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import render
-from book_tracker.web.routes.readings import book_form, new_name_prompts, save_book_details
+from book_tracker.web.routes.readings import (
+    MERGED,
+    book_form,
+    keep_unedited,
+    new_name_prompts,
+    save_book_details,
+)
 
 router = APIRouter(prefix="/catalog", include_in_schema=False)
 
@@ -37,7 +43,8 @@ AUTHOR_MESSAGES = {
 
 
 def _message(request: Request) -> str | None:
-    return SAVED if request.query_params.get("msg") == "saved" else None
+    msg = request.query_params.get("msg")
+    return SAVED if msg == "saved" else MERGED if msg == "merged" else None
 
 
 # --------------------------------------------------------------------------- books
@@ -85,6 +92,7 @@ async def edit_book_form(
 async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
     book = await service.get_book(db, book_id)
     form = parse_add_book(await request.form())
+    keep_unedited(book, form)  # books-mbx, before any name checks
     await new_name_prompts(db, form)  # spec 005: shown with any field errors
     if form.field_errors:
         return _book_page(request, auth, book, form, status_code=422)
@@ -95,7 +103,8 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
             conflict=problem.conflict, author_conflicts=problem.author_conflicts,
             series_conflict=problem.series_conflict,
         )  # fmt: skip
-    return RedirectResponse(f"/catalog/books/{book_id}/edit?msg=saved", status_code=303)
+    msg = "merged" if form.others_kept else "saved"
+    return RedirectResponse(f"/catalog/books/{book_id}/edit?msg={msg}", status_code=303)
 
 
 # --------------------------------------------------------------------------- authors

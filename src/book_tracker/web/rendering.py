@@ -13,6 +13,7 @@ from starlette.responses import Response
 
 from book_tracker.auth.dependencies import today
 from book_tracker.domain.values import format_series_number, is_now_out, is_upcoming
+from book_tracker.web.forms import SHOWN_FIELDS
 
 if TYPE_CHECKING:
     from book_tracker.auth.dependencies import Authenticated
@@ -38,6 +39,7 @@ templates.env.filters["nice_date"] = _date
 templates.env.globals["STATUS_LABELS"] = STATUS_LABELS
 templates.env.globals["is_upcoming"] = is_upcoming  # spec 007
 templates.env.globals["is_now_out"] = is_now_out
+templates.env.globals["SHOWN_FIELDS"] = SHOWN_FIELDS  # books-mbx
 
 
 def is_htmx(request: Request) -> bool:

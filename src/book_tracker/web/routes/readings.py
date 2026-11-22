@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 from urllib.parse import urlencode
 
@@ -34,6 +33,7 @@ from book_tracker.web.forms import (
     parse_add_book,
     parse_entry_update,
     series_start_form,
+    shown_values,
 )
 from book_tracker.web.rendering import is_htmx, render
 
@@ -520,6 +520,7 @@ def book_form(book: domain.Book) -> AddBookForm:
     for i, author in enumerate(book.authors):
         raw[f"author_name_{i}"] = author.name
         raw[f"author_id_{i}"] = str(author.id)
+    raw.update(shown_values(book))  # books-mbx
     return AddBookForm(raw=raw)
 
 
@@ -560,8 +561,9 @@ async def save_book_details(
         "series_id": series_id,
         "series_number": form.series_number,
         "isbn_13": form.isbn_13,
-        "release_date": _release_date_to_save(book, form),
+        "release_date": form.release_date,
     }
+    _keep_unedited(book, form, changes)
     if only_if_changed and _unchanged(book, changes):
         return None  # don't mark the book as edited by someone who only changed their notes
     try:
@@ -577,16 +579,29 @@ async def save_book_details(
     return None
 
 
-def _release_date_to_save(book: domain.Book, form: AddBookForm) -> date | None:
-    """The book's current date when the member left the field as the page showed it, so a
-    stale page never clears or reverts a date another member set meanwhile (PR #23
-    review)."""
-    if (
-        form.release_date_was is not None
-        and form.raw.get("release_date", "") == form.release_date_was
-    ):
-        return book.release_date
-    return form.release_date
+def _keep_unedited(book: domain.Book, form: AddBookForm, changes: dict[str, Any]) -> None:
+    """Fields the member left as the page first showed them keep the book's current
+    values, so a page opened before another member's edit never writes old values back
+    (books-mbx; release date since PR #23). Changed fields are saved as typed."""
+    shown = form.shown
+
+    def left(name: str, now: str) -> bool:
+        return name in shown and now == shown[name]
+
+    if left("title", form.title):
+        changes["title"] = book.title
+    if left("authors", ",".join(str(i) for i in changes["author_ids"])):
+        changes["author_ids"] = [author.id for author in book.authors]
+    if left("series_id", str(changes["series_id"] or "")):
+        changes["series_id"] = book.series.id if book.series else None
+    number = form.series_number
+    if left("series_number", format_series_number(number) if number is not None else ""):
+        changes["series_number"] = book.series_number
+    if left("isbn_13", form.isbn_13 or ""):
+        changes["isbn_13"] = book.isbn_13
+    released = form.release_date
+    if left("release_date", released.isoformat() if released else ""):
+        changes["release_date"] = book.release_date
 
 
 def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:

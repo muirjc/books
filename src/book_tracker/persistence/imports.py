@@ -2,7 +2,9 @@
 
 Id and ISBN sets are passed as one PostgreSQL array parameter (``= ANY(:ids)``), so a
 prolific author's thousands of ISBNs stay a single bind parameter. Author names are
-compared as ``lower(normalize(name, NFKC))``, the same form the import service uses.
+compared by one key, computed only in PostgreSQL for both the stored names and the
+incoming ones (``name_keys``): NFKC, whitespace runs collapsed, then ``lower``, so Python
+and the database can never disagree about case mapping or spacing (books-0tw.2).
 """
 
 from __future__ import annotations
@@ -11,7 +13,16 @@ import uuid
 from collections.abc import Collection
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, String, any_, bindparam, func, literal_column, select
+from sqlalchemy import (
+    ColumnElement,
+    SQLColumnExpression,
+    String,
+    any_,
+    bindparam,
+    func,
+    literal_column,
+    select,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import CollectionAggregate
@@ -24,8 +35,25 @@ def _array(name: str, values: Collection[str]) -> CollectionAggregate[bool]:
     return any_(bindparam(name, sorted(values), type_=ARRAY(String)))
 
 
+def _key_of(value: SQLColumnExpression[str]) -> ColumnElement[str]:
+    collapsed = func.regexp_replace(
+        func.btrim(func.normalize(value, literal_column("NFKC"))), r"\s+", " ", "g"
+    )
+    return func.lower(collapsed)
+
+
 def _name_key() -> ColumnElement[str]:
-    return func.lower(func.normalize(models.Author.name, literal_column("NFKC")))
+    return _key_of(models.Author.name)
+
+
+async def name_keys(db: AsyncSession, names: Collection[str]) -> dict[str, str]:
+    """Each name's matching key, as the database computes it for catalog authors."""
+    if not names:
+        return {}
+    value = func.unnest(bindparam("names", sorted(set(names)), type_=ARRAY(String)))
+    listed = select(value.label("name")).subquery()
+    rows = await db.execute(select(listed.c.name, _key_of(listed.c.name)))
+    return {r[0]: r[1] for r in rows}
 
 
 async def find_books_by_source_ids(

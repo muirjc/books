@@ -52,11 +52,6 @@ CACHE_KEY_MAX = 300  # source_lookup_cache.lookup_key
 EXPIRED = "These results are more than a day old. Reload the list and confirm again."
 
 
-def _name_key(name: str) -> str:
-    """Matches ``persistence.imports``: lower(normalize(name, NFKC))."""
-    return clean(name).lower()
-
-
 # --------------------------------------------------------------------------- searching
 
 
@@ -83,7 +78,8 @@ async def _catalog_matches(
     found: dict[str, uuid.UUID] = {}
     by_ref = await store.find_books_by_source_ids(db, {i for w in works for i in w.all_ids})
     by_isbn = await store.find_books_by_isbns(db, {i for w in works for i in w.isbn13s})
-    first_authors = {_name_key(w.author_names[0]) for w in works}
+    keys = await store.name_keys(db, {w.author_names[0] for w in works})
+    first_authors = set(keys.values())
     by_title: dict[tuple[str, str], uuid.UUID] = {}
     for book_id, title, author_key in await store.books_by_first_author_names(db, first_authors):
         by_title.setdefault((normalize_title(title), author_key), book_id)
@@ -92,7 +88,7 @@ async def _catalog_matches(
         if match is None:
             match = next((by_isbn[i] for i in sorted(work.isbn13s) if i in by_isbn), None)
         if match is None:
-            match = by_title.get((normalize_title(work.title), _name_key(work.author_names[0])))
+            match = by_title.get((normalize_title(work.title), keys[work.author_names[0]]))
         if match is not None:
             found[work.source_id] = match
     return found
@@ -238,11 +234,13 @@ async def _add_new_work(
 async def _author_ids(
     db: AsyncSession, actor_id: uuid.UUID, works: Sequence[WorkCandidate]
 ) -> dict[str, uuid.UUID]:
-    """Name key → author id for every author of these works; missing ones are created."""
+    """Author name (as listed) → author id for every author of these works; missing ones
+    are created. Names are matched by the database's key (books-0tw.2)."""
+    keys = await store.name_keys(db, {name for work in works for name in work.author_names})
     names: dict[str, str] = {}
     for work in works:
         for name in work.author_names:
-            names.setdefault(_name_key(name), name)
+            names.setdefault(keys[name], name)
     ids = await store.find_authors_by_names(db, names.keys())
     for key, name in names.items():
         if key in ids:
@@ -253,7 +251,7 @@ async def _author_ids(
             if exc.code != "author_exists" or exc.existing_id is None:
                 raise
             ids[key] = exc.existing_id
-    return ids
+    return {name: ids[key] for name, key in keys.items()}
 
 
 async def confirm_import(
@@ -289,7 +287,7 @@ async def confirm_import(
         if work.source_id in matches:
             targets.append((work, matches[work.source_id], False))
             continue
-        author_ids = list(dict.fromkeys(authors[_name_key(n)] for n in work.author_names))
+        author_ids = list(dict.fromkeys(authors[n] for n in work.author_names))
         book_id, created = await _add_new_work(db, user_id, work, author_ids, now)
         targets.append((work, book_id, created))
 

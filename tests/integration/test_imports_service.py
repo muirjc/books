@@ -225,6 +225,46 @@ async def test_author_matched_across_unicode_forms(
     assert await factory.scalar("SELECT count(*) FROM author") == 1
 
 
+@pytest.mark.ac("002/AC-05")
+async def test_author_matched_despite_whitespace_runs(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    """books-0tw.2: a catalog author stored with a double space (an older or imported
+    row) matches the cleaned Open Library name; no duplicate author or book."""
+    alice = await factory.user("alice")
+    stored = await factory.author("Ursula K.  Le Guin", alice)
+    await factory.book("The Lathe of Heaven", alice, author_ids=[stored])
+    ol.works[KEY] = listing(
+        KEY,
+        [
+            work(1, "The Lathe of Heaven", ("Ursula K. Le Guin",)),
+            work(2, "Lavinia", ("Ursula K. Le Guin",)),
+        ],
+        name="Ursula K. Le Guin",
+    )
+    states = await _states(app, ol, alice)
+    assert states["The Lathe of Heaven"] is WorkState.IN_CATALOG
+    await _confirm(app, alice, ["OL1W", "OL2W"])
+    assert await factory.scalar("SELECT count(*) FROM author") == 1
+    assert await factory.scalar("SELECT count(*) FROM book") == 2
+
+
+@pytest.mark.ac("002/AC-05")
+async def test_author_matched_across_case_mapping_edge_cases(
+    app: Any, ol: FakeBookSource, factory: Factory
+) -> None:
+    """books-0tw.2: U+0130 (İ) lowercases differently in Python and PostgreSQL; the
+    same key is used on both sides, so the catalog author is reused."""
+    alice = await factory.user("alice")
+    await factory.author("İSMAIL KADARE", alice)
+    ol.works[KEY] = listing(
+        KEY, [work(1, "Broken April", ("İsmail Kadare",))], name="İsmail Kadare"
+    )
+    await _list(app, ol, alice)
+    await _confirm(app, alice, ["OL1W"])
+    assert await factory.scalar("SELECT count(*) FROM author") == 1
+
+
 @pytest.mark.ac("002/AC-04")
 async def test_catalog_book_is_added_to_my_list_without_a_copy(
     app: Any, ol: FakeBookSource, factory: Factory

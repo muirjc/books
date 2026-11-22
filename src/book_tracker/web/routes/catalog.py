@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import uuid
 from typing import Any
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
@@ -102,9 +105,11 @@ def _author_page(
     request: Request,
     auth: Authenticated,
     author: domain.Author,
+    books: list[domain.Book],
     values: dict[str, Any] | None = None,
     errors: dict[str, str] | None = None,
     status_code: int = 200,
+    delete_problem: str | None = None,
 ) -> Response:
     if values is None:
         values = {
@@ -116,7 +121,14 @@ def _author_page(
     return render(
         request,
         "pages/edit_author.html",
-        {"author": author, "values": values, "errors": errors or {}, "message": _message(request)},
+        {
+            "author": author,
+            "books": books,
+            "values": values,
+            "errors": errors or {},
+            "message": _message(request),
+            "delete_problem": delete_problem,
+        },
         auth=auth,
         status_code=status_code,
     )
@@ -126,7 +138,8 @@ def _author_page(
 async def edit_author_form(
     author_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
-    return _author_page(request, auth, await service.get_author(db, author_id))
+    author = await service.get_author(db, author_id)
+    return _author_page(request, auth, author, await service.author_books(db, author_id))
 
 
 @router.post("/authors/{author_id}/edit")
@@ -154,17 +167,95 @@ async def edit_author(
         for error in exc.errors():
             field = str(error["loc"][0]) if error["loc"] else "name"
             errors.setdefault(field, AUTHOR_MESSAGES.get(field, "Check this field"))
-        return _author_page(request, auth, author, values, errors, status_code=422)
+        return _author_page(
+            request,
+            auth,
+            author,
+            await service.author_books(db, author_id),
+            values,
+            errors,
+            status_code=422,
+        )
     changes = {name: getattr(body, name) for name in body.model_fields_set}
     try:
         await service.update_author(db, auth.account.id, author_id, changes)
     except ValidationFailed as exc:
         errors = {e.field: e.message for e in exc.errors}
-        return _author_page(request, auth, author, values, errors, status_code=422)
+        return _author_page(
+            request,
+            auth,
+            author,
+            await service.author_books(db, author_id),
+            values,
+            errors,
+            status_code=422,
+        )
     except ConflictError as exc:
         errors = {"name": f"{exc.title}: “{exc.existing_label}”"}
-        return _author_page(request, auth, author, values, errors, status_code=409)
+        return _author_page(
+            request,
+            auth,
+            author,
+            await service.author_books(db, author_id),
+            values,
+            errors,
+            status_code=409,
+        )
     return RedirectResponse(f"/catalog/authors/{author_id}/edit?msg=saved", status_code=303)
+
+
+def _deleted_sig(request: Request, name: str) -> str:
+    """Signs the deleted author's name in the redirect, so a crafted link can't show a
+    false "Deleted" message (PR #24 review)."""
+    key = request.app.state.settings.secret_key.get_secret_value().encode()
+    return hmac.new(key, b"deleted-author\0" + name.encode(), hashlib.sha256).hexdigest()
+
+
+@router.get("/authors/unused")
+async def unused_authors(request: Request, auth: UiUser, db: DbSession) -> Response:
+    """Authors no book lists, so they can be found and deleted (spec 008)."""
+    params = request.query_params
+    name, sig = params.get("author", ""), params.get("sig", "")
+    deleted = (
+        name
+        if params.get("msg") == "deleted"
+        and name
+        and hmac.compare_digest(sig, _deleted_sig(request, name))
+        else None
+    )
+    return render(
+        request,
+        "pages/unused_authors.html",
+        {"authors": await service.unused_authors(db), "deleted": deleted},
+        auth=auth,
+    )
+
+
+@router.post("/authors/{author_id}/delete")
+async def delete_author(
+    author_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
+) -> Response:
+    """Without ``confirm=yes``, ask first; then delete if no book lists the author."""
+    author = await service.get_author(db, author_id)  # 404 if unknown
+    form = await request.form()
+    if form.get("confirm") != "yes":
+        books = await service.author_books(db, author_id)
+        if books:  # linked since Edit author was shown: don't claim it has none
+            problem = f"“{author.name}” now has a book, so it can't be deleted."
+            return _author_page(
+                request, auth, author, books, delete_problem=problem, status_code=409
+            )
+        return render(request, "pages/confirm_delete_author.html", {"author": author}, auth=auth)
+    try:
+        await service.delete_author(db, auth.account.id, author_id)
+    except ConflictError:
+        books = await service.author_books(db, author_id)
+        problem = f"“{author.name}” now has a book, so it wasn't deleted."
+        return _author_page(request, auth, author, books, delete_problem=problem, status_code=409)
+    query = urlencode(
+        {"msg": "deleted", "author": author.name, "sig": _deleted_sig(request, author.name)}
+    )
+    return RedirectResponse(f"/catalog/authors/unused?{query}", status_code=303)
 
 
 # --------------------------------------------------------------------------- series

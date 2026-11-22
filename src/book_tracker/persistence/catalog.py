@@ -142,6 +142,60 @@ async def list_series_books(db: AsyncSession, series_id: uuid.UUID) -> list[doma
     return [to_book(row) for row in rows]
 
 
+def _has_no_books() -> Any:
+    return ~exists().where(models.BookAuthor.author_id == models.Author.id)
+
+
+async def author_books(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Book]:
+    """The catalog books that list this author, by title (spec 008)."""
+    rows = (
+        (
+            await db.execute(
+                select(models.Book)
+                .join(models.BookAuthor, models.BookAuthor.book_id == models.Book.id)
+                .where(models.BookAuthor.author_id == author_id)
+                .order_by(func.lower(models.Book.title), models.Book.id)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    return [to_book(row) for row in rows]
+
+
+async def unused_authors(db: AsyncSession) -> list[domain.Author]:
+    """Authors no book lists, by sort name (spec 008)."""
+    rows = (
+        (
+            await db.execute(
+                select(models.Author)
+                .where(_has_no_books())
+                .order_by(func.lower(models.Author.sort_name), models.Author.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [to_author(row) for row in rows]
+
+
+async def unused_author_count(db: AsyncSession) -> int:
+    count = await db.scalar(select(func.count()).select_from(models.Author).where(_has_no_books()))
+    return int(count or 0)
+
+
+async def delete_unused_author(db: AsyncSession, author_id: uuid.UUID) -> bool:
+    """Delete the author only if no book lists it, in one statement, so a book linked
+    meanwhile keeps it (spec 008 FR-003). False when it wasn't deleted."""
+    deleted = await db.execute(
+        delete(models.Author)
+        .where(models.Author.id == author_id, _has_no_books())
+        .returning(models.Author.id)
+    )
+    return deleted.scalar_one_or_none() is not None
+
+
 async def upcoming_books(db: AsyncSession, today: date) -> list[domain.Book]:
     """Catalog books with a release date after today, soonest first, then by title
     (spec 007). Catalog data only: no reading entries are read."""
@@ -323,15 +377,17 @@ async def search_series(db: AsyncSession, q: str, limit: int) -> list[domain.Ser
 
 async def update_author(
     db: AsyncSession, author_id: uuid.UUID, actor_id: uuid.UUID, **fields: object
-) -> domain.Author:
-    await db.execute(
+) -> domain.Author | None:
+    """None when the author no longer exists (deleted meanwhile, spec 008)."""
+    updated = await db.execute(
         update(models.Author)
         .where(models.Author.id == author_id)
         .values(**fields, updated_by=actor_id, updated_at=func.now())
+        .returning(models.Author.id)
     )
-    author = await get_author(db, author_id)
-    assert author is not None  # noqa: S101 - checked by the service
-    return author
+    if updated.scalar_one_or_none() is None:
+        return None
+    return await get_author(db, author_id)
 
 
 async def update_series(

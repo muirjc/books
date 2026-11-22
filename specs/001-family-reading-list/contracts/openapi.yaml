@@ -441,6 +441,22 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/CatalogConflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      tags: [catalog]
+      summary: Delete an author no book lists; any member (spec 008)
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Books list this author (code author_has_books); nothing was deleted
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "422": { $ref: "#/components/responses/ValidationError" }
 
   /series:
     get:

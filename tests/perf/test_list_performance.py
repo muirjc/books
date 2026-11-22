@@ -165,3 +165,22 @@ async def test_upcoming_views_under_one_second(
     }
     print("\nspec 007 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert all(value < 1.0 for value in results.values()), results
+
+
+async def test_unused_authors_under_one_second(
+    big_list: httpx.AsyncClient, factory: Factory
+) -> None:
+    """Spec 008 SC-003: 1,500 authors, all with books, plus 200 with none."""
+    await factory.execute(
+        """INSERT INTO author (id, name, sort_name, created_by, updated_by)
+           SELECT gen_random_uuid(), 'Unused ' || i, 'Unused, ' || i, u.id, u.id
+           FROM generate_series(1, 200) AS i
+           CROSS JOIN (SELECT id FROM app_user WHERE login = 'reader') u"""
+    )
+    await factory.execute("ANALYZE")
+    results = {
+        "unused authors": await p95(lambda i: big_list.get("/catalog/authors/unused")),
+        "my books + link": await p95(lambda i: big_list.get("/")),
+    }
+    print("\nspec 008 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
+    assert all(value < 1.0 for value in results.values()), results

@@ -6,6 +6,7 @@ names the existing row, so the caller can offer it instead (research R9).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -32,6 +33,8 @@ from book_tracker.services.errors import (
     ValidationFailed,
 )
 
+logger = logging.getLogger(__name__)
+
 T = TypeVar("T")
 
 CONFLICT_TITLES = {
@@ -51,6 +54,9 @@ class NewBook:
     isbn_13: str | None = None
     summary: str | None = None
     release_date: date | None = None  # spec 007
+
+
+AUTHOR_DELETED = "An author you chose was just deleted from the catalog. Choose the author again."
 
 
 def _constraint(exc: IntegrityError) -> str | None:
@@ -106,9 +112,12 @@ async def guarded[T](
         conflict = await _conflict(
             db, exc, name=name, isbn_13=isbn_13, series_id=series_id, series_number=series_number
         )
-        if conflict is None:
-            raise
-        raise conflict from None
+        if conflict is not None:
+            raise conflict from None
+        if _constraint(exc) == "book_author_author_id_fkey":
+            # A chosen author was deleted after the check (spec 008, PR #24 review).
+            raise ValidationFailed.single("author_ids", AUTHOR_DELETED) from None
+        raise
 
 
 # --------------------------------------------------------------------------- reads
@@ -163,6 +172,33 @@ async def similar_authors(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, 
 async def similar_series(db: AsyncSession, name: str) -> list[tuple[uuid.UUID, str]]:
     """Up to three catalog series whose name looks like ``name`` (spec 005 R3)."""
     return similar_names(name, await series_candidates(db))
+
+
+async def author_books(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Book]:
+    return await catalog.author_books(db, author_id)
+
+
+async def unused_authors(db: AsyncSession) -> list[domain.Author]:
+    return await catalog.unused_authors(db)
+
+
+async def unused_author_count(db: AsyncSession) -> int:
+    return await catalog.unused_author_count(db)
+
+
+async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.UUID) -> None:
+    """Delete an author no book lists; any member may (spec 008). Unknown → not found; with
+    books (even one linked a moment ago) → conflict, and nothing is deleted."""
+    try:
+        async with db.begin_nested():
+            deleted = await catalog.delete_unused_author(db, author_id)
+    except IntegrityError:  # the foreign key backstops the NOT EXISTS check
+        deleted = False
+    if not deleted:
+        if await catalog.get_author(db, author_id) is None:
+            raise NotFoundError()  # unknown, or deleted by someone else meanwhile
+        raise ConflictError("author_has_books", "This author has books")
+    logger.info("author %s deleted by member %s", author_id, actor_id)
 
 
 async def upcoming_books(db: AsyncSession, today: date) -> list[domain.Book]:
@@ -303,11 +339,14 @@ async def update_author(
             raise ValidationFailed.single("real_name", PEN_NAME_FIRST)
         real = None  # unmarking a pen name drops its real name
     fields["real_name"] = normalize_name(real) if real else None
-    return await guarded(
+    author = await guarded(
         db,
         lambda: catalog.update_author(db, author_id, actor_id, **fields),
         name=fields.get("name"),
     )
+    if author is None:
+        raise NotFoundError()  # deleted by another member meanwhile (spec 008)
+    return author
 
 
 async def update_series(

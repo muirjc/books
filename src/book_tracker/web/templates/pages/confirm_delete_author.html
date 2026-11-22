@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ author.name }}{% endblock %}
+{% block content %}
+<h1>Delete “{{ author.name }}” from the family catalog?</h1>
+<p>No book lists this author. Deleting removes the name from the catalog for everyone, and it
+won't be suggested when adding a book.</p>
+<form method="post" action="/catalog/authors/{{ author.id }}/delete" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" name="confirm" value="yes" class="button-danger">Delete</button>
+  <a href="/catalog/authors/{{ author.id }}/edit">Cancel</a>
+</form>
+{% endblock %}

@@ -23,7 +23,7 @@ from book_tracker.schemas.readings import ReadingEntryCreate
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
-from book_tracker.services.catalog import NewBook
+from book_tracker.services.catalog import AUTHOR_DELETED, NewBook
 from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
 from book_tracker.web.forms import (
     AddBookForm,
@@ -138,6 +138,7 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         {
             # Spec 007 R6: the full page only, so filtering never repeats or drops it.
             "now_out": await service.now_out(db, auth.account.id, on),
+            "unused_authors": await catalog_service.unused_author_count(db),  # spec 008
             "sort_options": SORT_OPTIONS,
             "statuses": STATUSES,
             "author_options": authors,
@@ -353,7 +354,14 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
             )
     except ConflictError as exc:
         return _add_form(request, auth, form, status_code=409, conflict=exc, chosen=chosen)
-    except (ValidationFailed, NotFoundError):
+    except ValidationFailed as exc:
+        if any(e.field.endswith("author_ids") for e in exc.errors):
+            # A chosen author was deleted meanwhile (spec 008, PR #24 review).
+            form.errors["author_name_0"] = AUTHOR_DELETED
+        else:
+            form.errors["title"] = "That book is no longer in the catalog. Enter its details."
+        return _add_form(request, auth, form, status_code=422)
+    except NotFoundError:
         form.errors["title"] = "That book is no longer in the catalog. Enter its details."
         return _add_form(request, auth, form, status_code=422)
     if form.then == "another":
@@ -561,7 +569,10 @@ async def save_book_details(
     except ConflictError as exc:
         return BookSaveProblem(409, conflict=exc)
     except ValidationFailed as exc:
-        form.errors.update({e.field: e.message for e in exc.errors})
+        # Field names as the form knows them, e.g. author_ids → author_name_0.
+        form.errors.update(
+            {BOOK_FIELD_MESSAGES.get(e.field, (e.field,))[0]: e.message for e in exc.errors}
+        )
         return BookSaveProblem(422)
     return None
 

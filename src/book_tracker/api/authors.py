@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from book_tracker.api import responses as r
 from book_tracker.auth.dependencies import ApiUser
@@ -67,3 +67,14 @@ async def update_author(
 ) -> Author:
     changes = {name: getattr(body, name) for name in body.model_fields_set}
     return author_out(await service.update_author(db, auth.account.id, author_id, changes))
+
+
+@router.delete(
+    "/{author_id}",
+    status_code=204,
+    summary="Delete an author no book lists; any member (spec 008)",
+    responses=r.merge(r.UNAUTHENTICATED, r.FORBIDDEN, r.NOT_FOUND, r.PLAIN_CONFLICT),
+)
+async def delete_author(author_id: uuid.UUID, auth: ApiUser, db: DbSession) -> Response:
+    await service.delete_author(db, auth.account.id, author_id)
+    return Response(status_code=204)

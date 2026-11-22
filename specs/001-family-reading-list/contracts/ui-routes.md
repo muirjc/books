@@ -19,7 +19,7 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | POST | `/sign-out` | Sign out; 303 to `/sign-in` | FR-001 |
 | POST | `/switch-user` | Sign out, keep the recent profiles; 303 to `/sign-in` | FR-007 |
 | GET, POST | `/account/password` | Change own password (forced after reset) | FR-004, FR-028 |
-| GET | `/` | My list: search, sort, filter, paging (fragment: `#reading-list`); `?upcoming=1` and the Now out notice ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)) | FR-021, FR-023 |
+| GET | `/` | My list: search, sort, filter, paging (fragment: `#reading-list`); `?upcoming=1` and the Now out notice ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)); a link to authors with no books when there are any ([spec 008](../../008-delete-unused-authors/contracts/ui-delete-author.md)) | FR-021, FR-023 |
 | GET | `/books/add` | Add-book form with type-ahead; `?after=<own entry id>` pre-fills the next book ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)); `?book=`, `?series=&number=` and `?from_series=` start from a series page ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)); a Release date field, Pre-ordered, and Coming on a chosen book ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)) | FR-016 |
 | POST | `/books/add` | Add to my list (existing or new book); `then=another` redirects to the next-book form ([spec 004](../../004-save-and-add-another/contracts/ui-add-another.md)) New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). With `from_series`, a successful save returns to that series page ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)). | FR-016, FR-017 |
 | GET | `/suggest/books?q=` | Type-ahead fragment | FR-010 |
@@ -32,7 +32,9 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | GET | `/upcoming` | My books not out yet, then other upcoming catalog books with Add to my list ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)) | spec 007 |
 | GET | `/series/{id}` | Every catalog book in this series, in order, with my own status, gaps and Add links ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)); Coming and Pre-ordered labels ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)) | FR-022 |
 | GET, POST | `/catalog/books/{id}/edit` | Edit a catalog book, including its release date ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)). New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). | FR-009 |
-| GET, POST | `/catalog/authors/{id}/edit` | Edit an author, pen name, real name | FR-009, FR-014 |
+| GET, POST | `/catalog/authors/{id}/edit` | Edit an author, pen name, real name; lists the books that list the author, and offers Delete author when there are none ([spec 008](../../008-delete-unused-authors/contracts/ui-delete-author.md)) | FR-009, FR-014 |
+| GET | `/catalog/authors/unused` | Authors no book lists ([spec 008](../../008-delete-unused-authors/contracts/ui-delete-author.md)) | spec 008 |
+| POST | `/catalog/authors/{id}/delete` | Asks first; with `confirm=yes` deletes an author no book lists, else 409 ([spec 008](../../008-delete-unused-authors/contracts/ui-delete-author.md)) | spec 008 |
 | GET, POST | `/catalog/series/{id}/edit` | Rename a series; lists every catalog book in it (number, link to edit), including books on nobody's list (books-cay). A "number taken" conflict anywhere links to the book holding the number | FR-009 |
 | GET, POST | `/catalog/books/{id}/summary` | Write a new summary; shows history | FR-024 |
 | GET | `/admin/users` | Accounts list (Admin only) | FR-003 |

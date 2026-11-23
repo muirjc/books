@@ -111,6 +111,48 @@ paths:
               schema: { $ref: "#/components/schemas/CurrentUser" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
 
+  /me/favorite-authors:
+    get:
+      tags: [me]
+      summary: My favorite authors, by sort name (spec 011)
+      responses:
+        "200":
+          description: My favorite authors
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Author" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/PasswordChangeRequired" }
+  /me/favorite-authors/{author_id}:
+    parameters:
+      - name: author_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [me]
+      summary: Add an author to my favorites; already one is fine (spec 011)
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      responses:
+        "204": { description: A favorite }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      tags: [me]
+      summary: Remove an author from my favorites; not one is fine (spec 011)
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      responses:
+        "204": { description: Not a favorite }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
   /me/readings:
     get:
       tags: [me]
@@ -138,6 +180,10 @@ paths:
         - name: upcoming
           in: query
           description: Only books not out yet, soonest first; sort is ignored (spec 007)
+          schema: { type: boolean, default: false }
+        - name: favorite_authors
+          in: query
+          description: Only books by one of my favorite authors (spec 011)
           schema: { type: boolean, default: false }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
@@ -573,7 +619,10 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
-          description: Books list this author (code author_has_books); nothing was deleted
+          description: >-
+            Books list this author (code author_has_books), or a member keeps them as a
+            favorite author (code author_is_favorite, spec 011; it doesn't say who); nothing
+            was deleted
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }

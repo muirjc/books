@@ -151,6 +151,23 @@ def _has_no_books() -> Any:
     )
 
 
+def _not_favorited() -> Any:
+    """No member keeps the author as a favorite (spec 011, constitution 2.0.0)."""
+    return ~exists().where(models.FavoriteAuthor.author_id == models.Author.id)
+
+
+def _deletable() -> Any:
+    """Spec 008's "unused", plus no favorite (spec 011)."""
+    return _has_no_books() & _not_favorited()
+
+
+async def author_favorited(db: AsyncSession, author_id: uuid.UUID) -> bool:
+    """Whether *any* member favorites the author: the one fact the delete refusal may show
+    (constitution 2.0.0). It never says who, or how many."""
+    found = await db.scalar(select(exists().where(models.FavoriteAuthor.author_id == author_id)))
+    return bool(found)
+
+
 async def author_books(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Book]:
     """The catalog books that list this author, by title (spec 008)."""
     rows = (
@@ -170,12 +187,12 @@ async def author_books(db: AsyncSession, author_id: uuid.UUID) -> list[domain.Bo
 
 
 async def unused_authors(db: AsyncSession) -> list[domain.Author]:
-    """Authors no book lists, by sort name (spec 008)."""
+    """Authors no book lists and no member favorites, by sort name (spec 008, 011)."""
     rows = (
         (
             await db.execute(
                 select(models.Author)
-                .where(_has_no_books())
+                .where(_deletable())
                 .order_by(func.lower(models.Author.sort_name), models.Author.id)
             )
         )
@@ -186,16 +203,17 @@ async def unused_authors(db: AsyncSession) -> list[domain.Author]:
 
 
 async def unused_author_count(db: AsyncSession) -> int:
-    count = await db.scalar(select(func.count()).select_from(models.Author).where(_has_no_books()))
+    count = await db.scalar(select(func.count()).select_from(models.Author).where(_deletable()))
     return int(count or 0)
 
 
 async def delete_unused_author(db: AsyncSession, author_id: uuid.UUID) -> bool:
-    """Delete the author only if no book or story lists it, in one statement, so a book linked
-    meanwhile keeps it (spec 008 FR-003). False when it wasn't deleted."""
+    """Delete the author only if no book or story lists it and no member favorites it, in one
+    statement, so a link or favorite made meanwhile keeps it (spec 008 FR-003, spec 011).
+    False when it wasn't deleted."""
     deleted = await db.execute(
         delete(models.Author)
-        .where(models.Author.id == author_id, _has_no_books())
+        .where(models.Author.id == author_id, _deletable())
         .returning(models.Author.id)
     )
     return deleted.scalar_one_or_none() is not None

@@ -269,3 +269,12 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .catalog-list .book-title, .catalog-mine { display: inline-flex; align-items: center; min-height: var(--target); }
 .catalog-list .catalog-detail { flex: 1 1 16rem; min-width: 0; }
 .catalog-list .series-action, .catalog-mine { margin-left: auto; }
+
+/* Spec 011: the Author page. */
+.favorite-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.5rem 0 1rem; }
+.favorite-status { margin: 0; font-weight: 700; }
+.catalog-list .badge { flex: none; }
+.author-stories li { margin: 0.25rem 0; }
+/* Author and series links in a row's details: at least 24 px (WCAG 2.5.8), even where a
+   cell holds only links, so axe doesn't count them as inline. */
+.book-meta a { display: inline-block; min-height: 1.5rem; line-height: 1.5rem; }

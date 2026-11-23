@@ -300,3 +300,11 @@ class CatalogQuery(BaseModel):
     @classmethod
     def _page(cls, value: object) -> int:
         return parse_page(value)
+
+
+class FavoriteForm(BaseModel):
+    """The Author page's favorite button (spec 011): add (yes) or remove (no)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    favorite: Literal["yes", "no"]

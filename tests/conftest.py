@@ -194,6 +194,7 @@ def app(settings: Settings) -> Any:
 
 
 TABLES = (
+    "favorite_author",
     "book_story",
     "story_author",
     "story",
@@ -461,6 +462,10 @@ class Factory:
         )
         await self._add(row)
         return row.id
+
+    async def favorite(self, user: TestUser, author_id: uuid.UUID) -> None:
+        """A favorite author (spec 011)."""
+        await self._add(models.FavoriteAuthor(user_id=user.id, author_id=author_id))
 
     async def execute(self, sql: str, **params: Any) -> None:
         """Run a write statement and commit it."""

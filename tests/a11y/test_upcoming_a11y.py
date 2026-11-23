@@ -70,7 +70,9 @@ async def test_upcoming_layouts(ui: UI, upcoming: Seeded) -> None:
             await size(ui.page, wh)
             await check(ui.page, f"{name} {wh}")  # no sideways scroll, 44 px targets
             if name == "upcoming":
-                await _targets(ui, ".upcoming-list a", f"{name} {wh}")
+                # Author names (spec 011) are inline links in a line of text, exempt from
+                # the target size (WCAG 2.5.8); the row's own targets are checked.
+                await _targets(ui, ".upcoming-list a:not(.book-meta a)", f"{name} {wh}")
             if name.startswith("my books"):
                 await _targets(ui, "#now-out a", f"{name} {wh}")
             if wh in (PHONE, IPAD, LAPTOP):

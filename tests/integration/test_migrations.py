@@ -20,7 +20,8 @@ TABLES_0001 = {
 }
 TABLES_0002 = {"book_source_ref", "source_lookup_cache"}
 TABLES_0004 = {"story", "story_author", "book_story"}  # spec 009 T001
-EXPECTED_TABLES = TABLES_0001 | TABLES_0002 | TABLES_0004
+TABLES_0005 = {"favorite_author"}  # spec 011 T002
+EXPECTED_TABLES = TABLES_0001 | TABLES_0002 | TABLES_0004 | TABLES_0005
 
 # Constraints spec 002's services rely on by name (data-model.md).
 CONSTRAINTS_0002 = {
@@ -89,12 +90,15 @@ def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     assert _columns(url) == COLUMNS_0003  # spec 007 T004
     assert "book_release_date_idx" in _indexes(url)
 
+    command.downgrade(cfg, "0004_collection_stories")  # spec 011
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0005 | {"alembic_version"}
+
     command.downgrade(cfg, "0003_upcoming_books")
-    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 | {"alembic_version"}
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 - TABLES_0005 | {"alembic_version"}
     assert _columns(url) == COLUMNS_0003
 
     command.downgrade(cfg, "0002_author_import")
-    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 | {"alembic_version"}
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 - TABLES_0005 | {"alembic_version"}
     assert _columns(url) == set()
     assert "book_release_date_idx" not in _indexes(url)
 

@@ -217,13 +217,19 @@ async def unused_authors(db: AsyncSession) -> list[domain.Author]:
     return await catalog.unused_authors(db)
 
 
+async def author_favorited(db: AsyncSession, author_id: uuid.UUID) -> bool:
+    """Whether any member favorites the author (spec 011's delete rule only)."""
+    return await catalog.author_favorited(db, author_id)
+
+
 async def unused_author_count(db: AsyncSession) -> int:
     return await catalog.unused_author_count(db)
 
 
 async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.UUID) -> None:
     """Delete an author no book lists; any member may (spec 008). Unknown → not found; with
-    books (even one linked a moment ago) → conflict, and nothing is deleted."""
+    books (even one linked a moment ago) → conflict, and nothing is deleted. Favorited by any
+    member (spec 011) → conflict ``author_is_favorite``, naming nobody."""
     try:
         async with db.begin_nested():
             deleted = await catalog.delete_unused_author(db, author_id)
@@ -232,6 +238,13 @@ async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.U
     if not deleted:
         if await catalog.get_author(db, author_id) is None:
             raise NotFoundError()  # unknown, or deleted by someone else meanwhile
+        if not await catalog.author_books(db, author_id) and not await catalog.author_stories(
+            db, author_id
+        ):
+            if await catalog.author_favorited(db, author_id):
+                raise ConflictError(
+                    "author_is_favorite", "A family member has this author as a favorite"
+                )
         raise ConflictError("author_has_books", "This author has books")
     logger.info("author %s deleted by member %s", author_id, actor_id)
 

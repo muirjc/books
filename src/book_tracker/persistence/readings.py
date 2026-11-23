@@ -93,9 +93,11 @@ class ReadingEntryRepository:
         status: ReadingStatus | None = None,
         sort: str = "title",
         upcoming_after: date | None = None,
+        extra: ColumnElement[bool] | None = None,
     ) -> ReadingEntryPage:
         """``upcoming_after``: only books released after that date, soonest first, and
-        ``sort`` is ignored (spec 007 R4)."""
+        ``sort`` is ignored (spec 007 R4). ``extra`` is a condition on ``Book`` from another
+        repository bound to the same user (spec 011: my favorite authors)."""
         filtered = (
             self._owned()
             .join(models.Book, models.Book.id == models.ReadingEntry.book_id)
@@ -116,6 +118,8 @@ class ReadingEntryRepository:
             filtered = filtered.where(models.ReadingEntry.status == status.value)
         if upcoming_after is not None:
             filtered = filtered.where(models.Book.release_date > upcoming_after)
+        if extra is not None:
+            filtered = filtered.where(extra)
         order = _soonest_first() if upcoming_after is not None else _order(sort)
         total = await self._db.scalar(select(func.count()).select_from(filtered.subquery()))
         rows = (

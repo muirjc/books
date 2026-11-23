@@ -3,6 +3,7 @@
 {% block title %}Edit {{ author.name }}{% endblock %}
 {% block content %}
 <h1>Edit author “{{ author.name }}”</h1>
+<p><a href="/authors/{{ author.id }}">All books by {{ author.name }}</a></p>
 <p class="muted">Last edited by {{ author.updated_by.display_name }} on {{ author.updated_at | nice_date }}.</p>
 {{ error_summary(errors) }}
 <form method="post" action="/catalog/authors/{{ author.id }}/edit" class="stack narrow" novalidate>
@@ -52,10 +53,15 @@
   <p class="muted">{% if stories %}This author can't be deleted while books or stories list them. Change their authors first.{% else %}This author can't be deleted while books list them. Change those books' authors first.{% endif %}</p>
   {% else %}
   <p>No book in the family catalog lists this author.</p>
+  {% if favorite_block %}
+  {#- Spec 011: kept while favorited; the "other" text names nobody (constitution 2.0.0). -#}
+  <p class="field-error" role="status">{{ favorite_block }}</p>
+  {% else %}
   <form method="post" action="/catalog/authors/{{ author.id }}/delete" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="button-danger">Delete author</button>
   </form>
+  {% endif %}
   {% endif %}
 </section>
 {% endblock %}

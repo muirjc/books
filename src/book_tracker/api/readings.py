@@ -58,6 +58,9 @@ async def list_readings(
         bool,
         Query(description="Only books not out yet, soonest first; sort is ignored (spec 007)"),
     ] = False,
+    favorite_authors: Annotated[
+        bool, Query(description="Only books by one of my favorite authors (spec 011)")
+    ] = False,
 ) -> ReadingEntryPage:
     result = await service.list_entries(
         db,
@@ -70,6 +73,7 @@ async def list_readings(
         status=status,
         sort=sort,
         upcoming_after=today(request) if upcoming else None,
+        favorite_authors=favorite_authors,
     )
     return reading_entry_page_out(result)
 

@@ -16,6 +16,7 @@ CRITICAL_MODULES = (
     "src/book_tracker/auth/dependencies.py",
     "src/book_tracker/auth/throttle.py",
     "src/book_tracker/persistence/readings.py",
+    "src/book_tracker/persistence/favorites.py",  # spec 011: personal favorites
     "src/book_tracker/services/accounts.py",
     "src/book_tracker/services/imports.py",  # spec 002: whose list receives imported books
 )

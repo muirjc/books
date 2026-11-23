@@ -270,3 +270,36 @@ async def test_catalog_page_under_one_second(big_list: httpx.AsyncClient) -> Non
     }
     print("\nspec 010 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert all(value < 1.0 for value in results.values()), results
+
+
+@pytest.mark.ac("011/AC-18")
+async def test_author_pages_under_one_second(big_list: httpx.AsyncClient, factory: Factory) -> None:
+    """Spec 011 SC-001: an author with 300 of the 5,000 books (some on my list), My favorite
+    authors with 50, and the My books favorites filter."""
+    reader = await factory.scalar("SELECT id FROM app_user WHERE login = 'reader'")
+    await factory.execute(
+        """INSERT INTO author (id, name, sort_name, created_by, updated_by)
+           VALUES (gen_random_uuid(), 'Prolific Writer', 'Writer, Prolific', :u, :u)""",
+        u=reader,
+    )
+    prolific = await factory.scalar("SELECT id FROM author WHERE name = 'Prolific Writer'")
+    await factory.execute(
+        """INSERT INTO book_author (book_id, author_id, position)
+           SELECT id, :a, 2 FROM book ORDER BY id LIMIT 300""",
+        a=prolific,
+    )
+    await factory.execute(
+        """INSERT INTO favorite_author (user_id, author_id)
+           SELECT :u, id FROM author ORDER BY name LIMIT 50""",
+        u=reader,
+    )
+    await factory.execute("ANALYZE")
+    results = {
+        "author page": await p95(lambda i: big_list.get(f"/authors/{prolific}"), runs=40),
+        "my favorites": await p95(lambda i: big_list.get("/authors/favorites"), runs=40),
+        "favorites filter": await p95(
+            lambda i: big_list.get("/", params={"author_id": "favorites"}), runs=40
+        ),
+    }
+    print("\nspec 011 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
+    assert all(value < 1.0 for value in results.values()), results

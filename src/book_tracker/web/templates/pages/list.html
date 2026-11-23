@@ -48,6 +48,7 @@
     <label for="author_id">Author</label>
     <select id="author_id" name="author_id">
       <option value="">Any author</option>
+      <option value="favorites"{% if filters.author_id == "favorites" %} selected{% endif %}>My favorite authors</option>
       {% for id, name in author_options %}
       <option value="{{ id }}"{% if id | string == filters.author_id %} selected{% endif %}>{{ name }}</option>
       {% endfor %}
@@ -77,6 +78,7 @@
 <div id="reading-list" aria-live="polite">
   {% include "partials/reading_list.html" %}
 </div>
+<p class="tidy-link"><a href="/authors/favorites">My favorite authors</a></p>
 {% if unused_authors %}
 {#- Spec 008: tidy the catalog. -#}
 <p class="tidy-link"><a href="/catalog/authors/unused">Authors with no books ({{ unused_authors }})</a></p>

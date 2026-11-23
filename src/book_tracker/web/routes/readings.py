@@ -99,7 +99,8 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     sort = sort if sort in {value for value, _ in SORT_OPTIONS} else "title"
     status_text = params.get("status", "")
     status = ReadingStatus(status_text) if status_text in ReadingStatus._value2member_map_ else None
-    author_id = _uuid_param(request, "author_id")
+    favorites = params.get("author_id") == "favorites"  # spec 011 R3
+    author_id = None if favorites else _uuid_param(request, "author_id")
     series_id = _uuid_param(request, "series_id")
     upcoming = params.get("upcoming") == "1"  # spec 007 R4; anything else is off
     on = today(request)
@@ -114,13 +115,14 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         status=status,
         sort=sort,
         upcoming_after=on if upcoming else None,
+        favorite_authors=favorites,
     )
     kept = {
         "q": q,
         # Upcoming only ignores the sort, so links don't carry it (PR #23 review).
         "sort": "" if sort == "title" or upcoming else sort,
         "status": status.value if status else "",
-        "author_id": str(author_id) if author_id else "",
+        "author_id": "favorites" if favorites else str(author_id) if author_id else "",
         "series_id": str(series_id) if series_id else "",
         "upcoming": "1" if upcoming else "",
     }

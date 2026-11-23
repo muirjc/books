@@ -3530,6 +3530,181 @@
         ]
       }
     },
+    "/me/favorite-authors": {
+      "get": {
+        "operationId": "list_favorites_api_v1_me_favorite_authors_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Author"
+                  },
+                  "title": "Response List Favorites Api V1 Me Favorite Authors Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No valid session"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "code=password_change_required"
+          }
+        },
+        "summary": "My favorite authors, by sort name (spec 011)",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/me/favorite-authors/{author_id}": {
+      "delete": {
+        "operationId": "remove_favorite_api_v1_me_favorite_authors__author_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Author Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No valid session"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "code=csrf_failed, password_change_required or not_admin"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Does not exist, or belongs to another member (indistinguishable)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Request failed validation"
+          }
+        },
+        "summary": "Remove an author from my favorites; not one is fine (spec 011)",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "operationId": "add_favorite_api_v1_me_favorite_authors__author_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Author Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "No valid session"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "code=csrf_failed, password_change_required or not_admin"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Does not exist, or belongs to another member (indistinguishable)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Request failed validation"
+          }
+        },
+        "summary": "Add an author to my favorites; already one is fine (spec 011)",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/me/imports": {
       "post": {
         "operationId": "import_works_api_v1_me_imports_post",
@@ -3725,6 +3900,18 @@
               "default": false,
               "description": "Only books not out yet, soonest first; sort is ignored (spec 007)",
               "title": "Upcoming",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only books by one of my favorite authors (spec 011)",
+            "in": "query",
+            "name": "favorite_authors",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only books by one of my favorite authors (spec 011)",
+              "title": "Favorite Authors",
               "type": "boolean"
             }
           }

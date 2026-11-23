@@ -22,6 +22,7 @@ from book_tracker.schemas.types import (
     SeriesNumberIn,
     SummaryText,
     Title,
+    search_text,
 )
 
 # --------------------------------------------------------------------------- output
@@ -283,8 +284,7 @@ class CatalogQuery(BaseModel):
     @field_validator("q", mode="before")
     @classmethod
     def _q(cls, value: object) -> str:
-        text = value if isinstance(value, str) else ""
-        return text.replace("\x00", "").strip()[:200]  # PostgreSQL text has no NUL
+        return search_text(value)
 
     @field_validator("sort", mode="before")
     @classmethod

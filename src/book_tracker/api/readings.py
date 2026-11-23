@@ -23,6 +23,7 @@ from book_tracker.schemas.readings import (
     ReadingEntryPage,
     ReadingEntryUpdate,
 )
+from book_tracker.schemas.types import drop_nul
 from book_tracker.services import readings as service
 from book_tracker.services.catalog import NewBook
 
@@ -67,7 +68,7 @@ async def list_readings(
         auth.account.id,
         page=page,
         page_size=page_size,
-        q=q,
+        q=drop_nul(q),  # books-7bq
         author_id=author_id,
         series_id=series_id,
         status=status,

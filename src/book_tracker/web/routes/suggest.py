@@ -12,6 +12,7 @@ from starlette.responses import Response
 from book_tracker.auth.dependencies import UiUser
 from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
+from book_tracker.schemas.types import search_text
 from book_tracker.services import catalog as service
 from book_tracker.web.rendering import render
 
@@ -37,7 +38,7 @@ def _query(request: Request) -> tuple[str, str]:
     if not FIELD.match(field):
         field = "q"
     q = request.query_params.get(field) or request.query_params.get("q") or ""
-    return field, q.strip()[:200]
+    return field, search_text(q)
 
 
 @router.get("/{kind}")

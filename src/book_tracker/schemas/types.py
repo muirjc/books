@@ -11,6 +11,21 @@ from pydantic import AfterValidator, BeforeValidator, StringConstraints, WithJso
 
 from book_tracker.domain.values import normalize_name, parse_isbn13, parse_series_number
 
+SEARCH_MAX = 200
+
+
+def drop_nul(value: Any) -> Any:
+    """PostgreSQL text can't hold NUL, so a search drops it before any query (books-7bq)."""
+    return value.replace("\x00", "") if isinstance(value, str) else value
+
+
+def search_text(value: object) -> str:
+    """A page's search box text: no NUL, trimmed, at most ``SEARCH_MAX`` characters."""
+    return str(drop_nul(value if isinstance(value, str) else "")).strip()[:SEARCH_MAX]
+
+
+NoNul = BeforeValidator(drop_nul)
+
 SERIES_NUMBER_PATTERN = r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
 
 

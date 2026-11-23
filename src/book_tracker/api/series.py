@@ -12,9 +12,10 @@ from book_tracker.auth.dependencies import ApiUser
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import Series, SeriesWrite
 from book_tracker.schemas.mappers import series_out
+from book_tracker.schemas.types import NoNul
 from book_tracker.services import catalog as service
 
-TypeAheadQuery = Annotated[str, Query(min_length=1, max_length=200)]
+TypeAheadQuery = Annotated[str, NoNul, Query(min_length=1, max_length=200)]
 TypeAheadLimit = Annotated[int, Query(ge=1, le=25)]
 
 router = APIRouter(prefix="/series", tags=["catalog"])

@@ -119,3 +119,46 @@ class TooManyAttempts(ServiceError):
 class WrongCurrentPassword(ServiceError):
     code = "wrong_current_password"
     title = "Your current password is wrong"
+
+
+# --------------------------------------------------------------------------- spec 012
+# Titles are the messages members see (AC-09); each one leaves hand-writing open.
+
+
+class AiNotConfigured(ServiceError):
+    code = "ai_not_configured"
+    title = "AI drafts aren't set up. You can write the summary yourself."
+
+
+class AiUnavailable(ServiceError):
+    code = "ai_unavailable"
+    title = "The AI didn't answer in time. Try again, or write the summary yourself."
+
+
+class AiDeclined(ServiceError):
+    code = "ai_declined"
+    title = "The AI couldn't write a summary of this book. You can write one yourself."
+
+
+class NotEnoughInformation(ServiceError):
+    code = "not_enough_information"
+    title = (
+        "The AI couldn't find enough about this book to write a summary. "
+        "You can write one yourself."
+    )
+
+
+class DraftRejected(ServiceError):
+    code = "draft_rejected"
+    title = "The AI's draft didn't pass our checks. Try again, or write the summary yourself."
+
+
+class DraftLimitReached(ServiceError):
+    code = "draft_limit_reached"
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            title=f"You've used your {limit} AI drafts for today. You can write the summary "
+            "yourself, or draft again tomorrow."
+        )
+        self.limit = limit

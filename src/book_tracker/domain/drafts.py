@@ -175,7 +175,9 @@ def keep_sources(
     return tuple(kept[:SOURCES_MAX])
 
 
-def origin_for(draft: StoredDraft | CachedDraft | None, book_key: str, saved_text: str, now: datetime) -> Origin:
+def origin_for(
+    draft: StoredDraft | CachedDraft | None, book_key: str, saved_text: str, now: datetime
+) -> Origin:
     """``ai`` or ``ai_edited`` only for the app's own, current draft of this book (R6)."""
     if draft is None or draft.draft_key != book_key or now - draft.created_at > DRAFT_TTL:
         return "manual"

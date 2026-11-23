@@ -212,6 +212,40 @@ def _require_changes(model: BaseModel, nullable: set[str]) -> None:
 
 class SummaryCreate(RequestModel):
     text: SummaryText
+    # Spec 012: the AI draft this text came from; any other value saves it as manual.
+    draft_id: uuid.UUID | None = None
+
+
+def _uuid_or_none(value: object) -> str | None:
+    """A form's draft id: kept only when it is a UUID; anything else means no draft."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        return None
+
+
+class SummaryForm(BaseModel):
+    """The Summary page's save form (spec 012)."""
+
+    text: str = ""
+    draft_id: str | None = None
+
+    _draft = field_validator("draft_id", mode="before")(_uuid_or_none)
+
+
+class DraftForm(BaseModel):
+    """Draft with AI / Regenerate (spec 012): what was in the box, and whether to bypass
+    the cache."""
+
+    text: str = Field(default="", max_length=20000)
+    regenerate: bool = False
+
+    @field_validator("regenerate", mode="before")
+    @classmethod
+    def _flag(cls, value: object) -> bool:
+        return value in ("1", "true", "on", True)
 
 
 class StoryAdd(RequestModel):

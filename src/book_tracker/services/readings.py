@@ -343,7 +343,7 @@ async def add_entry(
             ) from None
         book_id = book.id
         if new_book.summary:
-            await summaries.save_manual_summary(db, user_id, book_id, new_book.summary)
+            await summaries.save_summary(db, user_id, book_id, new_book.summary)
     elif book_id is None or not await catalog.book_exists(db, book_id):
         raise NotFoundError()
     existing = await repo.get_by_book(book_id)

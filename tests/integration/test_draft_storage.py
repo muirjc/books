@@ -110,7 +110,9 @@ async def test_allowance_prunes_old_days_and_cascades(app: Any, factory: Factory
         await repo.reserve(TODAY - timedelta(days=5), 10)
         await repo.reserve(TODAY, 10)
         await db.commit()
-    days = await factory.scalar("SELECT string_agg(day::text, ',' ORDER BY day) FROM ai_draft_usage")
+    days = await factory.scalar(
+        "SELECT string_agg(day::text, ',' ORDER BY day) FROM ai_draft_usage"
+    )
     assert days == "2026-11-18,2026-11-23"  # the 31-day-old row is gone
     with pytest.raises(IntegrityError, match="ai_draft_usage_count_check"):
         await factory.execute(

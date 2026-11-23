@@ -75,4 +75,4 @@ async def list_summaries(book_id: uuid.UUID, auth: ApiUser, db: DbSession) -> li
 async def save_summary(
     book_id: uuid.UUID, body: SummaryCreate, auth: ApiUser, db: DbSession
 ) -> Summary:
-    return summary_out(await summaries.save_manual_summary(db, auth.account.id, book_id, body.text))
+    return summary_out(await summaries.save_summary(db, auth.account.id, book_id, body.text))

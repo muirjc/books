@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -781,7 +782,14 @@ async def list_summaries(db: AsyncSession, book_id: uuid.UUID) -> list[domain.Su
 
 
 async def save_summary(
-    db: AsyncSession, book_id: uuid.UUID, text: str, origin: str, actor_id: uuid.UUID
+    db: AsyncSession,
+    book_id: uuid.UUID,
+    text: str,
+    origin: str,
+    actor_id: uuid.UUID,
+    *,
+    model: str | None = None,
+    source_urls: Sequence[str] | None = None,
 ) -> domain.Summary:
     """Make ``text`` the book's current summary, keeping the old one as history (FR-024).
 
@@ -800,6 +808,8 @@ async def save_summary(
             book_id=book_id,
             text=text,
             origin=origin,
+            model=model,
+            source_urls=list(source_urls) if source_urls is not None else None,
             created_by=actor_id,
             is_current=True,
         )

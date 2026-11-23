@@ -14,17 +14,38 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from starlette.responses import Response
 
-from book_tracker.auth.dependencies import Authenticated, UiUser
+from book_tracker.auth.dependencies import Authenticated, UiUser, now, today
 from book_tracker.domain import models as domain
+from book_tracker.domain.drafts import BookFacts, DraftView
 from book_tracker.domain.imports import SourceRef
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import AuthorUpdate, CatalogQuery, SeriesWrite, SummaryCreate
+from book_tracker.schemas.catalog import (
+    AuthorUpdate,
+    CatalogQuery,
+    DraftForm,
+    SeriesWrite,
+    SummaryCreate,
+    SummaryForm,
+)
 from book_tracker.services import authors as authors_service
 from book_tracker.services import catalog as service
+from book_tracker.services import drafts as drafts_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as readings_service
 from book_tracker.services import summaries
-from book_tracker.services.errors import ConflictError, ValidationFailed
+from book_tracker.services.errors import (
+    AiDeclined,
+    AiNotConfigured,
+    AiUnavailable,
+    ConflictError,
+    DraftLimitReached,
+    DraftRejected,
+    NotEnoughInformation,
+    ValidationFailed,
+)
+from book_tracker.sources.base import BookSource
+from book_tracker.sources.dependencies import BookSourceDep
+from book_tracker.sources.summary_generator import SummaryGenerator, SummaryGeneratorDep
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import is_htmx, render
 from book_tracker.web.routes.readings import (
@@ -454,20 +475,22 @@ async def _summary_page(
     text_value: str = "",
     error: str | None = None,
     status_code: int = 200,
+    draft: DraftView | None = None,
+    draft_error: str | None = None,
+    drafts_left: int | None = None,
 ) -> Response:
-    return render(
-        request,
-        "pages/summary.html",
-        {
-            "book": book,
-            "history": await summaries.history(db, book.id),
-            "text_value": text_value,
-            "errors": {"text": error} if error else {},
-            "message": _message(request),
-        },
-        auth=auth,
-        status_code=status_code,
-    )
+    context = {
+        "book": book,
+        "history": await summaries.history(db, book.id),
+        "text_value": text_value,
+        "errors": {"text": error} if error else {},
+        "message": _message(request),
+        "draft": draft,
+        "draft_error": draft_error,
+        "drafts_left": drafts_left,
+    }
+    template = "partials/summary_draft.html" if is_htmx(request) else "pages/summary.html"
+    return render(request, template, context, auth=auth, status_code=status_code)
 
 
 @router.get("/books/{book_id}/summary")
@@ -477,23 +500,99 @@ async def summary_form(
     return await _summary_page(request, auth, db, await service.get_book(db, book_id))
 
 
+DRAFT_FAILURES = (
+    AiNotConfigured,
+    AiUnavailable,
+    AiDeclined,
+    NotEnoughInformation,
+    DraftRejected,
+    DraftLimitReached,
+)
+
+
+async def draft_for_page(
+    request: Request,
+    auth: Authenticated,
+    db: DbSession,
+    facts: BookFacts,
+    *,
+    regenerate: bool,
+    source: BookSource,
+    generator: SummaryGenerator,
+) -> tuple[DraftView | None, str | None, int]:
+    """A draft, or the message saying why there is none; and the drafts left today."""
+    limit = request.app.state.settings.ai_daily_draft_limit
+    try:
+        view = await drafts_service.request_draft(
+            db,
+            user_id=auth.account.id,
+            facts=facts,
+            regenerate=regenerate,
+            source=source,
+            generator=generator,
+            now=now(request),
+            today=today(request),
+            limit=limit,
+        )
+    except DRAFT_FAILURES as exc:
+        left = await drafts_service.drafts_left(db, auth.account.id, today(request), limit)
+        return None, exc.title, left
+    return view, None, view.drafts_left
+
+
+@router.post("/books/{book_id}/summary/draft")
+async def draft_summary(
+    book_id: uuid.UUID,
+    request: Request,
+    auth: UiUser,
+    db: DbSession,
+    source: BookSourceDep,
+    generator: SummaryGeneratorDep,
+) -> Response:
+    """Draft with AI / Regenerate (spec 012 AC-02, AC-09, AC-16): never saves a summary."""
+    book = await service.get_book(db, book_id)
+    data = await request.form()
+    form = DraftForm.model_validate(
+        {"text": text(data, "text")[:5000], "regenerate": data.get("regenerate", "")}
+    )
+    view, problem, left = await draft_for_page(
+        request, auth, db, drafts_service.facts_for(book),
+        regenerate=form.regenerate, source=source, generator=generator,
+    )  # fmt: skip
+    return await _summary_page(
+        request,
+        auth,
+        db,
+        book,
+        text_value=view.text if view else form.text,
+        draft=view,
+        draft_error=problem,
+        drafts_left=left,
+    )
+
+
 @router.post("/books/{book_id}/summary")
 async def save_summary(
     book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     book = await service.get_book(db, book_id)
-    value = text(await request.form(), "text")
+    data = await request.form()
+    form = SummaryForm.model_validate(
+        {"text": text(data, "text"), "draft_id": data.get("draft_id")}
+    )
     try:
-        body = SummaryCreate.model_validate({"text": value})
+        body = SummaryCreate.model_validate({"text": form.text})
     except ValidationError:
         return await _summary_page(
             request,
             auth,
             db,
             book,
-            text_value=value,
+            text_value=form.text,
             error="Write a summary of 1 to 5,000 characters",
             status_code=422,
         )
-    await summaries.save_manual_summary(db, auth.account.id, book_id, body.text)
+    await summaries.save_summary(
+        db, auth.account.id, book_id, body.text, draft_id=form.draft_id, now=now(request)
+    )
     return RedirectResponse(f"/catalog/books/{book_id}/summary?msg=saved", status_code=303)

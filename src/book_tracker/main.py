@@ -32,7 +32,9 @@ from book_tracker.logging import RequestLogMiddleware, configure_logging
 from book_tracker.persistence.db import Database
 from book_tracker.settings import Settings, get_settings
 from book_tracker.sources.base import BookSource, UnavailableSource
+from book_tracker.sources.claude import ClaudeSummaryGenerator
 from book_tracker.sources.open_library import OpenLibrarySource, make_client
+from book_tracker.sources.summary_generator import SummaryGenerator, UnconfiguredGenerator
 from book_tracker.web.cookies import refresh_session_cookie
 from book_tracker.web.routes import admin as web_admin
 from book_tracker.web.routes import auth as web_auth
@@ -68,8 +70,26 @@ def _book_source(settings: Settings, given: BookSource | None) -> tuple[BookSour
     return source, client
 
 
-def create_app(settings: Settings, *, book_source: BookSource | None = None) -> FastAPI:
+def _summary_generator(settings: Settings, given: SummaryGenerator | None) -> SummaryGenerator:
+    """Claude when the server has a key; never under test, where no app may call it."""
+    if given is not None:
+        return given
+    key = settings.anthropic_api_key
+    if key is None or settings.environment == "test":
+        return UnconfiguredGenerator()
+    return ClaudeSummaryGenerator.create(
+        key.get_secret_value(), model=settings.ai_model, timeout_seconds=settings.ai_timeout_seconds
+    )
+
+
+def create_app(
+    settings: Settings,
+    *,
+    book_source: BookSource | None = None,
+    summary_generator: SummaryGenerator | None = None,
+) -> FastAPI:
     source, http_client = _book_source(settings, book_source)
+    generator = _summary_generator(settings, summary_generator)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -78,6 +98,9 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
         finally:
             if http_client is not None:
                 await http_client.aclose()
+            # The app closes the AI client it created; a given generator is the caller's.
+            if summary_generator is None and isinstance(generator, ClaudeSummaryGenerator):
+                await generator.aclose()
 
     app = FastAPI(
         title="Family Book Tracker API",
@@ -91,6 +114,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     app.state.db = Database.from_url(settings.database_url)
     app.state.clock = utc_now
     app.state.book_source = source
+    app.state.summary_generator = generator
 
     configure_logging()
     app.middleware("http")(refresh_session_cookie)

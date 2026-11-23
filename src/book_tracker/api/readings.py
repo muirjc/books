@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query, Request, Response
 
 from book_tracker.api import responses as r
-from book_tracker.auth.dependencies import ApiUser, today
+from book_tracker.auth.dependencies import ApiUser, now, today
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.mappers import (
@@ -97,7 +97,9 @@ async def my_series(series_id: uuid.UUID, auth: ApiUser, db: DbSession) -> MySer
     summary="Add a book to my list (FR-016, FR-017)",
     responses=r.merge(r.UNAUTHENTICATED, r.FORBIDDEN, r.NOT_FOUND, r.CONFLICT, r.VALIDATION),
 )
-async def add_reading(body: ReadingEntryCreate, auth: ApiUser, db: DbSession) -> ReadingEntry:
+async def add_reading(
+    body: ReadingEntryCreate, request: Request, auth: ApiUser, db: DbSession
+) -> ReadingEntry:
     new_book = None
     if body.new_book is not None:
         nb = body.new_book
@@ -113,6 +115,7 @@ async def add_reading(body: ReadingEntryCreate, auth: ApiUser, db: DbSession) ->
     entry = await service.add_entry(
         db,
         auth.account.id,
+        now=now(request),
         book_id=body.book_id,
         new_book=new_book,
         status=body.status,

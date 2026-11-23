@@ -7,6 +7,7 @@ deletes every expired row.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -15,6 +16,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from book_tracker.domain.drafts import BookDescription
 from book_tracker.domain.imports import (
     SOURCE_OPEN_LIBRARY,
     AuthorCandidate,
@@ -26,6 +28,7 @@ from book_tracker.persistence import models
 TTL = timedelta(hours=24)
 AUTHOR_SEARCH = "author_search"
 AUTHOR_WORKS = "author_works"
+BOOK_DESCRIPTION = "book_description"  # spec 012 research R3
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +170,33 @@ async def find_author(db: AsyncSession, author_key: str, now: datetime) -> Autho
         if data["source_id"] == author_key:
             return _author(data)
     return None  # pragma: no cover - the containment test guarantees a match
+
+
+def _description_key(draft_key: str) -> str:
+    """The draft key, hashed: the column holds at most 300 characters (spec 012 R3)."""
+    return hashlib.sha256(draft_key.encode()).hexdigest()
+
+
+async def get_description(
+    db: AsyncSession, draft_key: str, now: datetime
+) -> Cached[BookDescription | None] | None:
+    """Open Library's description for a book (spec 012). ``Cached(None)`` means Open
+    Library had none; ``None`` means it hasn't been asked in the last 24 hours."""
+    row = await _get(db, BOOK_DESCRIPTION, _description_key(draft_key), now)
+    if row is None:
+        return None
+    data = row.payload
+    value = BookDescription(data["work_url"], data["description"]) if data["found"] else None
+    return Cached(value, row.fetched_at, row.expires_at)
+
+
+async def put_description(
+    db: AsyncSession, draft_key: str, description: BookDescription | None, now: datetime
+) -> None:
+    payload: dict[str, Any] = (
+        {"found": True, **asdict(description)} if description else {"found": False}
+    )
+    await _put(db, BOOK_DESCRIPTION, _description_key(draft_key), payload, now)
 
 
 async def count_rows(db: AsyncSession) -> int:

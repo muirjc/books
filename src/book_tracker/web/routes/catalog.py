@@ -14,17 +14,31 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from starlette.responses import Response
 
-from book_tracker.auth.dependencies import Authenticated, UiUser
+from book_tracker.auth.dependencies import Authenticated, UiUser, now
 from book_tracker.domain import models as domain
+from book_tracker.domain.drafts import CachedDraft, DraftView
 from book_tracker.domain.imports import SourceRef
+from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import AuthorUpdate, CatalogQuery, SeriesWrite, SummaryCreate
+from book_tracker.schemas.catalog import (
+    AuthorUpdate,
+    CatalogQuery,
+    DraftForm,
+    SeriesSuggestion,
+    SeriesWrite,
+    SummaryCreate,
+    SummaryForm,
+)
 from book_tracker.services import authors as authors_service
 from book_tracker.services import catalog as service
+from book_tracker.services import drafts as drafts_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as readings_service
 from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
+from book_tracker.sources.dependencies import BookSourceDep
+from book_tracker.sources.summary_generator import SummaryGeneratorDep
+from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import is_htmx, render
 from book_tracker.web.routes.readings import (
@@ -136,6 +150,7 @@ async def _book_page(
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
     source_ref: SourceRef | None = None,
+    suggested: bool = False,
 ) -> Response:
     stories = await service.book_stories(db, book.id)
     return render(
@@ -151,6 +166,7 @@ async def _book_page(
             "series_conflict": series_conflict,
             "source_ref": source_ref,
             "message": _message(request),
+            "suggested": suggested,
         },
         auth=auth,
         status_code=status_code,
@@ -163,7 +179,20 @@ async def edit_book_form(
 ) -> Response:
     book = await service.get_book(db, book_id)
     source_ref = await imports_service.source_ref(db, book_id)
-    return await _book_page(request, auth, db, book, book_form(book), source_ref=source_ref)
+    form = book_form(book)
+    # Spec 012 AC-20: the series suggestion of this book's own current AI draft, filled in
+    # but not saved. It is read from the stored draft, never from the request.
+    query = SeriesSuggestion.model_validate(dict(request.query_params))
+    draft = await drafts_service.draft_for_book(db, query.suggest_draft, book, now(request))
+    suggested = draft is not None and bool(draft.series_name)
+    if draft is not None and draft.series_name:
+        form.raw["series_name"] = draft.series_name
+        form.raw.pop("series_id", None)
+        number = draft.series_number
+        form.raw["series_number"] = format_series_number(number) if number is not None else ""
+    return await _book_page(
+        request, auth, db, book, form, source_ref=source_ref, suggested=suggested
+    )
 
 
 @router.post("/books/{book_id}/edit")
@@ -454,20 +483,28 @@ async def _summary_page(
     text_value: str = "",
     error: str | None = None,
     status_code: int = 200,
+    draft: DraftView | None = None,
+    draft_error: str | None = None,
+    drafts_left: int | None = None,
+    draft_id: str | None = None,
+    before_text: str | None = None,
 ) -> Response:
-    return render(
-        request,
-        "pages/summary.html",
-        {
-            "book": book,
-            "history": await summaries.history(db, book.id),
-            "text_value": text_value,
-            "errors": {"text": error} if error else {},
-            "message": _message(request),
-        },
-        auth=auth,
-        status_code=status_code,
-    )
+    """The Summary page. ``draft_id`` keeps a shown draft's id through a failed Regenerate
+    or a rejected save, so AI text never saves as hand-written (PR #32 review)."""
+    context = {
+        "book": book,
+        "history": await summaries.history(db, book.id),
+        "text_value": text_value,
+        "errors": {"text": error} if error else {},
+        "message": _message(request),
+        "draft": draft,
+        "draft_error": draft_error,
+        "drafts_left": drafts_left,
+        "draft_id": draft.id if draft else draft_id,
+        "before_text": before_text,
+    }
+    template = "partials/summary_draft.html" if is_htmx(request) else "pages/summary.html"
+    return render(request, template, context, auth=auth, status_code=status_code)
 
 
 @router.get("/books/{book_id}/summary")
@@ -477,23 +514,108 @@ async def summary_form(
     return await _summary_page(request, auth, db, await service.get_book(db, book_id))
 
 
+@router.post("/books/{book_id}/summary/draft")
+async def draft_summary(
+    book_id: uuid.UUID,
+    request: Request,
+    auth: UiUser,
+    db: DbSession,
+    source: BookSourceDep,
+    generator: SummaryGeneratorDep,
+) -> Response:
+    """Draft with AI / Regenerate (spec 012 AC-02, AC-09, AC-16): never saves a summary."""
+    book = await service.get_book(db, book_id)
+    data = await request.form()
+    form = DraftForm.model_validate({
+        "text": text(data, "text")[:5000],
+        "regenerate": data.get("regenerate", ""),
+        "draft_id": data.get("draft_id"),
+        "before_text": _optional_text(data.get("before_text")),
+    })  # fmt: skip
+    before = form.before_text if form.before_text is not None else form.text
+    view, problem, left = await draft_for_page(
+        request, auth, db, drafts_service.facts_for(book),
+        regenerate=form.regenerate, source=source, generator=generator,
+    )  # fmt: skip
+    if view is not None:
+        return await _summary_page(
+            request, auth, db, book, text_value=view.text, draft=view, drafts_left=left,
+            before_text=before,
+        )  # fmt: skip
+    return await _summary_page(
+        request, auth, db, book, text_value=form.text, draft_error=problem, drafts_left=left,
+        draft_id=form.draft_id, before_text=before if form.draft_id else None,
+    )  # fmt: skip
+
+
+def _optional_text(value: object) -> str | None:
+    return value[:5000] if isinstance(value, str) else None
+
+
+@router.post("/books/{book_id}/summary/discard")
+async def discard_draft(
+    book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
+) -> Response:
+    """Discard draft: the box as it was before the first draft (spec 012 AC-06)."""
+    book = await service.get_book(db, book_id)
+    data = await request.form()
+    form = SummaryForm.model_validate({"before_text": _optional_text(data.get("before_text"))})
+    return await _summary_page(request, auth, db, book, text_value=form.before_text or "")
+
+
 @router.post("/books/{book_id}/summary")
 async def save_summary(
     book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     book = await service.get_book(db, book_id)
-    value = text(await request.form(), "text")
+    data = await request.form()
+    form = SummaryForm.model_validate({
+        "text": text(data, "text"),
+        "draft_id": data.get("draft_id"),
+        "then": data.get("then"),
+        "before_text": _optional_text(data.get("before_text")),
+    })  # fmt: skip
     try:
-        body = SummaryCreate.model_validate({"text": value})
+        body = SummaryCreate.model_validate({"text": form.text})
     except ValidationError:
         return await _summary_page(
-            request,
-            auth,
-            db,
-            book,
-            text_value=value,
-            error="Write a summary of 1 to 5,000 characters",
-            status_code=422,
-        )
-    await summaries.save_manual_summary(db, auth.account.id, book_id, body.text)
+            request, auth, db, book, text_value=form.text,
+            error="Write a summary of 1 to 5,000 characters", status_code=422,
+            draft_id=form.draft_id, before_text=form.before_text,
+        )  # fmt: skip
+    await summaries.save_summary(
+        db, auth.account.id, book_id, body.text, draft_id=form.draft_id, now=now(request)
+    )
+    if form.then == "series":
+        draft = await drafts_service.draft_for_book(db, form.draft_id, book, now(request))
+        if draft is not None and draft.series_name:
+            return RedirectResponse(_suggestion_url(book_id, draft), status_code=303)
     return RedirectResponse(f"/catalog/books/{book_id}/summary?msg=saved", status_code=303)
+
+
+def _suggestion_url(book_id: uuid.UUID, draft: CachedDraft) -> str:
+    return f"/catalog/books/{book_id}/edit?{urlencode({'suggest_draft': draft.id})}"
+
+
+@router.post("/books/{book_id}/summary/use-series")
+async def use_series(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
+    """Use this series with an unsaved draft: offer to save it first (spec 012 AC-21)."""
+    book = await service.get_book(db, book_id)
+    data = await request.form()
+    form = SummaryForm.model_validate(
+        {"text": text(data, "text"), "draft_id": data.get("draft_id")}
+    )
+    draft = await drafts_service.draft_for_book(db, form.draft_id, book, now(request))
+    if draft is None or not draft.series_name:
+        return RedirectResponse(f"/catalog/books/{book_id}/summary", status_code=303)
+    return render(
+        request,
+        "pages/use_series.html",
+        {
+            "book": book,
+            "draft": draft,
+            "text_value": form.text,
+            "edit_url": _suggestion_url(book_id, draft),
+        },
+        auth=auth,
+    )

@@ -12,18 +12,23 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from starlette.responses import Response
 
-from book_tracker.auth.dependencies import Authenticated, UiUser, today
+from book_tracker.auth.dependencies import Authenticated, UiUser, now, today
 from book_tracker.domain import models as domain
+from book_tracker.domain.drafts import BookFacts, DraftView
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.values import format_series_number, normalize_name, similar_names
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import BookCreate, SearchQuery, parse_page
+from book_tracker.schemas.catalog import BookCreate, SearchQuery, SummaryForm, parse_page
 from book_tracker.schemas.readings import ReadingEntryCreate
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
 from book_tracker.services.catalog import AUTHOR_DELETED, NewBook
 from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
+from book_tracker.sources.base import BookSource
+from book_tracker.sources.dependencies import BookSourceDep
+from book_tracker.sources.summary_generator import SummaryGenerator, SummaryGeneratorDep
+from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import (
     AddBookForm,
     AuthorRow,
@@ -34,6 +39,7 @@ from book_tracker.web.forms import (
     parse_entry_update,
     series_start_form,
     shown_values,
+    text,
 )
 from book_tracker.web.rendering import is_htmx, render
 
@@ -223,6 +229,9 @@ def _add_form(
     series_conflict: ConflictError | None = None,
     added: domain.ReadingEntry | None = None,
     chosen: domain.Book | None = None,
+    summary_draft: DraftView | None = None,
+    draft_error: str | None = None,
+    drafts_left: int | None = None,
 ) -> Response:
     return render(
         request,
@@ -236,6 +245,9 @@ def _add_form(
             "author_conflicts": author_conflicts or {},
             "series_conflict": series_conflict,
             "active": "add",
+            "summary_draft": summary_draft,
+            "draft_error": draft_error,
+            "drafts_left": drafts_left,
         },
         auth=auth,
         status_code=status_code,
@@ -287,9 +299,62 @@ async def _chosen_book(db: DbSession, book_id: uuid.UUID | None) -> domain.Book 
         return None
 
 
+NEED_DETAILS = "Enter the title and at least one author first, then draft the summary."
+
+
+async def _draft_summary(
+    request: Request,
+    auth: Authenticated,
+    db: DbSession,
+    form: AddBookForm,
+    source: BookSource,
+    generator: SummaryGenerator,
+    *,
+    regenerate: bool,
+) -> Response:
+    """Draft summary with AI on Add a book (spec 012 AC-23): nothing is saved. The 30-day
+    cache applies, as on the Summary page; Regenerate bypasses it. A failure keeps the
+    draft already shown (PR #32 review)."""
+    form.errors.clear()  # only the draft is asked for; the book is checked when it is added
+    kept = SummaryForm.model_validate({"draft_id": form.raw.get("summary_draft_id")}).draft_id
+    if kept is None:
+        form.raw.pop("summary_draft_id", None)
+    authors = tuple(a.name for a in form.authors if a.name)
+    if not form.title or not authors:
+        return _add_form(request, auth, form, draft_error=NEED_DETAILS)
+    facts = BookFacts(
+        title=form.title,
+        authors=authors,
+        series_name=form.series_name or None,
+        series_number=form.series_number,
+        isbn13=form.isbn_13,
+        release_year=form.release_date.year if form.release_date else None,
+    )
+    view, problem, left = await draft_for_page(
+        request, auth, db, facts, regenerate=regenerate, source=source, generator=generator
+    )
+    if view is not None:
+        form.raw["summary"] = view.text
+        form.raw["summary_draft_id"] = view.id
+    return _add_form(request, auth, form, summary_draft=view, draft_error=problem, drafts_left=left)
+
+
 @router.post("/books/add")
-async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
-    form = parse_add_book(await request.form())
+async def add_book(
+    request: Request,
+    auth: UiUser,
+    db: DbSession,
+    source: BookSourceDep,
+    generator: SummaryGeneratorDep,
+) -> Response:
+    data = await request.form()
+    form = parse_add_book(data)
+    action = text(data, "action")
+    if action in ("draft_summary", "regenerate_summary") and form.book_id is None:
+        return await _draft_summary(
+            request, auth, db, form, source, generator,
+            regenerate=action == "regenerate_summary",
+        )  # fmt: skip
     if form.book_id is None:
         await new_name_prompts(db, form)  # spec 005: shown with any field errors
     # A chosen catalog book shows again as details, not editable fields (spec 006).
@@ -311,6 +376,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
             entry = await service.add_entry(
                 db,
                 user_id,
+                now=now(request),
                 book_id=payload.book_id,
                 status=payload.status,
                 finished_on=payload.finished_on,
@@ -344,6 +410,7 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
             entry = await service.add_entry(
                 db,
                 user_id,
+                now=now(request),
                 new_book=NewBook(
                     title=book.title,
                     author_ids=book.author_ids,
@@ -351,6 +418,9 @@ async def add_book(request: Request, auth: UiUser, db: DbSession) -> Response:
                     series_number=book.series_number,
                     isbn_13=book.isbn_13,
                     summary=form.summary,
+                    summary_draft_id=SummaryForm.model_validate(
+                        {"draft_id": form.raw.get("summary_draft_id")}
+                    ).draft_id,
                     release_date=book.release_date,
                 ),
                 status=form.status,

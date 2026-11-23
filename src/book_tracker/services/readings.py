@@ -9,7 +9,7 @@ import math
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -332,7 +332,9 @@ async def add_entry(
     finished_on: date | None = None,
     notes: str | None = None,
     pre_ordered: bool = False,
+    now: datetime | None = None,
 ) -> ReadingEntry:
+    """``now`` is the app clock; a summary from an AI draft is judged by it (spec 012)."""
     repo = ReadingEntryRepository(db, user_id)
     if new_book is not None:
         try:
@@ -343,7 +345,10 @@ async def add_entry(
             ) from None
         book_id = book.id
         if new_book.summary:
-            await summaries.save_manual_summary(db, user_id, book_id, new_book.summary)
+            await summaries.save_summary(
+                db, user_id, book_id, new_book.summary,
+                draft_id=new_book.summary_draft_id, now=now or datetime.now(UTC),
+            )  # fmt: skip
     elif book_id is None or not await catalog.book_exists(db, book_id):
         raise NotFoundError()
     existing = await repo.get_by_book(book_id)

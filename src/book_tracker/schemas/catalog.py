@@ -210,8 +210,91 @@ def _require_changes(model: BaseModel, nullable: set[str]) -> None:
             raise ValueError(f"{name} can't be empty")
 
 
+class SummaryDraftRequest(RequestModel):
+    """Ask for an AI draft (spec 012); ``regenerate`` bypasses the 30-day cache."""
+
+    regenerate: bool = False
+
+
+class SeriesSuggestionOut(BaseModel):
+    name: str
+    number: str | None = Field(
+        description='Decimal as a string, e.g. "2.5"', pattern=r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
+    )
+
+
+class SummaryDraft(BaseModel):
+    """An unsaved AI draft (spec 012). Save it with ``draft_id`` on the summaries endpoint."""
+
+    id: uuid.UUID
+    text: str
+    source_urls: list[str]
+    model: str
+    series_suggestion: SeriesSuggestionOut | None
+    cached: bool = Field(description="Drafted earlier and reused; no AI request was made")
+    created_at: datetime
+    drafts_left_today: int
+
+
 class SummaryCreate(RequestModel):
     text: SummaryText
+    # Spec 012: the AI draft this text came from; any other value saves it as manual.
+    draft_id: uuid.UUID | None = None
+
+
+def _uuid_or_none(value: object) -> str | None:
+    """A form's draft id: kept only when it is a UUID; anything else means no draft."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        return None
+
+
+class SummaryForm(BaseModel):
+    """The Summary page's save form (spec 012); ``then`` "series" goes on to Edit book with
+    the draft's series suggestion (AC-21). ``before_text`` is what the box held before the
+    first draft, for Discard (AC-06)."""
+
+    text: str = ""
+    draft_id: str | None = None
+    then: Literal["summary", "series"] = "summary"
+    before_text: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("then", mode="before")
+    @classmethod
+    def _then(cls, value: object) -> str:
+        return "series" if value == "series" else "summary"
+
+    _draft = field_validator("draft_id", mode="before")(_uuid_or_none)
+
+
+class SeriesSuggestion(BaseModel):
+    """Edit book's ``suggest_draft`` (spec 012 AC-20): the AI draft whose series suggestion
+    to fill in. The suggestion is read from the stored draft, never from the request."""
+
+    suggest_draft: str | None = None
+
+    _draft = field_validator("suggest_draft", mode="before")(_uuid_or_none)
+
+
+class DraftForm(BaseModel):
+    """Draft with AI / Regenerate (spec 012): what was in the box, whether to bypass the
+    cache, the draft already shown (kept if this one fails), and the box's text from before
+    the first draft (for Discard)."""
+
+    text: str = Field(default="", max_length=20000)
+    regenerate: bool = False
+    draft_id: str | None = None
+    before_text: str | None = Field(default=None, max_length=5000)
+
+    _draft = field_validator("draft_id", mode="before")(_uuid_or_none)
+
+    @field_validator("regenerate", mode="before")
+    @classmethod
+    def _flag(cls, value: object) -> bool:
+        return value in ("1", "true", "on", True)
 
 
 class StoryAdd(RequestModel):

@@ -228,6 +228,20 @@ admin user.
    Installing it on each device is task books-euq.8. Then open `https://books.local`
    (or `https://<reserved-ip>`) and sign in as the Admin.
 
+6. Optional: turn on AI summary drafts (spec 012). Create an API key in the Anthropic
+   Console, put it in `.env` as `BOOK_TRACKER_ANTHROPIC_API_KEY=...` (never in chat, a
+   commit or a log), then restart the app:
+
+   ```bash
+   nano .env                  # BOOK_TRACKER_ANTHROPIC_API_KEY=...
+   docker compose up -d app
+   ```
+
+   Each draft costs a few US cents; each member may make 10 a day
+   (`BOOK_TRACKER_AI_DAILY_DRAFT_LIMIT`). Without a key, **Draft with AI** says "AI drafts
+   aren't set up" and the rest of the app is unaffected. The app then also makes outbound
+   HTTPS requests to `api.anthropic.com`, with book details only.
+
 ## 8. Check before go-live
 
 - [ ] The eero network range matches the ufw rules (section 2).

@@ -71,3 +71,14 @@ def merge(*maps: Responses) -> Responses:
 READ = merge(UNAUTHENTICATED, PASSWORD_CHANGE_REQUIRED)
 READ_ONE = merge(UNAUTHENTICATED, PASSWORD_CHANGE_REQUIRED, NOT_FOUND)
 WRITE = merge(UNAUTHENTICATED, FORBIDDEN, VALIDATION)
+# Spec 012: AI summary drafts. Every failure leaves writing the summary by hand open.
+DRAFT_FAILED: Responses = {
+    422: _problem(
+        "Request failed validation (errors listed), or code=not_enough_information, "
+        "ai_declined or draft_rejected: no draft this time"
+    )
+}
+DRAFT_LIMIT: Responses = {429: _problem("code=draft_limit_reached: today's AI drafts are used")}
+AI_UNAVAILABLE: Responses = {
+    503: _problem("code=ai_not_configured or ai_unavailable (timeout or AI service error)")
+}

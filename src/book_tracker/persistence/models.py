@@ -411,7 +411,8 @@ class SourceLookupCache(Base):
     __table_args__ = (
         CheckConstraint("source IN ('open_library')", name="source_lookup_cache_source_check"),
         CheckConstraint(
-            "kind IN ('author_search', 'author_works')", name="source_lookup_cache_kind_check"
+            "kind IN ('author_search', 'author_works', 'book_description')",
+            name="source_lookup_cache_kind_check",
         ),
         CheckConstraint("expires_at > fetched_at", name="source_lookup_cache_expiry_check"),
         Index("source_lookup_cache_expires_at_idx", "expires_at"),
@@ -425,7 +426,48 @@ class SourceLookupCache(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class SummaryDraft(Base):
+    """An AI summary draft, cached 30 days outside the catalog (spec 012 research R6)."""
+
+    __tablename__ = "summary_draft"
+    __table_args__ = (
+        CheckConstraint("length(btrim(text)) > 0", name="summary_draft_text_check"),
+        CheckConstraint(
+            "series_number IS NULL OR (series_number >= 0 AND series_number <= 999.99)",
+            name="summary_draft_series_number_check",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(source_urls) = 'array'", name="summary_draft_source_urls_check"
+        ),
+        Index("summary_draft_key_created_idx", "draft_key", sql_text("created_at DESC")),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    draft_key: Mapped[str] = mapped_column(Text, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_urls: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    series_name: Mapped[str | None] = mapped_column(String(200))
+    series_number: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    created_at: Mapped[datetime] = _created_at()
+
+
 # --------------------------------------------------------------------------- personal
+
+
+class AiDraftUsage(Base):
+    """How many AI draft requests a member made on a day (spec 012 research R8)."""
+
+    __tablename__ = "ai_draft_usage"
+    __table_args__ = (CheckConstraint("count >= 1", name="ai_draft_usage_count_check"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="CASCADE", name="ai_draft_usage_user_id_fkey"),
+        primary_key=True,
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    count: Mapped[int] = mapped_column(nullable=False)
 
 
 class ReadingEntry(Base):

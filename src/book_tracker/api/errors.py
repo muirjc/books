@@ -17,10 +17,16 @@ from pydantic import BaseModel, WithJsonSchema
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from book_tracker.services.errors import (
+    AiDeclined,
+    AiNotConfigured,
+    AiUnavailable,
     ConflictError,
+    DraftLimitReached,
+    DraftRejected,
     ForbiddenError,
     InvalidCredentials,
     NotAuthenticated,
+    NotEnoughInformation,
     NotFoundError,
     PasswordChangeRequired,
     ServiceError,
@@ -103,10 +109,12 @@ def _status_for(exc: ServiceError) -> int:
         return 409
     if isinstance(exc, ValidationFailed):
         return 422
-    if isinstance(exc, TooManyAttempts):
+    if isinstance(exc, TooManyAttempts | DraftLimitReached):
         return 429
-    if isinstance(exc, SourceUnavailable):
+    if isinstance(exc, SourceUnavailable | AiNotConfigured | AiUnavailable):
         return 503
+    if isinstance(exc, AiDeclined | NotEnoughInformation | DraftRejected):
+        return 422
     if isinstance(exc, WrongCurrentPassword):
         return 400
     return 400

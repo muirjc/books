@@ -61,8 +61,25 @@
   <div class="field">
     <label for="summary">Summary (optional)</label>
     <p class="hint" id="summary-hint">A short, spoiler-free description. Everyone in the family will see it.</p>
-    <textarea id="summary" name="summary" maxlength="5000"{{ described(form.errors, "summary", hint=true) }}>{{ form.raw.get('summary', '') }}</textarea>
+    {% if draft_error %}<div class="conflict" role="alert" id="draft-error"><p>{{ draft_error }}</p></div>{% endif %}
+    {% if summary_draft %}<p class="notice" role="status">AI draft, not saved yet. Check it, edit it if you like, then save it, or discard it.{% if summary_draft.cached %} It was drafted earlier, on {{ summary_draft.created_at | nice_date }}.{% endif %}</p>{% endif %}
+    <textarea id="summary" name="summary" maxlength="5000"{{ described(form.errors, "summary", hint=true, extra="draft-error" if draft_error else "") }}>{{ form.raw.get('summary', '') }}</textarea>
     {{ field_error(form.errors, "summary") }}
+    {% if form.raw.get('summary_draft_id') %}<input type="hidden" name="summary_draft_id" value="{{ form.raw.get('summary_draft_id') }}">{% endif %}
+    {% if summary_draft %}
+    <p class="muted">Based on:</p>
+    <ul class="draft-sources">
+      {% for url in summary_draft.source_urls %}<li><a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a> <span class="muted">(opens in a new tab)</span></li>{% endfor %}
+    </ul>
+    <p class="muted">Drafted by {{ summary_draft.model }}</p>
+    {% endif %}
+    {% if form.raw.get('summary_draft_id') %}
+    <button type="submit" name="action" value="regenerate_summary">Regenerate summary with AI</button>
+    {% else %}
+    <button type="submit" name="action" value="draft_summary" aria-describedby="summary-draft-hint">Draft summary with AI</button>
+    {% endif %}
+    <p class="hint" id="summary-draft-hint">Fill in the title and author first. The AI writes a draft for you to check; nothing is saved until you add the book.</p>
+    {% if drafts_left is not none %}<p class="muted">{{ drafts_left }} AI draft{{ "" if drafts_left == 1 else "s" }} left today.</p>{% endif %}
   </div>
   {% endif %}
   </div>

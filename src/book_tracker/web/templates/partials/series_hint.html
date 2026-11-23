@@ -1,0 +1,6 @@
+{#- Spec 012 AC-19: the draft's series suggestion, when it differs from the book's. -#}
+{% set number = draft.series_number %}
+{% if draft.series_name and (not book.series or book.series.name | lower != draft.series_name | lower or (number is not none and number != book.series_number)) %}
+<p class="series-hint">Looks like {{ draft.series_name }}{% if number is not none %} #{{ number | series_number }}{% endif %}</p>
+<button type="submit" formaction="/catalog/books/{{ book.id }}/summary/use-series">Use this series</button>
+{% endif %}

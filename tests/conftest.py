@@ -34,7 +34,7 @@ from book_tracker.auth.passwords import hash_password
 from book_tracker.main import create_app
 from book_tracker.persistence import models
 from book_tracker.settings import Settings
-from tests.fakes import FakeBookSource
+from tests.fakes import FakeBookSource, FakeSummaryGenerator
 
 ROOT = Path(__file__).resolve().parent.parent
 AC_ID = re.compile(r"^\d{3}/AC-\d{2}$")  # feature number / criterion, e.g. 002/AC-01
@@ -194,6 +194,8 @@ def app(settings: Settings) -> Any:
 
 
 TABLES = (
+    "summary_draft",
+    "ai_draft_usage",
     "favorite_author",
     "book_story",
     "story_author",
@@ -477,6 +479,11 @@ class Factory:
         async with self._app.state.db.sessionmaker() as session:
             return (await session.execute(text(sql), params)).scalar()
 
+    async def row(self, sql: str, **params: Any) -> dict[str, Any]:
+        """The one row a query returns, as a dict."""
+        async with self._app.state.db.sessionmaker() as session:
+            return dict((await session.execute(text(sql), params)).mappings().one())
+
 
 @pytest.fixture
 def factory(app: Any) -> Factory:
@@ -493,6 +500,18 @@ def book_source(app: Any) -> Iterator[FakeBookSource]:
         yield fake
     finally:
         app.state.book_source = previous
+
+
+@pytest.fixture
+def summary_generator(app: Any) -> Iterator[FakeSummaryGenerator]:
+    """Swap in a fake AI for one test (spec 012, research R9); no test calls Anthropic."""
+    previous = app.state.summary_generator
+    fake = FakeSummaryGenerator()
+    app.state.summary_generator = fake
+    try:
+        yield fake
+    finally:
+        app.state.summary_generator = previous
 
 
 async def gather(*aws: Awaitable[Any]) -> list[Any]:

@@ -17,7 +17,7 @@ from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.values import format_series_number, normalize_name, similar_names
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import BookCreate
+from book_tracker.schemas.catalog import BookCreate, parse_page
 from book_tracker.schemas.readings import ReadingEntryCreate
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services import imports as imports_service
@@ -65,8 +65,9 @@ def message(request: Request) -> str | None:
 
 
 def page_number(request: Request) -> int:
-    raw = request.query_params.get("page", "1")
-    return int(raw) if raw.isdigit() and int(raw) >= 1 else 1
+    """A positive page number, or 1. ASCII digits only: ``str.isdigit`` accepts "²", which
+    ``int`` rejects (PR #29 review)."""
+    return parse_page(request.query_params.get("page", "1"))
 
 
 # --------------------------------------------------------------------------- list

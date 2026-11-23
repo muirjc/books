@@ -9,7 +9,7 @@
 
 <form method="get" action="/catalog" role="search" aria-label="Search the catalog" class="filters catalog-filters"
       data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/catalog" hx-target="#catalog-list" hx-push-url="true"
-      hx-trigger="submit, change, input changed delay:300ms from:#q">
+      hx-trigger="submit, change from:#sort, change from:#not_mine, input changed delay:300ms from:#q">
   <div class="field">
     <label for="q">Search the catalog</label>
     <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off" aria-describedby="q-hint">
@@ -33,12 +33,13 @@
   </div>
   <div class="actions">
     <button type="submit">Apply</button>
-    {% if filters_open %}<a href="/catalog">Clear</a>{% endif %}
+    <a id="catalog-clear" href="/catalog"{% if not filters_open %} hidden{% endif %}>Clear</a>
   </div>
   </div>
 </form>
 
-<div id="catalog-list" aria-live="polite">
+<p class="muted" id="list-count" role="status">{% include "partials/catalog_count.html" %}</p>
+<div id="catalog-list">
   {% include "partials/catalog_list.html" %}
 </div>
 {% endblock %}

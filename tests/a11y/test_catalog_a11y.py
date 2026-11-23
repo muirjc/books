@@ -88,8 +88,9 @@ async def test_keyboard_journey(ui: UI, catalog: Seeded) -> None:
     await ui.page.wait_for_url(re.compile(r"/catalog$"))
     await ui.page.locator("#q").focus()
     await ui.page.keyboard.type("filler")
-    count = ui.page.locator("#list-count")
+    count = ui.page.get_by_role("status")
     await expect(count).to_have_text("58 books match")
+    await expect(ui.page.locator("#catalog-clear")).to_be_visible()  # follows the update
     await expect(ui.page).to_have_url(re.compile(r"q=filler"))
     await ui.page.locator("#sort").focus()
     await ui.page.keyboard.press("ArrowDown")  # Title (Z–A)

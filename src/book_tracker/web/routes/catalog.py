@@ -18,7 +18,7 @@ from book_tracker.auth.dependencies import Authenticated, UiUser
 from book_tracker.domain import models as domain
 from book_tracker.domain.imports import SourceRef
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import AuthorUpdate, SeriesWrite, SummaryCreate
+from book_tracker.schemas.catalog import AuthorUpdate, CatalogQuery, SeriesWrite, SummaryCreate
 from book_tracker.services import catalog as service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as readings_service
@@ -32,7 +32,6 @@ from book_tracker.web.routes.readings import (
     book_form,
     keep_unedited,
     new_name_prompts,
-    page_number,
     save_book_details,
 )
 
@@ -65,34 +64,39 @@ CATALOG_SORT_OPTIONS = [
 @router.get("")
 async def catalog_page(request: Request, auth: UiUser, db: DbSession) -> Response:
     """Every catalog book, searched, sorted, filtered and paged; HTMX gets just the list
-    (spec 010). Bad parameters fall back to the defaults."""
+    (spec 010). The query is validated by ``CatalogQuery``; bad values fall back to the
+    defaults."""
     params = request.query_params
-    q = params.get("q", "").replace("\x00", "").strip()[:200]  # PostgreSQL text has no NUL
-    sort = params.get("sort", "title")
-    sort = sort if sort in {value for value, _ in CATALOG_SORT_OPTIONS} else "title"
-    not_mine = params.get("not_mine") == "1"
+    query = CatalogQuery.model_validate(
+        {name: params[name] for name in CatalogQuery.model_fields if name in params}
+    )
     view = await readings_service.catalog_view(
         db,
         auth.account.id,
-        page=page_number(request),
+        page=query.page,
         page_size=PAGE_SIZE,
-        q=q,
-        sort=sort,
-        not_mine=not_mine,
+        q=query.q,
+        sort=query.sort,
+        not_mine=query.not_mine,
     )
-    kept = {"q": q, "sort": "" if sort == "title" else sort, "not_mine": "1" if not_mine else ""}
-    query = urlencode({k: v for k, v in kept.items() if v})
+    kept = {
+        "q": query.q,
+        "sort": "" if query.sort == "title" else query.sort,
+        "not_mine": "1" if query.not_mine else "",
+    }
+    encoded = urlencode({k: v for k, v in kept.items() if v})
     context: dict[str, Any] = {
         "view": view,
         "active": "catalog",
         "filters": kept,
-        "sort": sort,
+        "sort": query.sort,
         "sort_options": CATALOG_SORT_OPTIONS,
-        "query_without_page": f"{query}&" if query else "",
-        "filtered": bool(q or not_mine),
+        "query_without_page": f"{encoded}&" if encoded else "",
+        "filtered": bool(query.q or query.not_mine),
         "filters_open": any(kept.values()),
+        "htmx": is_htmx(request),
     }
-    template = "partials/catalog_list.html" if is_htmx(request) else "pages/catalog.html"
+    template = "partials/catalog_list.html" if context["htmx"] else "pages/catalog.html"
     return render(request, template, context, auth=auth)
 
 

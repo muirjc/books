@@ -31,7 +31,7 @@ def titles(body: str) -> list[str]:
 
 
 def count_text(body: str) -> str:
-    found = re.search(r'<p class="muted" id="list-count">([^<]+)</p>', body)
+    found = re.search(r'<p class="muted" id="list-count" role="status">([^<]+)</p>', body)
     assert found, body
     return found.group(1)
 
@@ -204,7 +204,7 @@ async def test_pages_of_fifty_keep_the_query(
     assert "Next</a>" not in third
     past = (await member.get("/catalog", params={"page": 99})).text
     assert "Page 3 of 3" in past and titles(past)[0] == "Book 101"
-    for bad in ("0", "-1", "two", ""):
+    for bad in ("0", "-1", "two", "", "²", "9" * 5000):
         shown = (await member.get("/catalog", params={"page": bad})).text
         assert "Page 1 of 3" in shown, bad
 
@@ -217,7 +217,7 @@ async def test_empty_catalog(
     page = (await member.get("/catalog")).text
     assert "The family catalog is empty." in page
     assert 'href="/books/add"' in page
-    assert "list-count" not in page
+    assert 'class="book-list catalog-list"' not in page
 
 
 # ------------------------------------------------------------------ US2: add to my list
@@ -227,7 +227,8 @@ async def test_empty_catalog(
 async def test_on_my_list_links_to_my_entry(world: World) -> None:
     page = (await world.member.get("/catalog")).text
     row = _row(page, world.books["storm"])
-    assert f'<a class="catalog-mine" href="/entries/{world.entries["storm"]}">On my list</a>' in row
+    mine = f'<a class="catalog-mine" href="/entries/{world.entries["storm"]}">On my list'
+    assert mine + '<span class="visually-hidden">: “Storm Front”</span></a>' in row
     assert "/books/add?book=" not in row
 
 
@@ -279,7 +280,7 @@ async def test_search_fields(world: World, q: str, expected: list[str]) -> None:
     assert titles(page) == expected
     if expected:
         n = len(expected)
-        assert count_text(page) == f"{n} book{'' if n == 1 else 's'} match"
+        assert count_text(page) == (f"{n} books match" if n > 1 else "1 book matches")
 
 
 @pytest.mark.ac("010/AC-11")
@@ -377,13 +378,30 @@ async def test_htmx_gets_just_the_list(world: World) -> None:
     full = (await world.member.get("/catalog", params={"q": "storm"})).text
     assert 'role="search"' in full and 'hx-get="/catalog"' in full
     assert 'hx-target="#catalog-list"' in full and 'hx-push-url="true"' in full
-    assert '<div id="catalog-list" aria-live="polite">' in full
+    assert '<div id="catalog-list">' in full and 'id="list-count" role="status"' in full
+    assert 'hx-trigger="submit, change from:#sort, change from:#not_mine,' in full
+    assert '<a id="catalog-clear" href="/catalog">Clear</a>' in full
     partial = await world.member.get(
         "/catalog", params={"q": "storm"}, headers={"HX-Request": "true"}
     )
     assert partial.status_code == 200
     assert "<h1>" not in partial.text and 'role="search"' not in partial.text
     assert titles(partial.text) == ["Storm Front"]
+    assert partial.headers["vary"] == "HX-Request"
+    # The count and Clear follow each update, out of band (PR #29 review).
+    assert '<div hx-swap-oob="innerHTML:#list-count">1 book matches</div>' in partial.text
+    assert '<a id="catalog-clear" href="/catalog" hx-swap-oob="true">Clear</a>' in partial.text
+    cleared = await world.member.get("/catalog", headers={"HX-Request": "true"})
+    assert (
+        '<a id="catalog-clear" href="/catalog" hx-swap-oob="true" hidden>Clear</a>' in cleared.text
+    )
+    # An htmx history restore (Back, cache miss) gets the whole page.
+    restored = await world.member.get(
+        "/catalog",
+        params={"q": "storm"},
+        headers={"HX-Request": "true", "HX-History-Restore-Request": "true"},
+    )
+    assert "<h1>Catalog</h1>" in restored.text and 'role="search"' in restored.text
 
 
 def _row(body: str, book_id: uuid.UUID) -> str:
@@ -395,3 +413,10 @@ def _row(body: str, book_id: uuid.UUID) -> str:
     )
     assert found, f"no row for {book_id}"
     return found.group(0)
+
+
+@pytest.mark.ac("010/AC-06")
+async def test_my_books_page_numbers_dont_crash(world: World) -> None:
+    """The shared page parser (PR #29 review): "²" passes str.isdigit but not int()."""
+    for bad in ("²", "9" * 5000):
+        assert (await world.member.get("/", params={"page": bad})).status_code == 200

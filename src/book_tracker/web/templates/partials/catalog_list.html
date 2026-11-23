@@ -1,13 +1,16 @@
 {% from "macros.html" import authors_line, series_line, release_label %}
 {#- Spec 010: catalog rows. "On my list" comes from my own entry only (Principle I). -#}
+{% if htmx %}
+<div hx-swap-oob="innerHTML:#list-count">{% include "partials/catalog_count.html" %}</div>
+<a id="catalog-clear" href="/catalog" hx-swap-oob="true"{% if not filters_open %} hidden{% endif %}>Clear</a>
+{% endif %}
 {% if view.total == 0 %}
 {% if filtered %}
-<p>No catalog books match. <a href="/catalog">Show the whole catalog</a></p>
+<p><a href="/catalog">Show the whole catalog</a></p>
 {% else %}
-<p>The family catalog is empty. <a href="/books/add">Add a book</a></p>
+<p><a href="/books/add">Add a book</a></p>
 {% endif %}
 {% else %}
-<p class="muted" id="list-count">{{ view.total }} book{{ "" if view.total == 1 else "s" }} {{ "match" if filtered else "in the family catalog" }}</p>
 <ul class="book-list catalog-list" role="list" aria-describedby="list-count">
   {% for row in view.rows %}
   <li class="catalog-row">
@@ -15,7 +18,7 @@
     <span class="catalog-detail"><span class="book-meta">{{ authors_line(row.book) }}{% if row.book.series %} · <a href="/series/{{ row.book.series.id }}">{{ series_line(row.book) }}</a>{% endif %}</span>
       {%- set release = release_label(row.book, today) %}{% if release | trim %} · {{ release }}{% endif %}</span>
     {% if row.entry %}
-    <a class="catalog-mine" href="/entries/{{ row.entry.id }}">On my list</a>
+    <a class="catalog-mine" href="/entries/{{ row.entry.id }}">On my list<span class="visually-hidden">: “{{ row.book.title }}”</span></a>
     {% else %}
     <a class="series-action" href="/books/add?book={{ row.book.id }}"><span>Add<span class="visually-hidden"> “{{ row.book.title }}”</span> to my list</span></a>
     {% endif %}

@@ -100,3 +100,20 @@ US3 both build on US1's page.
 - **T013**: the spec 003 header tests pass with the new **Catalog** link, so the nav CSS is
   unchanged.
 - **T014**: every case has p95 at or under about 125 ms, so no index is needed (research R6).
+
+## PR #29 review fixes
+
+- **Page numbers**: `page_number` (My books) and `CatalogQuery.page` share `parse_page`,
+  which accepts ASCII digits only. `str.isdigit` passes "²" and 4,300+ digit strings, which
+  `int` rejects, so those pages returned a 500.
+- **HTMX caching**: every rendered page sends `Vary: HX-Request`. `is_htmx` is false for an
+  `HX-History-Restore-Request`, so a restore after Back gets the whole page (My books too).
+- **Validation**: the query is validated by the Pydantic `CatalogQuery`, which falls back to
+  the defaults (Constitution VII).
+- **Announcements**: only the count is a live region (`#list-count`, `role="status"`),
+  updated out of band. Before, the whole list was announced on every keystroke.
+- **Clear link**: it is always rendered, hidden when there is nothing to clear, and swapped
+  out of band so it follows in-place updates.
+- **Wording and link names**: "1 book matches"; each **On my list** link names its book.
+- **Triggers**: `change` is limited to the sort and the filter, so leaving the search box no
+  longer sends the search again.

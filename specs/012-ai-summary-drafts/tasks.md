@@ -221,3 +221,24 @@ tagged `@pytest.mark.ac("012/AC-xx")`. No test calls Anthropic or the web.
     hidden until a request runs).
 - **T026**: Compose passes an unset key as an empty string, so a blank key now means "not
   set up" (unit test).
+
+## PR #32 review fixes
+
+Each fix has a test that failed first:
+- **Draft id kept:** a failed Regenerate, a rejected save and an Add a book failure all
+  keep the shown draft's id (hidden `draft_id` / `summary_draft_id`), so the AI text still
+  in the box saves as `ai` or `ai_edited`, not `manual`.
+- **Add a book uses the cache:** **Draft summary with AI** uses the 30-day cache;
+  **Regenerate summary with AI** bypasses it.
+- **Draft key:** with an ISBN, the key also has the normalized title and authors (AC-17).
+- **Discard:** **Discard draft** is a button posting `before_text`, so the box comes back as
+  it was before the first draft (AC-06).
+- **Sources:** an AI draft based only on the Open Library description records that page as
+  its source.
+- **App clock:** Add a book's summary save uses the app clock; `save_summary` requires
+  `now`.
+- **Series suggestion:** Edit book takes `suggest_draft` and reads the suggestion from this
+  book's own current draft. `use-series` and `then=series` check the same. A crafted
+  link, another book's draft or an expired one suggests nothing.
+- **One time limit:** a single 30 s limit covers the Open Library lookup and the AI call.
+- **Closing the client:** the app closes the Anthropic client it created on shutdown.

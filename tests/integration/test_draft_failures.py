@@ -224,3 +224,36 @@ async def test_other_pages_never_wait_for_the_ai(
     assert not drafting.done()
     finished = await drafting
     assert draft_id(finished.text)
+
+
+@pytest.mark.ac("012/AC-05")
+async def test_a_draft_from_the_description_records_it_as_its_source(
+    alice: httpx.AsyncClient, book: uuid.UUID, factory: Factory,
+    book_source: FakeBookSource, summary_generator: FakeSummaryGenerator,
+) -> None:  # fmt: skip
+    """PR #32 review: an AI summary always lists a source (Principle III)."""
+    url = "https://openlibrary.org/works/OL5685119W"
+    book_source.descriptions["storm front"] = BookDescription(url, "A wizard for hire.")
+    summary_generator.results.append(
+        good_draft(source_urls=("https://made.up/x",), known_urls=frozenset(), cited_urls=())
+    )
+    page = await post_draft(alice, book)
+    assert f'href="{url}"' in page
+    await save(alice, book, DRAFT_TEXT, draft_id(page))
+    row = await factory.row("SELECT origin, source_urls FROM book_summary")
+    assert row["origin"] == "ai" and row["source_urls"] == [url]
+
+
+@pytest.mark.ac("012/AC-09")
+async def test_one_deadline_covers_open_library_and_the_ai(
+    app: Any, alice: httpx.AsyncClient, book: uuid.UUID, book_source: FakeBookSource,
+    summary_generator: FakeSummaryGenerator, monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    """PR #32 review: a slow Open Library can't stretch a draft past the time limit."""
+    monkeypatch.setattr(app.state.settings, "ai_timeout_seconds", 0.6)
+    book_source.delay = 0.4
+    summary_generator.delay = 0.5
+    started = time.monotonic()
+    page = await post_draft(alice, book)
+    assert time.monotonic() - started < 1.0
+    assert alert(page) == UNAVAILABLE

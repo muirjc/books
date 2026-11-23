@@ -113,8 +113,10 @@ permitted source.
 
 **Decision**: a `summary_draft` table (data-model). Each produced draft is a row with its
 own id, kept 30 days.
-- **Key:** `draft_key(isbn13, title, authors)` is `isbn:<isbn13>` when the book has an
-  ISBN, otherwise `ta:<normalize_title(title)>|<sorted normalized author names>`.
+- **Key:** `draft_key(isbn13, title, authors)` is `ta:<normalize_title(title)>|<sorted
+  normalized author names>`, prefixed by `isbn:<isbn13>|` when the book has an ISBN. The
+  title and authors are part of an ISBN key too, so fixing a title never brings back a
+  draft written for the old details (AC-17; PR #32 review).
 - **Lookup:** the newest row for the key that is younger than 30 days.
 - **Regenerate** inserts a new row. It doesn't delete the old one, so a member still
   reviewing an earlier draft can save it with its id.
@@ -173,7 +175,8 @@ tables. Keeping old rows makes draft ids stable under concurrent regenerates.
   1. cache lookup, unless regenerating;
   2. reserve an allowance;
   3. get the Open Library description;
-  4. call the generator;
+  4. call the generator. One time limit (30 s) covers steps 3 and 4: the AI gets what the
+     Open Library lookup left;
   5. run the checks (R4, R5);
   6. store the row;
   7. return a `DraftView`.
@@ -191,7 +194,11 @@ tables. Keeping old rows makes draft ids stable under concurrent regenerates.
     "Drafting… this can take up to 30 seconds" (AC-07).
   - On failure, the page re-renders with the message in an alert, and the textarea keeps
     the posted `text`.
-- **Discard draft:** a link back to the plain Summary page (GET).
+- **Discard draft:** a button posting to `POST /catalog/books/{id}/summary/discard` with
+  `before_text`: the box's text from before the first draft, carried in a hidden field
+  through every Regenerate. The page comes back with that text (AC-06).
+- **A draft id is kept** (hidden `draft_id`) through a failed Regenerate and a rejected
+  save, so AI text still in the box never saves as `manual` (PR #32 review).
 - **Save summary:** posts `text` plus `draft_id` to the existing save route. The existing
   route gains the optional `draft_id`.
 - **Entry page:** a small POST form, **Draft with AI**, to the same draft route, followed
@@ -208,9 +215,10 @@ tables. Keeping old rows makes draft ids stable under concurrent regenerates.
     `then=series` to the save route, which then redirects to Edit book) and **Leave the
     draft** (a link to Edit book).
   - The suggestion is read from the stored draft, never from the request.
-  - Edit book (`?suggest_series=<name>&suggest_number=<n>`, validated by a Pydantic query
-    model; a bad number is dropped) pre-fills its series fields, unsaved, with a notice.
-    Saving runs the existing checks.
+  - Edit book (`?suggest_draft=<draft id>`) pre-fills its series fields from that stored
+    draft, unsaved, with a notice. The draft must be this book's own and less than 30
+    days old; otherwise there is no suggestion. A crafted link can't show an "AI
+    suggested" notice. Saving runs the existing checks.
 
 ## R11 – The JSON API
 

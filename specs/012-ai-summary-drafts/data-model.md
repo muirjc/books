@@ -7,7 +7,7 @@ Migration `0006_summary_drafts`. It is reversible: `downgrade` drops both tables
 | Column | Type | Rules |
 |---|---|---|
 | id | uuid | PK `summary_draft_pkey` |
-| draft_key | text | not null; `isbn:<13 digits>` or `ta:<title>\|<authors>` |
+| draft_key | text | not null; `ta:<title>\|<authors>`, prefixed by `isbn:<13 digits>\|` when there is an ISBN |
 | text | text | not null; CHECK `length(btrim(text)) > 0` (`summary_draft_text_check`) |
 | source_urls | jsonb | not null; a JSON array of up to 20 URL strings |
 | model | varchar(100) | not null; the model that answered |

@@ -118,11 +118,14 @@ class DraftView:
 
 
 def draft_key(isbn13: str | None, title: str, authors: Iterable[str]) -> str:
-    """The cache key: the ISBN-13 when known, else the normalized title and authors."""
-    if isbn13:
-        return f"isbn:{isbn13}"
+    """The cache key: the normalized title and authors, after the ISBN-13 when known.
+
+    The title and authors are part of an ISBN key too, so fixing a book's title or authors
+    never brings back a draft written for the old details (AC-17, PR #32 review).
+    """
     names = sorted(normalize_person_name(a) for a in authors)
-    return f"ta:{normalize_title(title)}|{'|'.join(names)}"
+    details = f"{normalize_title(title)}|{'|'.join(names)}"
+    return f"isbn:{isbn13}|{details}" if isbn13 else f"ta:{details}"
 
 
 def normalize_text(text: str) -> str:
@@ -175,10 +178,15 @@ def keep_sources(
     return tuple(kept[:SOURCES_MAX])
 
 
+def is_current(draft: StoredDraft | CachedDraft, book_key: str, now: datetime) -> bool:
+    """The app's own draft of this book, still within its 30 days."""
+    return draft.draft_key == book_key and now - draft.created_at <= DRAFT_TTL
+
+
 def origin_for(
     draft: StoredDraft | CachedDraft | None, book_key: str, saved_text: str, now: datetime
 ) -> Origin:
     """``ai`` or ``ai_edited`` only for the app's own, current draft of this book (R6)."""
-    if draft is None or draft.draft_key != book_key or now - draft.created_at > DRAFT_TTL:
+    if draft is None or not is_current(draft, book_key, now):
         return "manual"
     return "ai" if normalize_text(saved_text) == normalize_text(draft.text) else "ai_edited"

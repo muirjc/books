@@ -52,6 +52,7 @@ async def draft_for_page(
             now=now(request),
             today=today(request),
             limit=limit,
+            timeout_seconds=request.app.state.settings.ai_timeout_seconds,
         )
     except DRAFT_FAILURES as exc:
         left = await drafts_service.drafts_left(db, auth.account.id, today(request), limit)

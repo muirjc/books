@@ -6,7 +6,9 @@ draft's id turns it into a summary, as ``ai`` or ``ai_edited`` (Principle III).
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -24,6 +26,7 @@ from book_tracker.domain.drafts import (
     GeneratedDraft,
     copies_source,
     is_blocked,
+    is_current,
     keep_sources,
     word_count,
 )
@@ -32,6 +35,7 @@ from book_tracker.persistence import drafts, source_cache
 from book_tracker.persistence.draft_usage import DraftUsageRepository
 from book_tracker.services.errors import (
     AiNotConfigured,
+    AiUnavailable,
     DraftLimitReached,
     DraftRejected,
     NotEnoughInformation,
@@ -69,8 +73,14 @@ def _view(draft: CachedDraft, *, cached: bool, left: int) -> DraftView:
     )
 
 
-async def get_draft(db: AsyncSession, draft_id: str) -> CachedDraft | None:
-    return await drafts.get(db, draft_id)
+async def draft_for_book(
+    db: AsyncSession, draft_id: str | None, book: domain.Book, now: datetime
+) -> CachedDraft | None:
+    """The draft, only if it is the app's own current draft of this book (R6)."""
+    draft = await drafts.get(db, draft_id) if draft_id else None
+    if draft is None or not is_current(draft, facts_for(book).key, now):
+        return None
+    return draft
 
 
 async def drafts_left(db: AsyncSession, user_id: uuid.UUID, today: date, limit: int) -> int:
@@ -78,15 +88,17 @@ async def drafts_left(db: AsyncSession, user_id: uuid.UUID, today: date, limit: 
 
 
 async def _description(
-    db: AsyncSession, source: BookSource, facts: BookFacts, now: datetime
+    db: AsyncSession, source: BookSource, facts: BookFacts, now: datetime, budget: float
 ) -> BookDescription | None:
-    """Open Library's description, cached a day; Open Library down is not a failure (R3)."""
+    """Open Library's description, cached a day; Open Library down or slow is not a
+    failure (R3). It may use at most ``budget`` seconds of the draft's time limit."""
     cached = await source_cache.get_description(db, facts.key, now)
     if cached is not None:
         return cached.value
     try:
-        found = await source.describe_book(facts.title, facts.authors, facts.isbn13)
-    except SourceUnavailable:
+        async with asyncio.timeout(budget):
+            found = await source.describe_book(facts.title, facts.authors, facts.isbn13)
+    except (SourceUnavailable, TimeoutError):
         logger.info("ai draft: open library unavailable; drafting without its description")
         return None
     await source_cache.put_description(db, facts.key, found, now)
@@ -108,8 +120,10 @@ def _checked(generated: GeneratedDraft, description: BookDescription | None) -> 
         logger.info("ai draft: rejected, copies the description")
         raise DraftRejected()
     sources = keep_sources(generated.source_urls, generated.known_urls, generated.cited_urls)
-    if not sources and description is None:
-        raise NotEnoughInformation()  # a draft must be based on something
+    if not sources:
+        if description is None:
+            raise NotEnoughInformation()  # a draft must be based on something
+        sources = (description.work_url,)  # an AI summary always lists a source (III)
     return sources
 
 
@@ -134,6 +148,7 @@ async def request_draft(
     now: datetime,
     today: date,
     limit: int,
+    timeout_seconds: float,
 ) -> DraftView:
     """A draft for the book: the cached one unless regenerating, else a new one (R9)."""
     usage = DraftUsageRepository(db, user_id)
@@ -146,9 +161,17 @@ async def request_draft(
     if await usage.reserve(today, limit) is None:
         raise DraftLimitReached(limit)
     await db.commit()  # the request counts even if the AI then fails (AC-10)
-    description = await _description(db, source, facts, now)
+    # One time limit covers the Open Library lookup and the AI (FR-010, PR #32 review).
+    started = time.monotonic()
+    description = await _description(db, source, facts, now, budget=timeout_seconds)
     await db.commit()  # no transaction stays open while the AI works
-    generated = await generator.draft(facts, description)
+    remaining = timeout_seconds - (time.monotonic() - started)
+    try:
+        async with asyncio.timeout(max(remaining, 0.0)):
+            generated = await generator.draft(facts, description)
+    except TimeoutError:
+        logger.info("ai draft: out of time")
+        raise AiUnavailable() from None
     sources = _checked(generated, description)
     stored = await drafts.add(
         db,

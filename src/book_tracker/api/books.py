@@ -118,5 +118,6 @@ async def request_summary_draft(
         now=now(request),
         today=today(request),
         limit=request.app.state.settings.ai_daily_draft_limit,
+        timeout_seconds=request.app.state.settings.ai_timeout_seconds,
     )
     return summary_draft_out(view)

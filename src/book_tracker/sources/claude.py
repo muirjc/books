@@ -135,6 +135,13 @@ class ClaudeSummaryGenerator:
         client = anthropic.AsyncAnthropic(api_key=api_key, timeout=timeout_seconds, max_retries=0)
         return cls(client, model=model, timeout_seconds=timeout_seconds)
 
+    @property
+    def closed(self) -> bool:
+        return self._client.is_closed()
+
+    async def aclose(self) -> None:
+        await self._client.close()
+
     async def draft(self, facts: BookFacts, description: BookDescription | None) -> GeneratedDraft:
         try:
             async with asyncio.timeout(self._timeout):

@@ -8,7 +8,7 @@ save is ``manual``.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +29,7 @@ async def save_summary(
     text: str,
     *,
     draft_id: str | None = None,
-    now: datetime | None = None,
+    now: datetime,
 ) -> Summary:
     book = await catalog.get_book(db, book_id)
     if book is None:
@@ -38,7 +38,7 @@ async def save_summary(
     if not cleaned or len(cleaned) > MAX_LENGTH:
         raise ValidationFailed.single("text", "Write a summary of 1 to 5,000 characters")
     draft = await drafts.get(db, draft_id) if draft_id else None
-    origin = origin_for(draft, facts_for(book).key, cleaned, now or datetime.now(UTC))
+    origin = origin_for(draft, facts_for(book).key, cleaned, now)
     if draft is None or origin == SummaryOrigin.MANUAL.value:
         return await catalog.save_summary(
             db, book_id, cleaned, SummaryOrigin.MANUAL.value, actor_id

@@ -21,8 +21,14 @@ from book_tracker.domain.drafts import (
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)
 
 
-def test_draft_key_prefers_isbn() -> None:
-    assert draft_key("9780451457813", "Storm Front", ["Jim Butcher"]) == "isbn:9780451457813"
+@pytest.mark.ac("012/AC-17")
+def test_draft_key_with_isbn_also_has_title_and_authors() -> None:
+    """PR #32 review: an ISBN alone would keep offering a draft after a title fix."""
+    key = draft_key("9780451457813", "Storm Front", ["Jim Butcher"])
+    assert key.startswith("isbn:9780451457813|")
+    assert key == draft_key("9780451457813", "storm  front", ["JIM BUTCHER"])
+    assert key != draft_key("9780451457813", "Storm Frnt", ["Jim Butcher"])
+    assert key != draft_key("9780451457813", "Storm Front", ["Ann Other"])
 
 
 @pytest.mark.ac("012/AC-15")

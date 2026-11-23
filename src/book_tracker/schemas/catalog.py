@@ -11,7 +11,7 @@ from typing import Annotated, Literal, Self, get_args
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from book_tracker.domain.enums import SummaryOrigin
-from book_tracker.domain.values import PEN_NAME_FIRST, parse_series_number
+from book_tracker.domain.values import PEN_NAME_FIRST
 from book_tracker.schemas.auth import RequestModel
 from book_tracker.schemas.types import (
     Isbn13In,
@@ -254,11 +254,13 @@ def _uuid_or_none(value: object) -> str | None:
 
 class SummaryForm(BaseModel):
     """The Summary page's save form (spec 012); ``then`` "series" goes on to Edit book with
-    the draft's series suggestion (AC-21)."""
+    the draft's series suggestion (AC-21). ``before_text`` is what the box held before the
+    first draft, for Discard (AC-06)."""
 
     text: str = ""
     draft_id: str | None = None
     then: Literal["summary", "series"] = "summary"
+    before_text: str | None = Field(default=None, max_length=5000)
 
     @field_validator("then", mode="before")
     @classmethod
@@ -269,34 +271,25 @@ class SummaryForm(BaseModel):
 
 
 class SeriesSuggestion(BaseModel):
-    """Edit book's ``suggest_series`` and ``suggest_number`` (spec 012 AC-20). Bad values
-    are dropped rather than failing: the member checks them before saving anyway."""
+    """Edit book's ``suggest_draft`` (spec 012 AC-20): the AI draft whose series suggestion
+    to fill in. The suggestion is read from the stored draft, never from the request."""
 
-    suggest_series: str = ""
-    suggest_number: Decimal | None = None
+    suggest_draft: str | None = None
 
-    @field_validator("suggest_series", mode="before")
-    @classmethod
-    def _name(cls, value: object) -> str:
-        return value.replace("\x00", "").strip()[:200] if isinstance(value, str) else ""
-
-    @field_validator("suggest_number", mode="before")
-    @classmethod
-    def _number(cls, value: object) -> Decimal | None:
-        if not isinstance(value, str):
-            return None
-        try:
-            return parse_series_number(value)
-        except ValueError:
-            return None
+    _draft = field_validator("suggest_draft", mode="before")(_uuid_or_none)
 
 
 class DraftForm(BaseModel):
-    """Draft with AI / Regenerate (spec 012): what was in the box, and whether to bypass
-    the cache."""
+    """Draft with AI / Regenerate (spec 012): what was in the box, whether to bypass the
+    cache, the draft already shown (kept if this one fails), and the box's text from before
+    the first draft (for Discard)."""
 
     text: str = Field(default="", max_length=20000)
     regenerate: bool = False
+    draft_id: str | None = None
+    before_text: str | None = Field(default=None, max_length=5000)
+
+    _draft = field_validator("draft_id", mode="before")(_uuid_or_none)
 
     @field_validator("regenerate", mode="before")
     @classmethod

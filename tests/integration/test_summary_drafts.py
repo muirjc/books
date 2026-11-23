@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 import pytest
 
+from book_tracker.services.errors import AiUnavailable
 from tests.conftest import Factory, TestUser, signed_in
 from tests.fakes import DRAFT_TEXT, WIKI, FakeSummaryGenerator, good_draft
 
@@ -69,16 +70,13 @@ def textarea(body: str) -> str:
 
 async def draft(
     client: httpx.AsyncClient, book: uuid.UUID, *, text: str = "", regenerate: bool = False,
-    htmx: bool = False,
+    htmx: bool = False, extra: dict[str, str] | None = None,
 ) -> httpx.Response:  # fmt: skip
     page = await client.get(f"/catalog/books/{book}/summary")
+    data = {"csrf_token": csrf(page.text), "text": text, "regenerate": "1" if regenerate else "0"}
     return await client.post(
         f"/catalog/books/{book}/summary/draft",
-        data={
-            "csrf_token": csrf(page.text),
-            "text": text,
-            "regenerate": "1" if regenerate else "0",
-        },
+        data={**data, **(extra or {})},
         headers={"HX-Request": "true"} if htmx else {},
     )
 
@@ -120,7 +118,8 @@ async def test_draft_is_shown_for_review(
     assert "Drafted by claude-opus-5-5" in page
     assert ">Save summary</button>" in page
     assert 'name="regenerate" value="1"' in page and ">Regenerate</button>" in page
-    assert f'<a href="/catalog/books/{world.book}/summary">Discard draft</a>' in page
+    assert f'formaction="/catalog/books/{world.book}/summary/discard"' in page
+    assert ">Discard draft</button>" in page
     assert "9 AI drafts left today." in page
     facts, _ = summary_generator.calls[0]
     assert facts.title == "Storm Front" and facts.authors == ("Jim Butcher",)
@@ -178,17 +177,59 @@ async def test_history_says_how_each_summary_was_written(
     assert history.count(f'href="{WIKI}"') == 2  # each AI summary lists its sources
 
 
+def hidden(body: str, name: str) -> str | None:
+    found = re.search(rf'name="{name}" value="([^"]*)"', body)
+    return html.unescape(found.group(1)) if found else None
+
+
 @pytest.mark.ac("012/AC-06")
-async def test_discard_leaves_everything_as_it_was(
+async def test_discard_restores_the_box_as_it_was(
     world: World, factory: Factory, summary_generator: FakeSummaryGenerator
 ) -> None:
     await save(world.member, world.book, "Already here.", None)
-    page = (await draft(world.member, world.book)).text
-    discard = re.search(r'<a href="([^"]+)">Discard draft</a>', page)
-    assert discard
-    back = (await world.member.get(discard.group(1))).text
+    typed = "My own three paragraphs, half written."
+    page = (await draft(world.member, world.book, text=typed)).text
+    assert hidden(page, "before_text") == typed
+    discarded = await world.member.post(
+        f"/catalog/books/{world.book}/summary/discard",
+        data={"csrf_token": csrf(page), "text": DRAFT_TEXT, "draft_id": draft_id(page),
+              "before_text": typed},
+    )  # fmt: skip
+    assert discarded.status_code == 200
+    back = discarded.text
+    assert textarea(back) == typed
     assert NOTICE not in back and 'name="draft_id"' not in back
     assert await factory.scalar("SELECT count(*) FROM book_summary") == 1
+    # Regenerating keeps the text from before the first draft.
+    again = await draft(world.member, world.book, text=DRAFT_TEXT, regenerate=True,
+                        extra={"draft_id": draft_id(page), "before_text": typed})  # fmt: skip
+    assert hidden(again.text, "before_text") == typed
+
+
+@pytest.mark.ac("012/AC-08")
+async def test_a_failed_regenerate_keeps_the_draft_shown(
+    world: World, factory: Factory, summary_generator: FakeSummaryGenerator
+) -> None:
+    """PR #32 review: the AI text still in the box must still save as an AI draft."""
+    first = (await draft(world.member, world.book)).text
+    summary_generator.results.append(AiUnavailable())
+    failed = await draft(world.member, world.book, text=DRAFT_TEXT, regenerate=True,
+                         extra={"draft_id": draft_id(first)})  # fmt: skip
+    assert "didn't answer in time" in html.unescape(failed.text)
+    assert textarea(failed.text) == DRAFT_TEXT
+    assert hidden(failed.text, "draft_id") == draft_id(first)
+    await save(world.member, world.book, DRAFT_TEXT, hidden(failed.text, "draft_id"))
+    assert await factory.scalar("SELECT origin FROM book_summary WHERE is_current") == "ai"
+
+
+@pytest.mark.ac("012/AC-08")
+async def test_a_rejected_save_keeps_the_draft_id(
+    world: World, factory: Factory, summary_generator: FakeSummaryGenerator
+) -> None:
+    first = (await draft(world.member, world.book)).text
+    rejected = await save(world.member, world.book, "   ", draft_id(first))
+    assert rejected.status_code == 422
+    assert hidden(rejected.text, "draft_id") == draft_id(first)
 
 
 @pytest.mark.ac("012/AC-07")

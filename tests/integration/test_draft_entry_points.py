@@ -150,3 +150,63 @@ async def test_a_forged_draft_id_on_add_saves_manual(
     })  # fmt: skip
     assert saved.status_code == 303
     assert await factory.scalar("SELECT origin FROM book_summary") == "manual"
+
+
+STORM = {"title": "Storm Front", "author_name_0": "Jim Butcher"}
+
+
+@pytest.mark.ac("012/AC-23")
+async def test_add_a_book_reuses_a_cached_draft_and_can_regenerate(
+    member: httpx.AsyncClient, summary_generator: FakeSummaryGenerator
+) -> None:
+    """PR #32 review: the cache applies on Add a book too (AC-15)."""
+    page = (await member.get("/books/add")).text
+    first = await member.post("/books/add", data={**add_form(page, **STORM),
+                                                  "action": "draft_summary"})  # fmt: skip
+    again = await member.post("/books/add", data={**add_form(page, **STORM),
+                                                  "action": "draft_summary"})  # fmt: skip
+    assert len(summary_generator.calls) == 1 and left(again.text) == 9
+    assert "It was drafted earlier, on 23 Nov 2026." in again.text
+    assert 'name="action" value="regenerate_summary"' in again.text
+    fresh = await member.post("/books/add", data={**add_form(page, **STORM),
+                                                  "action": "regenerate_summary"})  # fmt: skip
+    assert len(summary_generator.calls) == 2 and left(fresh.text) == 8
+    assert first.status_code == again.status_code == fresh.status_code == 200
+
+
+@pytest.mark.ac("012/AC-23")
+async def test_add_a_book_failed_regenerate_keeps_the_draft(
+    member: httpx.AsyncClient, summary_generator: FakeSummaryGenerator
+) -> None:
+    page = (await member.get("/books/add")).text
+    first = await member.post("/books/add", data={**add_form(page, **STORM),
+                                                  "action": "draft_summary"})  # fmt: skip
+    kept = re.search(r'name="summary_draft_id" value="([^"]+)"', first.text)
+    assert kept
+    summary_generator.results.append(AiUnavailable())
+    failed = await member.post("/books/add", data={
+        **add_form(page, **STORM), "summary": DRAFT_TEXT, "summary_draft_id": kept.group(1),
+        "action": "regenerate_summary",
+    })  # fmt: skip
+    assert "didn't answer in time" in html.unescape(failed.text)
+    assert f'name="summary_draft_id" value="{kept.group(1)}"' in failed.text
+
+
+@pytest.mark.ac("012/AC-04")
+async def test_add_a_book_save_uses_the_app_clock(
+    app: Any, member: httpx.AsyncClient, factory: Factory,
+    summary_generator: FakeSummaryGenerator,
+) -> None:  # fmt: skip
+    """PR #32 review: the draft's age is judged by the app clock, not the wall clock."""
+    app.state.clock = lambda: datetime(2026, 1, 2, 12, 0, tzinfo=UTC)  # far from today
+    page = (await member.get("/books/add")).text
+    drafted = await member.post("/books/add", data={**add_form(page, **STORM),
+                                                    "action": "draft_summary"})  # fmt: skip
+    kept = re.search(r'name="summary_draft_id" value="([^"]+)"', drafted.text)
+    assert kept
+    saved = await member.post("/books/add", data={
+        **add_form(drafted.text, **STORM), "summary": DRAFT_TEXT,
+        "summary_draft_id": kept.group(1), "confirm_author_0": "Jim Butcher",
+    })  # fmt: skip
+    assert saved.status_code == 303
+    assert await factory.scalar("SELECT origin FROM book_summary") == "ai"

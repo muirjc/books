@@ -107,17 +107,15 @@ async def test_unsaved_draft_is_mentioned_first(
     assert f'value="{draft_id(page)}"' in confirm and html.escape(edited) in confirm
     leave = re.search(r'<a href="([^"]+)">Leave the draft</a>', confirm)
     assert leave
-    assert html.unescape(leave.group(1)) == (
-        f"/catalog/books/{books['fool']}/edit?suggest_series=The+Dresden+Files&suggest_number=2"
-    )
+    edit_url = f"/catalog/books/{books['fool']}/edit?suggest_draft={draft_id(page)}"
+    assert html.unescape(leave.group(1)) == edit_url
     # Save summary first: the edited text is saved, then Edit book opens with the suggestion.
     saved = await member.post(
         f"/catalog/books/{books['fool']}/summary",
         data={"csrf_token": csrf(confirm), "text": edited, "draft_id": draft_id(page),
               "then": "series"},
     )  # fmt: skip
-    assert saved.status_code == 303
-    assert saved.headers["location"] == html.unescape(leave.group(1))
+    assert saved.status_code == 303 and saved.headers["location"] == edit_url
     assert await factory.scalar("SELECT origin FROM book_summary WHERE is_current") == "ai_edited"
     assert len(summary_generator.calls) == 1
     again = await post_draft(member, books["fool"], regenerate=False)
@@ -125,29 +123,65 @@ async def test_unsaved_draft_is_mentioned_first(
     assert len(summary_generator.calls) == 1
 
 
+async def drafted(
+    member: httpx.AsyncClient, book: uuid.UUID, summary_generator: FakeSummaryGenerator,
+    name: str, number: str | None,
+) -> str:  # fmt: skip
+    summary_generator.results.append(suggestion(name, number))
+    return draft_id(await post_draft(member, book))
+
+
 @pytest.mark.ac("012/AC-20")
 async def test_edit_book_is_filled_in_but_not_saved(
-    member: httpx.AsyncClient, books: dict[str, uuid.UUID], factory: Factory
-) -> None:
-    url = f"/catalog/books/{books['fool']}/edit?suggest_series=The+Dresden+Files&suggest_number=2"
-    page = (await member.get(url)).text
+    member: httpx.AsyncClient, books: dict[str, uuid.UUID], factory: Factory,
+    summary_generator: FakeSummaryGenerator,
+) -> None:  # fmt: skip
+    draft = await drafted(member, books["fool"], summary_generator, "The Dresden Files", "2")
+    page = (await member.get(f"/catalog/books/{books['fool']}/edit?suggest_draft={draft}")).text
     assert NOTICE in page
     assert re.search(r'id="series_name"[^>]*value="The Dresden Files"', page)
     assert re.search(r'id="series_number"[^>]*value="2"', page)
     assert await factory.scalar("SELECT series_id FROM book WHERE id = :b", b=books["fool"]) is None
-    # Saving goes through the usual rules: the number is checked as on any edit.
-    bad = (await member.get(url.replace("=2", "=1000"))).text
-    assert re.search(r'id="series_number"[^>]*value=""', bad)  # an invalid number is dropped
     plain = (await member.get(f"/catalog/books/{books['fool']}/edit")).text
     assert NOTICE not in plain
 
 
 @pytest.mark.ac("012/AC-20")
+async def test_only_a_stored_draft_for_this_book_is_a_suggestion(
+    member: httpx.AsyncClient, books: dict[str, uuid.UUID], factory: Factory,
+    summary_generator: FakeSummaryGenerator,
+) -> None:  # fmt: skip
+    """PR #32 review: a crafted link, another book's draft or an expired one suggests nothing."""
+    fool = books["fool"]
+    crafted = (await member.get(f"/catalog/books/{fool}/edit?suggest_series=Wrong+Series"
+                                "&suggest_number=9")).text  # fmt: skip
+    assert NOTICE not in crafted and "Wrong Series" not in crafted
+    storms = await drafted(member, books["storm"], summary_generator, "Codex Alera", "1")
+    other = (await member.get(f"/catalog/books/{fool}/edit?suggest_draft={storms}")).text
+    assert NOTICE not in other and "Codex Alera" not in other
+    page = await post_draft(member, fool, regenerate=False)  # no draft for Fool Moon yet
+    mismatch = await member.post(
+        f"/catalog/books/{fool}/summary/use-series",
+        data={"csrf_token": csrf(page), "text": "x", "draft_id": storms},
+    )
+    assert mismatch.status_code == 303
+    assert mismatch.headers["location"] == f"/catalog/books/{fool}/summary"
+    fools = await drafted(member, fool, summary_generator, "The Dresden Files", "2")
+    await factory.execute(
+        "UPDATE summary_draft SET created_at = created_at - interval '31 days' WHERE id = :d",
+        d=uuid.UUID(fools),
+    )
+    expired = (await member.get(f"/catalog/books/{fool}/edit?suggest_draft={fools}")).text
+    assert NOTICE not in expired
+
+
+@pytest.mark.ac("012/AC-20")
 async def test_saving_the_suggestion_uses_the_existing_checks(
-    member: httpx.AsyncClient, books: dict[str, uuid.UUID], factory: Factory
-) -> None:
-    url = f"/catalog/books/{books['fool']}/edit?suggest_series=The+Dresden+Files&suggest_number=1"
-    page = (await member.get(url)).text
+    member: httpx.AsyncClient, books: dict[str, uuid.UUID], factory: Factory,
+    summary_generator: FakeSummaryGenerator,
+) -> None:  # fmt: skip
+    draft = await drafted(member, books["fool"], summary_generator, "The Dresden Files", "1")
+    page = (await member.get(f"/catalog/books/{books['fool']}/edit?suggest_draft={draft}")).text
     form = dict(re.findall(r'<input[^>]*name="([^"]+)"[^>]*value="([^"]*)"', page))
     form = {k: html.unescape(v) for k, v in form.items()}
     response = await member.post(f"/catalog/books/{books['fool']}/edit", data=form)

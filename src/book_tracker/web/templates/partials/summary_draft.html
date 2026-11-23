@@ -1,10 +1,13 @@
 {# Spec 012: the summary box, with an unsaved AI draft when there is one (contracts/ui-summary-drafts.md). #}
 {% from "macros.html" import described, field_error %}
-{% set draft_url = "/catalog/books/" ~ book.id ~ "/summary/draft" %}
+{% set base = "/catalog/books/" ~ book.id ~ "/summary" %}
+{% set htmx = 'hx-target="#summary-area" hx-swap="outerHTML" hx-indicator="#drafting" hx-disabled-elt="#summary-area button"' %}
 <div id="summary-area">
-<form method="post" action="/catalog/books/{{ book.id }}/summary" class="stack" novalidate>
+<form method="post" action="{{ base }}" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  {% if draft %}<input type="hidden" name="draft_id" value="{{ draft.id }}">{% endif %}
+  {# The shown draft's id and the box's text from before the first draft: kept through a failed Regenerate or a rejected save (PR #32 review). #}
+  {% if draft_id %}<input type="hidden" name="draft_id" value="{{ draft_id }}">{% endif %}
+  {% if before_text is not none %}<input type="hidden" name="before_text" value="{{ before_text }}">{% endif %}
   {% if draft_error %}<div class="conflict" role="alert" id="draft-error"><p>{{ draft_error }}</p></div>{% endif %}
   {% if draft %}
   <p class="notice" role="status">AI draft, not saved yet. Check it, edit it if you like, then save it, or discard it.{% if draft.cached %} It was drafted earlier, on {{ draft.created_at | nice_date }}.{% endif %}</p>
@@ -22,19 +25,19 @@
       {% for url in draft.source_urls %}<li><a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a> <span class="muted">(opens in a new tab)</span></li>{% endfor %}
     </ul>
     <p class="muted">Drafted by {{ draft.model }}</p>
-    {% include "partials/series_hint.html" ignore missing %}
+    {% include "partials/series_hint.html" %}
   </section>
   {% endif %}
   <div class="form-actions">
     <button type="submit" class="button-primary">Save summary</button>
-    {% if draft %}
-    <button type="submit" name="regenerate" value="1" formaction="{{ draft_url }}" hx-post="{{ draft_url }}" hx-vals='{"regenerate": "1"}' hx-target="#summary-area" hx-swap="outerHTML" hx-indicator="#drafting" hx-disabled-elt="#summary-area button">Regenerate</button>
-    <a href="/catalog/books/{{ book.id }}/summary">Discard draft</a>
+    {% if draft_id %}
+    <button type="submit" name="regenerate" value="1" formaction="{{ base }}/draft" hx-post="{{ base }}/draft" hx-vals='{"regenerate": "1"}' {{ htmx | safe }}>Regenerate</button>
+    <button type="submit" formaction="{{ base }}/discard" hx-post="{{ base }}/discard" {{ htmx | safe }}>Discard draft</button>
     {% else %}
-    <button type="submit" formaction="{{ draft_url }}" hx-post="{{ draft_url }}" hx-target="#summary-area" hx-swap="outerHTML" hx-indicator="#drafting" hx-disabled-elt="#summary-area button" aria-describedby="draft-hint">Draft with AI</button>
+    <button type="submit" formaction="{{ base }}/draft" hx-post="{{ base }}/draft" {{ htmx | safe }} aria-describedby="draft-hint">Draft with AI</button>
     {% endif %}
   </div>
-  {% if not draft %}<p class="hint" id="draft-hint">The AI writes a draft for you to check. Nothing is saved until you save it.</p>{% endif %}
+  {% if not draft_id %}<p class="hint" id="draft-hint">The AI writes a draft for you to check. Nothing is saved until you save it.</p>{% endif %}
   <p id="drafting" class="htmx-indicator" role="status">Drafting… this can take up to 30 seconds</p>
   {% if drafts_left is not none %}<p class="muted">{{ drafts_left }} AI draft{{ "" if drafts_left == 1 else "s" }} left today.</p>{% endif %}
 </form>

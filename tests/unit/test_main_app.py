@@ -46,3 +46,15 @@ def test_summary_generator_wiring() -> None:
     assert isinstance(main.create_app(test_env).state.summary_generator, UnconfiguredGenerator)
     fake = UnconfiguredGenerator()
     assert main.create_app(keyed, summary_generator=fake).state.summary_generator is fake
+
+
+async def test_the_ai_client_is_closed_on_shutdown() -> None:
+    """PR #32 review: the app closes the Anthropic client it created."""
+    from book_tracker.settings import Settings
+
+    base = {"database_url": "postgresql://u@localhost/db", "secret_key": TEST_SECRET}
+    keyed = main.create_app(Settings(**base, anthropic_api_key="sk-test"))  # type: ignore[arg-type]
+    generator = keyed.state.summary_generator
+    async with keyed.router.lifespan_context(keyed):
+        assert not generator.closed
+    assert generator.closed

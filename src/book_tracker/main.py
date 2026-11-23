@@ -89,6 +89,7 @@ def create_app(
     summary_generator: SummaryGenerator | None = None,
 ) -> FastAPI:
     source, http_client = _book_source(settings, book_source)
+    generator = _summary_generator(settings, summary_generator)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -97,6 +98,9 @@ def create_app(
         finally:
             if http_client is not None:
                 await http_client.aclose()
+            # The app closes the AI client it created; a given generator is the caller's.
+            if summary_generator is None and isinstance(generator, ClaudeSummaryGenerator):
+                await generator.aclose()
 
     app = FastAPI(
         title="Family Book Tracker API",
@@ -110,7 +114,7 @@ def create_app(
     app.state.db = Database.from_url(settings.database_url)
     app.state.clock = utc_now
     app.state.book_source = source
-    app.state.summary_generator = _summary_generator(settings, summary_generator)
+    app.state.summary_generator = generator
 
     configure_logging()
     app.middleware("http")(refresh_session_cookie)

@@ -118,8 +118,13 @@ async def test_changed_details_get_no_old_draft(
     assert await factory.scalar("SELECT origin FROM book_summary WHERE is_current") == "manual"
     await factory.execute("UPDATE book SET isbn_13 = '9780451457813' WHERE id = :b",
                           b=books["storm"])  # fmt: skip
-    await post_draft(alice, books["storm"], regenerate=False)
+    with_isbn = await post_draft(alice, books["storm"], regenerate=False)
     assert len(summary_generator.calls) == 3
+    # With an ISBN, fixing the title still means a new draft (PR #32 review).
+    await factory.execute("UPDATE book SET title = 'Storm Front' WHERE id = :b", b=books["storm"])
+    fixed = await post_draft(alice, books["storm"], regenerate=False)
+    assert draft_id(fixed) != draft_id(with_isbn)
+    assert len(summary_generator.calls) == 4
 
 
 @pytest.mark.ac("012/AC-18")

@@ -20,6 +20,7 @@ class FakeBookSource:
     error: Exception | None = None
     calls: list[tuple[str, str]] = field(default_factory=list)
     descriptions: dict[str, BookDescription] = field(default_factory=dict)  # by title
+    delay: float = 0.0  # describe_book waits this long first (spec 012)
 
     async def search_authors(self, name: str) -> list[AuthorCandidate]:
         self.calls.append(("search_authors", name))
@@ -44,6 +45,8 @@ class FakeBookSource:
         self, title: str, authors: Sequence[str], isbn13: str | None
     ) -> BookDescription | None:
         self.calls.append(("describe_book", title))
+        if self.delay:
+            await asyncio.sleep(self.delay)
         if self.error is not None:
             raise self.error
         return self.descriptions.get(title.casefold())

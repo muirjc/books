@@ -46,6 +46,7 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | POST | `/catalog/books/{id}/stories/{story_id}/remove` | Asks first; with `confirm=yes` takes the story out of the book, deleting it when no other book has it ([spec 009](../../009-collection-stories/contracts/ui-stories.md)) | spec 009 |
 | GET, POST | `/catalog/books/{id}/summary` | Write a new summary; shows history. A save with `draft_id` from the app's own current AI draft is stored as `ai` or `ai_edited`; `then=series` goes on to Edit book with the draft's series suggestion ([spec 012](../../012-ai-summary-drafts/contracts/ui-summary-drafts.md)) | FR-024 |
 | POST | `/catalog/books/{id}/summary/draft` | Draft with AI / Regenerate: the Summary page (HTMX: the `#summary-area` partial) with an unsaved draft or a failure message; never saves ([spec 012](../../012-ai-summary-drafts/contracts/ui-summary-drafts.md)) | spec 012 |
+| POST | `/catalog/books/{id}/summary/discard` | Discard draft: the box as it was before the first draft (spec 012 AC-06) | spec 012 |
 | POST | `/catalog/books/{id}/summary/use-series` | Before using a draft's series suggestion: offer to save the unsaved draft first (spec 012 AC-21) | spec 012 |
 | GET | `/admin/users` | Accounts list (Admin only) | FR-003 |
 | GET, POST | `/admin/users/new` | Create an account | FR-003 |

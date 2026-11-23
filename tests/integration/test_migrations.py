@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import psycopg
 from alembic import command
 
@@ -21,7 +23,8 @@ TABLES_0001 = {
 TABLES_0002 = {"book_source_ref", "source_lookup_cache"}
 TABLES_0004 = {"story", "story_author", "book_story"}  # spec 009 T001
 TABLES_0005 = {"favorite_author"}  # spec 011 T002
-EXPECTED_TABLES = TABLES_0001 | TABLES_0002 | TABLES_0004 | TABLES_0005
+TABLES_0006 = {"summary_draft", "ai_draft_usage"}  # spec 012 T006
+EXPECTED_TABLES = TABLES_0001 | TABLES_0002 | TABLES_0004 | TABLES_0005 | TABLES_0006
 
 # Constraints spec 002's services rely on by name (data-model.md).
 CONSTRAINTS_0002 = {
@@ -68,6 +71,21 @@ def _columns(url: str) -> set[tuple[str, str, str, str | None]]:
     return {(r[0], r[1], r[2], r[3]) for r in rows}
 
 
+KINDS_0002 = {"author_search", "author_works"}
+KINDS_0006 = KINDS_0002 | {"book_description"}  # spec 012 research R3
+
+
+def _kind_check(url: str) -> set[str]:
+    """The kinds source_lookup_cache_kind_check allows."""
+    with psycopg.connect(_plain(url)) as conn:
+        row = conn.execute(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conname = 'source_lookup_cache_kind_check'"
+        ).fetchone()
+    assert row is not None
+    return set(re.findall(r"'(\w+)'", row[0]))
+
+
 def _indexes(url: str) -> set[str]:
     with psycopg.connect(_plain(url)) as conn:
         rows = conn.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'book'").fetchall()
@@ -90,15 +108,19 @@ def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     assert _columns(url) == COLUMNS_0003  # spec 007 T004
     assert "book_release_date_idx" in _indexes(url)
 
+    assert _kind_check(url) == KINDS_0006
+    command.downgrade(cfg, "0005_favorite_authors")  # spec 012
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0006 | {"alembic_version"}
+    assert _kind_check(url) == KINDS_0002
     command.downgrade(cfg, "0004_collection_stories")  # spec 011
-    assert _tables(url) == EXPECTED_TABLES - TABLES_0005 | {"alembic_version"}
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0005 - TABLES_0006 | {"alembic_version"}
 
     command.downgrade(cfg, "0003_upcoming_books")
-    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 - TABLES_0005 | {"alembic_version"}
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 - TABLES_0005 - TABLES_0006 | {"alembic_version"}
     assert _columns(url) == COLUMNS_0003
 
     command.downgrade(cfg, "0002_author_import")
-    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 - TABLES_0005 | {"alembic_version"}
+    assert _tables(url) == EXPECTED_TABLES - TABLES_0004 - TABLES_0005 - TABLES_0006 | {"alembic_version"}
     assert _columns(url) == set()
     assert "book_release_date_idx" not in _indexes(url)
 

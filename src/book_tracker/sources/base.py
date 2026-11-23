@@ -6,8 +6,10 @@ Failures raise ``SourceUnavailable`` or ``SourceNotFound`` from ``services.error
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
+from book_tracker.domain.drafts import BookDescription
 from book_tracker.domain.imports import AuthorCandidate, WorkList
 from book_tracker.services.errors import SourceNotFound, SourceUnavailable
 
@@ -29,6 +31,12 @@ class BookSource(Protocol):
         """
         ...
 
+    async def describe_book(
+        self, title: str, authors: Sequence[str], isbn13: str | None
+    ) -> BookDescription | None:
+        """One book's description, or None (spec 012 research R3)."""
+        ...
+
 
 class UnavailableSource:
     """Installed under test when no source is given: every call fails (research R14)."""
@@ -39,4 +47,9 @@ class UnavailableSource:
     async def author_works(
         self, author_key: str, author: AuthorCandidate | None = None
     ) -> WorkList:
+        raise SourceUnavailable()
+
+    async def describe_book(
+        self, title: str, authors: Sequence[str], isbn13: str | None
+    ) -> BookDescription | None:
         raise SourceUnavailable()

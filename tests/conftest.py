@@ -194,6 +194,8 @@ def app(settings: Settings) -> Any:
 
 
 TABLES = (
+    "summary_draft",
+    "ai_draft_usage",
     "favorite_author",
     "book_story",
     "story_author",

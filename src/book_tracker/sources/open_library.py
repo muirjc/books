@@ -12,13 +12,14 @@ import asyncio
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 import httpx
 from pydantic import BaseModel, ValidationError
 
+from book_tracker.domain.drafts import BookDescription
 from book_tracker.domain.imports import (
     MAX_WORKS_LISTED,
     AuthorCandidate,
@@ -39,6 +40,8 @@ from book_tracker.sources.rate_limit import RateLimiter
 logger = logging.getLogger("book_tracker.sources.open_library")
 
 AUTHOR_SEARCH_LIMIT = 10
+DESCRIPTION_MAX = 4000  # spec 012 research R3
+_WORK_KEY = re.compile(r"^/works/OL[0-9]+W$")
 WORKS_PAGE_SIZE = 1000
 MAX_PAGES = MAX_WORKS_LISTED // WORKS_PAGE_SIZE
 WORK_FIELDS = (
@@ -161,6 +164,18 @@ def _work(doc: _WorkDoc) -> WorkCandidate | None:
         isbn13s=frozenset(isbns),
         edition_count=doc.edition_count,
     )
+
+
+class _KeyDoc(BaseModel):
+    key: str = ""
+
+
+class _KeySearch(BaseModel):
+    docs: list[_KeyDoc] = []
+
+
+class _Work(BaseModel):
+    description: str | dict[str, Any] | None = None
 
 
 # --------------------------------------------------------------------------- adapter
@@ -313,3 +328,40 @@ class OpenLibrarySource:
         return WorkList(
             author=author, works=tuple(merged), total=total, truncated=total > MAX_WORKS_LISTED
         )
+
+    async def _work_key(self, params: dict[str, Any], deadline: float) -> str | None:
+        data = await self._get("describe_search", "/search.json", params, deadline)
+        try:
+            docs = _KeySearch.model_validate(data).docs
+        except ValidationError:
+            raise SourceUnavailable() from None
+        key = docs[0].key if docs else ""
+        return key if _WORK_KEY.match(key) else None
+
+    async def describe_book(
+        self, title: str, authors: Sequence[str], isbn13: str | None
+    ) -> BookDescription | None:
+        """Open Library's description of a book, found by ISBN, else by title and first
+        author (spec 012 research R3). None when it has none."""
+        deadline = self._clock() + self._budget
+        key = None
+        if isbn13:
+            key = await self._work_key({"isbn": isbn13, "limit": 1, "fields": "key"}, deadline)
+        if key is None:
+            params = {"title": title, "limit": 1, "fields": "key"}
+            if authors:
+                params["author"] = authors[0]
+            key = await self._work_key(params, deadline)
+        if key is None:
+            return None
+        data = await self._get("describe_work", f"{key}.json", {}, deadline, missing_ok=True)
+        try:
+            work = _Work.model_validate(data or {})
+        except ValidationError:
+            raise SourceUnavailable() from None
+        raw = work.description
+        text = raw.get("value") if isinstance(raw, dict) else raw
+        if not isinstance(text, str) or not text.strip():
+            return None
+        return BookDescription(f"{self._client.base_url}".rstrip("/") + key,
+                               fit(text, DESCRIPTION_MAX))  # fmt: skip

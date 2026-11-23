@@ -24,3 +24,17 @@ def test_open_library_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = Settings()  # type: ignore[call-arg]  # values come from the environment
     assert settings.openlibrary_base_url == "http://127.0.0.1:9"
     assert settings.source_timeout_seconds == 2.5
+
+
+@pytest.mark.ac("012/AC-09")
+def test_ai_settings_defaults_and_secret() -> None:
+    """Spec 012 research R1, R8: the AI is off without a key; the key never shows in repr."""
+    settings = Settings(**BASE)  # type: ignore[arg-type]  # pydantic converts str to SecretStr
+    assert settings.anthropic_api_key is None
+    assert settings.ai_model == "claude-opus-5-5"
+    assert settings.ai_daily_draft_limit == 10
+    assert settings.ai_timeout_seconds == 30.0
+    keyed = Settings(**BASE, anthropic_api_key="sk-test-secret")  # type: ignore[arg-type]
+    assert "sk-test-secret" not in repr(keyed)
+    assert keyed.anthropic_api_key is not None
+    assert keyed.anthropic_api_key.get_secret_value() == "sk-test-secret"

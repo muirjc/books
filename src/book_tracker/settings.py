@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # (FR-016). Requests identify only the app; there is no contact setting (Principle IX).
     openlibrary_base_url: str = "https://openlibrary.org"
     source_timeout_seconds: float = 10.0
+    # Spec 012: AI summary drafts. Without a key, drafting reports "not set up" (AC-09).
+    anthropic_api_key: SecretStr | None = None
+    ai_model: str = "claude-opus-5-5"
+    ai_daily_draft_limit: int = Field(default=10, ge=1)
+    ai_timeout_seconds: float = Field(default=30.0, gt=0)
 
     @field_validator("database_url")
     @classmethod

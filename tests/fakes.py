@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from book_tracker.domain.drafts import BookDescription
 from book_tracker.domain.imports import AuthorCandidate, WorkCandidate, WorkList
 from book_tracker.services.errors import SourceNotFound
 
@@ -16,6 +18,7 @@ class FakeBookSource:
     works: dict[str, WorkList] = field(default_factory=dict)
     error: Exception | None = None
     calls: list[tuple[str, str]] = field(default_factory=list)
+    descriptions: dict[str, BookDescription] = field(default_factory=dict)  # by title
 
     async def search_authors(self, name: str) -> list[AuthorCandidate]:
         self.calls.append(("search_authors", name))
@@ -35,6 +38,14 @@ class FakeBookSource:
         if author is not None:
             listing = WorkList(author, listing.works, listing.total, listing.truncated)
         return listing
+
+    async def describe_book(
+        self, title: str, authors: Sequence[str], isbn13: str | None
+    ) -> BookDescription | None:
+        self.calls.append(("describe_book", title))
+        if self.error is not None:
+            raise self.error
+        return self.descriptions.get(title.casefold())
 
 
 def author(key: str = "OL1A", name: str = "Ann Author", works: int = 3) -> AuthorCandidate:

@@ -66,12 +66,34 @@ def render(
         "today": today(request),  # spec 007: "Coming" and "Now out" use the app clock
     }
     ctx.update(context or {})
+    ctx.setdefault("active", ACTIVE_TABS.get(name))  # spec 014 AC-10
     if status_code >= 400:
         # The request failed: get_db rolls back instead of committing partial writes.
         request.state.db_rollback = True
     # A URL may answer with a page or an htmx fragment, so caches must key on the header.
     headers = {"Vary": "HX-Request", **(headers or {})}
     return templates.TemplateResponse(request, name, ctx, status_code=status_code, headers=headers)
+
+
+# Spec 014 AC-10: the main navigation tab each page belongs to, unless the route says.
+ACTIVE_TABS = {
+    "pages/entry.html": "list",
+    "pages/favorite_authors.html": "list",
+    "pages/confirm_remove.html": "list",
+    "pages/change_password.html": "password",
+    **{
+        f"pages/{page}.html": "catalog"
+        for page in (
+            "edit_book", "edit_series", "edit_author", "edit_story", "add_story", "summary",
+            "use_series", "unused_authors", "confirm_delete_author", "confirm_remove_story",
+            "series", "author",
+        )
+    },
+    **{
+        f"pages/{page}.html": "import"
+        for page in ("import_search", "import_authors", "import_works", "import_summary")
+    },
+}  # fmt: skip
 
 
 def render_error(request: Request, status_code: int, title: str) -> Response:

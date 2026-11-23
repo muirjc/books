@@ -248,7 +248,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
 
 /* Spec 008: lists of links (an author's books, authors with no books), 44 px targets. */
 .link-list { padding-left: 1.25rem; margin: 0; }
-.link-list a, .tidy-link a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
+.link-list a, .tidy-link a, .filter-link a, .back-link a, .jump-links a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
 
 /* Spec 009: stories. On the series page a story row reads like a book row, with a "Story"
    tag before its title and its containing books as links (44 px targets). */
@@ -294,3 +294,10 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .story-row { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
 .stories > button, .story-row > button { align-self: flex-start; }
 .chosen-story { margin: 0; overflow-wrap: anywhere; }
+
+/* Spec 014: back links, "Jump to" lists, and the favorites link by the Author filter. */
+.back-link { margin: 0 0 0.25rem; }
+.jump-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; }
+.jump-links ul { display: flex; flex-wrap: wrap; gap: 0 1rem; list-style: none; margin: 0; padding: 0; }
+.filter-link { margin: 0; }
+.account-actions .button-link { display: inline-flex; align-items: center; min-height: var(--target); }

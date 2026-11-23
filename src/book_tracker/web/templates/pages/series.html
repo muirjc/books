@@ -11,8 +11,18 @@
 {%- if view.stories_total %} and {{ view.stories_finished }} of {{ view.stories_total }} stor{{ "y" if view.stories_total == 1 else "ies" }}{% endif %} in this series.</p>
 {#- Every catalog book in the series with my own status, and gaps (spec 006). Each row
     reads number, title, authors, status, then its action (R5). -#}
+{#- Spec 014 AC-12: "Add #next" after the last numbered row, before books with no number. -#}
+{% macro next_row() %}{% if view.next_number %}
+  <li class="series-gap series-next">
+    <span class="badge">#{{ view.next_number }}</span>
+    <span class="series-detail series-status">Not in the family catalog yet</span>
+    <a class="series-action" href="/books/add?series={{ series.id }}&amp;number={{ view.next_number }}&amp;from_series={{ series.id }}">Add #{{ view.next_number }}</a>
+  </li>
+{% endif %}{% endmacro %}
+{% set ns = namespace(next_shown=false) %}
 <ol class="book-list series-rows" role="list">
   {% for row in view.rows %}
+  {% if not ns.next_shown and row.book and row.book.series_number is none %}{{ next_row() }}{% set ns.next_shown = true %}{% endif %}
   {% if row.story %}
   {#- Spec 009: a story at its number, in the book(s) that contain it, with my place in it
       from my own entries for those books. -#}
@@ -47,10 +57,13 @@
   </li>
   {% endif %}
   {% endfor %}
+  {% if not ns.next_shown %}{{ next_row() }}{% endif %}
 </ol>
 {% else %}
 <p>The family catalog has no books in this series yet.</p>
 <p><a class="series-action" href="/books/add?series={{ series.id }}&amp;from_series={{ series.id }}">Add a book to this series</a></p>
 {% endif %}
+{#- Spec 014 AC-13: a collection whose stories sit at places in this series (spec 013). -#}
+<p><a href="/books/add?series={{ series.id }}&amp;anthology=yes&amp;from_series={{ series.id }}">Add a collection with stories in this series</a></p>
 <p><a href="/catalog/series/{{ series.id }}/edit">Edit series</a> · <a href="/">Back to my books</a></p>
 {% endblock %}

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.models import Book, BookRef, ReadingEntry, ReadingEntryPage, Series, Story
+from book_tracker.domain.values import SERIES_NUMBER_MAX
 from book_tracker.persistence import catalog
 from book_tracker.persistence.readings import SORTS, FilterOptions, ReadingEntryRepository
 from book_tracker.services import catalog as catalog_service
@@ -199,6 +200,8 @@ class SeriesView:
     total: int  # catalog books listed; gaps and stories don't count
     stories_finished: int = 0  # stories in a book I've finished (spec 009 AC-13)
     stories_total: int = 0
+    # Spec 014 AC-12: the next whole number after the highest book or story, for "Add #n".
+    next_number: int | None = None
 
 
 def _gap_runs(numbers: set[Decimal], top: int) -> list[tuple[int, int]]:
@@ -283,7 +286,17 @@ def series_rows(
         total=len(books),
         stories_finished=sum(1 for row in ordered if row.story_status is ReadingStatus.FINISHED),
         stories_total=len(stories),
+        next_number=next_number(numbers),
     )
+
+
+def next_number(numbers: set[Decimal]) -> int | None:
+    """The next whole number after the highest, or None when nothing is numbered or it
+    would pass the highest number a book can have (spec 014 AC-12)."""
+    if not numbers:
+        return None
+    following = math.floor(max(numbers)) + 1
+    return following if following <= SERIES_NUMBER_MAX else None
 
 
 async def series_view(
@@ -313,6 +326,13 @@ async def filter_options(
     db: AsyncSession, user_id: uuid.UUID
 ) -> tuple[FilterOptions, FilterOptions]:
     return await ReadingEntryRepository(db, user_id).filter_options()
+
+
+async def entry_for_book(
+    db: AsyncSession, user_id: uuid.UUID, book_id: uuid.UUID
+) -> ReadingEntry | None:
+    """My entry for this book, if I have one (spec 014 back links; Principle I)."""
+    return await ReadingEntryRepository(db, user_id).get_by_book(book_id)
 
 
 async def get_entry(db: AsyncSession, user_id: uuid.UUID, entry_id: uuid.UUID) -> ReadingEntry:

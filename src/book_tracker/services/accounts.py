@@ -28,6 +28,14 @@ async def list_accounts(db: AsyncSession) -> list[Account]:
     return await accounts.list_users(db)
 
 
+async def get_account(db: AsyncSession, user_id: uuid.UUID) -> Account:
+    """One account, for an Admin's confirmation page (spec 014); unknown → not found."""
+    account = await accounts.get_user(db, user_id)
+    if account is None:
+        raise NotFoundError()
+    return account
+
+
 async def create_account(
     db: AsyncSession, *, display_name: str, login: str, role: Role, initial_password: str
 ) -> Account:

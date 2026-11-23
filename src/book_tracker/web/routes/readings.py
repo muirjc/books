@@ -41,6 +41,7 @@ from book_tracker.web.forms import (
     NewName,
     book_start_form,
     carry_over_form,
+    choose_author,
     parse_add_book,
     parse_entry_update,
     series_start_form,
@@ -63,8 +64,10 @@ MESSAGES = {
     "password": "Your password has been changed.",
     # Spec 013 AC-20: the existing book was added instead of the one typed with stories.
     "stories_not_added": (
-        "Added to your list. The stories you typed were not added. Add them from Edit book."
+        "Added to your list. The stories you typed were not added. Add them with Add a story below."
     ),
+    "story_added": "Story added.",  # spec 014 AC-04
+    "story_already": "That story is already in this book.",  # as on Edit book
 }
 STATUSES = [
     (s.value, label)
@@ -317,10 +320,24 @@ async def add_book_form(
         start_series = await _existing_series(db, _uuid_param(request, "series"))
         if start_series is not None:
             form = series_start_form(start_series, request.query_params.get("number", ""))
+        # Spec 014 AC-13, AC-14: a collection from a series page; a book by an author.
+        form.anthology = request.query_params.get("anthology") == "yes"
+        author = await _existing_author(db, _uuid_param(request, "author"))
+        if author is not None:
+            choose_author(form, author)
     from_series = await _existing_series(db, _uuid_param(request, "from_series"))
     if from_series is not None:
         form.from_series = from_series.id
     return _add_form(request, auth, form, chosen=chosen)
+
+
+async def _existing_author(db: DbSession, author_id: uuid.UUID | None) -> domain.Author | None:
+    if author_id is None:
+        return None
+    try:
+        return await catalog_service.get_author(db, author_id)
+    except NotFoundError:
+        return None
 
 
 async def _chosen_book(db: DbSession, book_id: uuid.UUID | None) -> domain.Book | None:
@@ -866,7 +883,9 @@ async def update_entry(
     data = await request.form()
     current = await service.get_entry(db, auth.account.id, entry_id)  # 404 if not mine
     update, errors, raw = parse_entry_update(data)
-    details = parse_add_book(data) if "title" in data else None
+    details = parse_add_book(data, stories=False) if "title" in data else None
+    stories = await catalog_service.book_stories(db, current.book.id)  # spec 014 AC-01
+    source_ref = await imports_service.source_ref(db, current.book.id)  # kept on errors
     if details is not None:
         for name in ENTRY_FIELDS:  # checked by parse_entry_update
             details.errors.pop(name, None)
@@ -874,14 +893,15 @@ async def update_entry(
         await new_name_prompts(db, details)  # spec 005: shown with any field errors
     if update is None or (details is not None and details.field_errors):
         return _entry_page(
-            request, auth, current, errors=errors, raw=raw, form=details, status_code=422
-        )
+            request, auth, current, errors=errors, raw=raw, form=details, status_code=422,
+            stories=stories, source_ref=source_ref,
+        )  # fmt: skip
     if details is not None:
         problem = await save_book_details(db, auth, current.book, details, only_if_changed=True)
         if problem is not None:
             return _entry_page(
                 request, auth, current, raw=raw, form=details, problem=problem,
-                status_code=problem.status_code,
+                status_code=problem.status_code, stories=stories, source_ref=source_ref,
             )  # fmt: skip
     changes = {name: getattr(update, name) for name in update.model_fields_set}
     if changes.get("times_read") == current.times_read:

@@ -2,6 +2,8 @@
 {% from "macros.html" import error_summary %}
 {% block title %}Summary of {{ book.title }}{% endblock %}
 {% block content %}
+{#- Spec 014 AC-07: back to my entry, or to Edit book. -#}
+<p class="back-link"><a href="{{ '/entries/' ~ my_entry.id if my_entry else '/catalog/books/' ~ book.id ~ '/edit' }}">Back to “{{ book.title }}”</a></p>
 <h1>Summary of “{{ book.title }}”</h1>
 <p class="muted">One summary is shared by the whole family. Saving a new one keeps the old ones below.</p>
 {{ error_summary(errors) }}

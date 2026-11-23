@@ -2,12 +2,14 @@
 {% from "macros.html" import error_summary %}
 {% block title %}Edit {{ story.title }}{% endblock %}
 {% block content %}
+{% if back %}<p class="back-link"><a href="{{ back[1] }}">Back to “{{ back[0] }}”</a></p>{% endif %}
 <h1>Edit story “{{ story.title }}”</h1>
 {% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
 <p class="muted">Changes show in every book that contains this story. Last edited by {{ story.updated_by.display_name }} on {{ story.updated_at | nice_date }}.</p>
 {{ error_summary(form.errors) }}
 <form method="post" action="/catalog/stories/{{ story.id }}/edit" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if back_from %}<input type="hidden" name="from" value="{{ back_from }}">{% endif %}
   {% if taken %}{% with offer=false %}{% include "partials/story_taken.html" %}{% endwith %}{% endif %}
   {% with suggest_title=false %}{% include "partials/story_fields.html" %}{% endwith %}
   <button type="submit" class="button-primary">Save story</button>

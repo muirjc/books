@@ -410,5 +410,6 @@ async def test_long_gap_is_one_row(
     assert "Backup" in shown[six + 1]
     assert shown[six + 2] == "#7–#499 Not in the family catalog yet Add #7"
     assert "Far Future" in shown[six + 3]
-    assert len(shown) == 10  # 8 books and two gap rows; Side Jobs last
+    assert shown[six + 4] == "#501 Not in the family catalog yet Add #501"  # spec 014
+    assert len(shown) == 11  # 8 books, two gap rows and Add #next; Side Jobs last
     assert "Side Jobs" in shown[-1]

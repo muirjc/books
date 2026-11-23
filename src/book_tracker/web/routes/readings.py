@@ -33,7 +33,7 @@ from book_tracker.services.errors import (
 from book_tracker.sources.base import BookSource
 from book_tracker.sources.dependencies import BookSourceDep
 from book_tracker.sources.summary_generator import SummaryGenerator, SummaryGeneratorDep
-from book_tracker.web import anthology
+from book_tracker.web import anthology, quick
 from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import (
     AddBookForm,
@@ -186,7 +186,13 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
 async def upcoming_page(request: Request, auth: UiUser, db: DbSession) -> Response:
     """My books not out yet, then the family catalog's (spec 007 R5)."""
     view = await service.upcoming_view(db, auth.account.id, today(request))
-    return render(request, "pages/upcoming.html", {"view": view, "active": "upcoming"}, auth=auth)
+    quick_added = await quick.notice(request, db, auth)  # spec 015
+    return render(
+        request,
+        "pages/upcoming.html",
+        {"view": view, "active": "upcoming", "quick": quick_added},
+        auth=auth,
+    )
 
 
 @router.get("/series/{series_id}")
@@ -213,6 +219,7 @@ async def series_page(
             "view": view,
             "added": added,
             "stories_added": stories_added(request) if added else 0,
+            "quick": await quick.notice(request, db, auth),  # spec 015
         },
         auth=auth,
     )
@@ -911,6 +918,27 @@ async def update_entry(
     await service.update_entry(db, auth.account.id, entry_id, changes, today=today(request))
     msg = "merged" if details is not None and details.others_kept else "saved"
     return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
+
+
+@router.post("/books/{book_id}/want-to-read")
+async def want_to_read(
+    book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
+) -> Response:
+    """Spec 015: add a catalog book to my list as Want to read in one tap, then back to the
+    page it was on (allow-listed), at its row."""
+    data = await request.form()
+    kind = "wanted"
+    try:
+        await service.add_entry(
+            db, auth.account.id, now=now(request), book_id=book_id,
+            status=ReadingStatus.WANT_TO_READ,
+        )  # fmt: skip
+    except ConflictError as exc:
+        if exc.code != "already_on_list":  # pragma: no cover - the only conflict here
+            raise
+        kind = "already"
+    location = quick.after_quick_add(text(data, "back"), kind, book_id)
+    return RedirectResponse(location, status_code=303)
 
 
 @router.post("/entries/{entry_id}/read-again")

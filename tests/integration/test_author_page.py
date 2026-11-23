@@ -16,7 +16,10 @@ import pytest
 
 from tests.conftest import Factory, TestUser, signed_in
 
-ROW = re.compile(r'class="book-title" href="/catalog/books/([0-9a-f-]{36})/edit">([^<]+)</a>')
+ROW = re.compile(  # spec 015: a title links to my entry when the book is on my list
+    r'class="book-title" href="(?:/catalog/books/([0-9a-f-]{36})/edit|/entries/[0-9a-f-]{36})">'
+    r"([^<]+)</a>"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -106,7 +109,7 @@ async def world(factory: Factory, client_factory: Callable[[], httpx.AsyncClient
 def _row(body: str, book_id: uuid.UUID) -> str:
     not_end = "(?:(?!</li>).)*"
     found = re.search(
-        rf'<li class="catalog-row">{not_end}?/catalog/books/{book_id}/edit{not_end}</li>',
+        rf'<li class="catalog-row" id="book-{book_id}">{not_end}</li>',  # spec 015 rows
         body,
         re.S,
     )
@@ -174,13 +177,15 @@ async def test_books_grouped_by_series(world: World) -> None:
 async def test_my_status_or_add(world: World) -> None:
     page = (await world.member.get(f"/authors/{world.butcher}")).text
     storm = _row(page, world.books["storm"])
-    assert '<span class="badge">Finished</span>' in storm
-    assert f'<a class="catalog-mine" href="/entries/{world.entries["storm"]}">On my list' in storm
-    assert '<span class="badge">Want to read</span>' in _row(page, world.books["side"])
+    # Spec 015 AC-08: the status badge is the link to my entry.
+    storm_badge = f'<a class="badge status-link" href="/entries/{world.entries["storm"]}">Finished'
+    assert storm_badge in storm
+    assert 'class="badge status-link"' in _row(page, world.books["side"])
+    assert ">Want to read<span" in _row(page, world.books["side"])
     fool = _row(page, world.books["fool"])
     assert f'href="/books/add?book={world.books["fool"]}"' in fool
-    assert '<span class="visually-hidden"> “Fool Moon”</span> to my list' in fool
-    assert "badge" not in fool
+    assert '<span class="visually-hidden"> “Fool Moon”</span> with details…' in fool
+    assert "badge" not in fool and "Not on my list" in fool
 
 
 @pytest.mark.ac("011/AC-05")

@@ -70,6 +70,8 @@ def rows(page: httpx.Response) -> list[str]:
     """The text of each series row, whitespace collapsed."""
     body = page.text.split('<ol class="book-list series-rows"', 1)[1].split("</ol>", 1)[0]
     items = re.findall(r"<li[^>]*>(.*?)</li>", body, flags=re.S)
+    # The visible text: screen-reader-only words are dropped (spec 015 badges).
+    items = [re.sub(r'<span class="visually-hidden">.*?</span>', "", i, flags=re.S) for i in items]
     return [" ".join(html.unescape(re.sub(r"<[^>]+>", " ", item)).split()) for item in items]
 
 

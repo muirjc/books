@@ -1,4 +1,4 @@
-{% from "macros.html" import author_links, series_line, release_label %}
+{% from "macros.html" import book_row %}
 {#- Spec 010: catalog rows. "On my list" comes from my own entry only (Principle I). -#}
 {% if htmx %}
 <div hx-swap-oob="innerHTML:#list-count">{% include "partials/catalog_count.html" %}</div>
@@ -13,16 +13,7 @@
 {% else %}
 <ul class="book-list catalog-list" role="list" aria-describedby="list-count">
   {% for row in view.rows %}
-  <li class="catalog-row">
-    <a class="book-title" href="/catalog/books/{{ row.book.id }}/edit">{{ row.book.title }}</a>
-    <span class="catalog-detail"><span class="book-meta">{{ author_links(row.book) }}{% if row.book.series %} · <a href="/series/{{ row.book.series.id }}">{{ series_line(row.book) }}</a>{% endif %}</span>
-      {%- set release = release_label(row.book, today) %}{% if release | trim %} · {{ release }}{% endif %}</span>
-    {% if row.entry %}
-    <a class="catalog-mine" href="/entries/{{ row.entry.id }}">On my list<span class="visually-hidden">: “{{ row.book.title }}”</span></a>
-    {% else %}
-    <a class="series-action" href="/books/add?book={{ row.book.id }}"><span>Add<span class="visually-hidden"> “{{ row.book.title }}”</span> to my list</span></a>
-    {% endif %}
-  </li>
+  {{ book_row(row.book, row.entry, today, here, csrf_token) }}
   {% endfor %}
 </ul>
 {% set last_page = ((view.total - 1) // view.page_size) + 1 %}

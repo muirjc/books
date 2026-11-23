@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, overload
 
 from pydantic import AfterValidator, BeforeValidator, StringConstraints, WithJsonSchema
 
@@ -14,17 +14,26 @@ from book_tracker.domain.values import normalize_name, parse_isbn13, parse_serie
 SEARCH_MAX = 200
 
 
-def drop_nul(value: Any) -> Any:
+@overload
+def drop_nul(value: str) -> str: ...
+@overload
+def drop_nul(value: None) -> None: ...
+def drop_nul(value: str | None) -> str | None:
     """PostgreSQL text can't hold NUL, so a search drops it before any query (books-7bq)."""
-    return value.replace("\x00", "") if isinstance(value, str) else value
+    return None if value is None else value.replace("\x00", "")
 
 
 def search_text(value: object) -> str:
     """A page's search box text: no NUL, trimmed, at most ``SEARCH_MAX`` characters."""
-    return str(drop_nul(value if isinstance(value, str) else "")).strip()[:SEARCH_MAX]
+    return drop_nul(value if isinstance(value, str) else "").strip()[:SEARCH_MAX]
 
 
-NoNul = BeforeValidator(drop_nul)
+def _type_ahead(value: Any) -> Any:
+    return drop_nul(value).strip() if isinstance(value, str) else value
+
+
+# A type-ahead ``q`` without NUL or edge spaces, so ``min_length`` refuses a blank one.
+TypeAheadText = BeforeValidator(_type_ahead)
 
 SERIES_NUMBER_PATTERN = r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
 

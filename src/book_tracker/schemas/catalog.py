@@ -270,6 +270,19 @@ CatalogSort = Literal["title", "-title", "author", "series", "-added"]
 CATALOG_SORT_VALUES: tuple[str, ...] = get_args(CatalogSort)
 
 
+class SearchQuery(BaseModel):
+    """A page's search text (My books, the type-ahead suggestions): see ``search_text``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    q: str = ""
+
+    @field_validator("q", mode="before")
+    @classmethod
+    def _q(cls, value: object) -> str:
+        return search_text(value)
+
+
 class CatalogQuery(BaseModel):
     """The Catalog page's query string (spec 010). Bad values fall back to the defaults
     rather than failing, as on My books."""

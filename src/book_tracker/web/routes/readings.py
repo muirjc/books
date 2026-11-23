@@ -17,9 +17,8 @@ from book_tracker.domain import models as domain
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.values import format_series_number, normalize_name, similar_names
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import BookCreate, parse_page
+from book_tracker.schemas.catalog import BookCreate, SearchQuery, parse_page
 from book_tracker.schemas.readings import ReadingEntryCreate
-from book_tracker.schemas.types import search_text
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
@@ -95,7 +94,7 @@ def _uuid_param(request: Request, name: str) -> uuid.UUID | None:
 async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     """My list with search, sort and filters; HTMX gets just the list (FR-021, FR-023)."""
     params = request.query_params
-    q = search_text(params.get("q"))
+    q = SearchQuery.model_validate({"q": params.get("q")}).q
     sort = params.get("sort", "title")
     sort = sort if sort in {value for value, _ in SORT_OPTIONS} else "title"
     status_text = params.get("status", "")

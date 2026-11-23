@@ -63,12 +63,13 @@
     ``here`` (allow-listed by the route), or open the full form for details. -#}
 {#- ``named``: show the book's title on the buttons too, where the row is about something
     else (a story row's containing books, AC-04). -#}
-{% macro quick_add(book_id, title, here, csrf_token, details_url, named=false) -%}
+{% macro quick_add(book_id, title, here, csrf_token, details_url, named=false, anchor="") -%}
 {%- set name -%}{% if named %} “{{ title }}”{% else %}<span class="visually-hidden"> “{{ title }}”</span>{% endif %}{%- endset -%}
 <span class="row-actions">
   <form method="post" action="/books/{{ book_id }}/want-to-read" class="inline-form quick-add">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="back" value="{{ here }}">
+    {% if anchor %}<input type="hidden" name="anchor" value="{{ anchor }}">{% endif %}
     <button type="submit">Want to read{{ name }}</button>
   </form>
   <a class="series-action" href="{{ details_url }}"><span>Add{{ name }} with details…</span></a>

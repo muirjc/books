@@ -101,7 +101,9 @@ ACTIVE_TABS = {
 def here(request: Request) -> str:
     """This page's path and query, without an earlier quick-add notice (spec 015)."""
     query = [
-        (k, v) for k, v in request.query_params.multi_items() if k not in ("wanted", "already")
+        (k, v)
+        for k, v in request.query_params.multi_items()
+        if k not in ("wanted", "already", "added", "stories", "msg", "after")
     ]
     return request.url.path + (f"?{urlencode(query)}" if query else "")
 

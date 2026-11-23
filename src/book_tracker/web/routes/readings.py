@@ -937,7 +937,7 @@ async def want_to_read(
         if exc.code != "already_on_list":  # pragma: no cover - the only conflict here
             raise
         kind = "already"
-    location = quick.after_quick_add(text(data, "back"), kind, book_id)
+    location = quick.after_quick_add(text(data, "back"), kind, book_id, text(data, "anchor"))
     return RedirectResponse(location, status_code=303)
 
 

@@ -198,3 +198,71 @@ async def test_notice_ignores_books_not_on_my_list(
 ) -> None:
     page = text_of((await member.get(f"/catalog?wanted={w['gods']}&already=nope")).text)
     assert "to your list as Want to read" not in page and "is already on your list" not in page
+
+
+# --------------------------------------------------------------------------- PR #35 review
+
+
+@pytest.mark.ac("015/AC-09")
+async def test_story_badge_links_to_the_entry_it_shows(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, w: dict[str, Any]
+) -> None:
+    other = await factory.book("Zebra Anthology", alice, author_ids=[w["terry"]])
+    await factory.execute(
+        "INSERT INTO book_story (book_id, story_id) VALUES (:b, :s)", b=other, s=w["story"]
+    )
+    await factory.entry(alice, w["tales"], status="want_to_read")
+    finished = await factory.entry(alice, other, status="finished")
+    page = (await member.get(f"/series/{w['disc']}")).text
+    story = re.search(r'<li class="series-story"[^>]*>.*?</li>', page, re.S)
+    assert story
+    badge = re.search(
+        r'<a class="badge status-link" href="/entries/([^"]+)">Finished', story.group(0)
+    )
+    assert badge and badge.group(1) == str(finished)
+
+
+@pytest.mark.ac("015/AC-02")
+async def test_old_notices_are_not_carried_back(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    s = w["disc"]
+    page = (await member.get(f"/series/{s}?added={w['mort_entry']}&stories=2&msg=x")).text
+    assert f'name="back" value="/series/{s}"' in page
+    response = await quick_add(member, w["gods"], f"/series/{s}?added=1&stories=2&msg=x")
+    assert response.headers["location"] == f"/series/{s}?wanted={w['gods']}#book-{w['gods']}"
+
+
+@pytest.mark.ac("015/AC-02")
+@pytest.mark.ac("015/AC-04")
+async def test_story_quick_add_returns_to_the_story_row(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    page = (await member.get(f"/series/{w['disc']}")).text
+    assert f'<li class="series-story" id="story-{w["story"]}">' in page
+    form = quick_button(page, w["tales"])
+    assert form and f'name="anchor" value="story-{w["story"]}"' in form.group(0)
+    response = await member.post(f"/books/{w['tales']}/want-to-read", data={
+        "back": f"/series/{w['disc']}", "anchor": f"story-{w['story']}",
+        "csrf_token": await ui_csrf(member),
+    })  # fmt: skip
+    assert response.headers["location"].endswith(f"#story-{w['story']}")
+    bad = await member.post(f"/books/{w['gods']}/want-to-read", data={
+        "back": "/catalog", "anchor": "x\"><script>", "csrf_token": await ui_csrf(member),
+    })  # fmt: skip
+    assert bad.headers["location"].endswith(f"#book-{w['gods']}")
+
+
+async def test_uppercase_ids_in_the_return_address(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    back = f"/series/{str(w['disc']).upper()}"
+    response = await quick_add(member, w["gods"], back)
+    assert response.headers["location"].startswith(f"{back}?wanted=")
+
+
+async def test_htmx_catalog_clears_the_notice(member: httpx.AsyncClient, w: dict[str, Any]) -> None:
+    page = (await member.get(f"/catalog?wanted={w['mort']}")).text
+    assert '<div id="quick-notice-area">' in page
+    swapped = await member.get("/catalog", params={"q": "mort"}, headers={"HX-Request": "true"})
+    assert '<div hx-swap-oob="innerHTML:#quick-notice-area"></div>' in swapped.text

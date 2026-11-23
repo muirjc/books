@@ -237,8 +237,6 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .coming { font-weight: 600; }
 .upcoming-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; min-height: var(--target); }
 .upcoming-list .book-title { display: inline-flex; align-items: center; min-height: var(--target); }
-.upcoming-list .upcoming-detail { flex: 1 1 16rem; min-width: 0; }
-.upcoming-list .series-action { margin-left: auto; }
 .checkbox-field { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; }
 .checkbox-field input[type="checkbox"] { width: 24px; height: 24px; margin: 0; }
 .checkbox-field label { display: inline-flex; align-items: center; min-height: var(--target); margin: 0; }
@@ -266,9 +264,8 @@ main p, main .hint, main .notice { max-width: 75ch; }
 /* Spec 010: the Catalog page. Rows wrap on a phone and sit on one line where they fit,
    with the action at the end, like the Upcoming lists. */
 .catalog-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; min-height: var(--target); }
-.catalog-list .book-title, .catalog-mine { display: inline-flex; align-items: center; min-height: var(--target); }
+.catalog-list .book-title { display: inline-flex; align-items: center; min-height: var(--target); }
 .catalog-list .catalog-detail { flex: 1 1 16rem; min-width: 0; }
-.catalog-list .series-action, .catalog-mine { margin-left: auto; }
 
 /* Spec 011: the Author page. */
 .favorite-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.5rem 0 1rem; }
@@ -313,7 +310,8 @@ a.badge.status-link {
 .story-adds { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 /* The number badge is the row's direct child; my status badge sits in the details. */
 .series-rows .row-actions, .series-rows .story-adds { grid-area: action; min-width: 0; }
-.catalog-list .row-actions { margin-left: auto; }
+.catalog-list .row-actions, .upcoming-list .row-actions { margin-left: auto; }
+.upcoming-list .catalog-detail { flex: 1 1 16rem; min-width: 0; }
 .row-actions button, .row-actions .series-action { white-space: normal; text-align: left; }
 @media (min-width: 40em) {
   .series-rows .row-actions, .series-rows .story-adds { margin-left: auto; }

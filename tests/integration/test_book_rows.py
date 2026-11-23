@@ -73,7 +73,7 @@ async def test_series_status_badges(
     mort = re.search(r"<li[^>]*>(?:(?!</li>).)*Mort(?:(?!</li>).)*</li>", page, re.S)
     assert mort and re.search(r'class="badge status-link"[^>]*>Finished', mort.group(0))
     assert "3 Mar 2025" in text_of(mort.group(0))
-    story = re.search(r'<li class="series-story">.*?</li>', page, re.S)
+    story = re.search(r'<li class="series-story"[^>]*>.*?</li>', page, re.S)
     assert story and re.search(r'class="badge status-link"[^>]*>Reading', story.group(0))
 
 

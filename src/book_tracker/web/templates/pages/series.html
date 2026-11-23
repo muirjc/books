@@ -28,13 +28,13 @@
   {#- Spec 009: a story at its number, in the book(s) that contain it, with my place in it
       from my own entries for those books. -#}
   {% set story = row.story %}
-  <li class="series-story">
+  <li class="series-story" id="story-{{ story.id }}">
     <span class="badge">#{{ story.series_number | series_number }}</span>
     <span class="book-title"><span class="story-label">Story</span> {{ story.title }}</span>
-    <span class="series-detail"><span class="book-meta">In {% for ref, held in row.story_books %}{% if held %}<a href="/entries/{{ held.id }}">{{ ref.title }}</a>{% else %}{{ ref.title }}{% endif %}{{ ", " if not loop.last }}{% endfor %}</span> · <span class="series-status">{% if row.story_status %}{% set held = (row.story_books | selectattr(1) | first)[1] %}<a class="badge status-link" href="/entries/{{ held.id }}">{{ STATUS_LABELS[row.story_status] }}<span class="visually-hidden">: “{{ story.title }}”</span></a>{% if row.story_finished_on %} · {{ row.story_finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}</span></span>
+    <span class="series-detail"><span class="book-meta">In {% for ref, held in row.story_books %}{% if held %}<a href="/entries/{{ held.id }}">{{ ref.title }}</a>{% else %}{{ ref.title }}{% endif %}{{ ", " if not loop.last }}{% endfor %}</span> · <span class="series-status">{% if row.story_status %}<a class="badge status-link" href="/entries/{{ row.story_entry.id }}">{{ STATUS_LABELS[row.story_status] }}<span class="visually-hidden">: “{{ story.title }}”</span></a>{% if row.story_finished_on %} · {{ row.story_finished_on | nice_date }}{% endif %}{% else %}Not on my list{% endif %}</span></span>
     {% if not row.story_status %}
     {#- Spec 015 AC-04: add a containing book in one tap, or with details. -#}
-    <span class="story-adds">{% for ref, held in row.story_books %}{{ quick_add(ref.id, ref.title, here, csrf_token, "/books/add?book=" ~ ref.id ~ "&from_series=" ~ series.id, named=true) }}{% endfor %}</span>
+    <span class="story-adds">{% for ref, held in row.story_books %}{{ quick_add(ref.id, ref.title, here, csrf_token, "/books/add?book=" ~ ref.id ~ "&from_series=" ~ series.id, named=true, anchor="story-" ~ story.id) }}{% endfor %}</span>
     {% endif %}
   </li>
   {% elif row.book %}

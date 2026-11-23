@@ -58,6 +58,15 @@ async def test_rows_on_every_page(ui: UI, seeded: Seeded, factory: Factory) -> N
     }.items():
         await ui.go(path)
         await _every_width(ui, label)
+    # On a laptop, Upcoming rows match the Catalog: actions at the end (PR #35 review).
+    await ui.go("/upcoming")
+    gaps = await ui.page.eval_on_selector_all(
+        ".upcoming-list > li",
+        "els => els.filter(li => li.querySelector('.row-actions')).map(li => {"
+        " const a = li.querySelector('.row-actions').getBoundingClientRect();"
+        " return li.getBoundingClientRect().right - a.right; })",
+    )
+    assert gaps and all(gap < 2 for gap in gaps), gaps
     # Accessible names (AC-13).
     await ui.go("/catalog")
     await expect(ui.page.get_by_role("button", name="Want to read “Small Gods”")).to_have_count(1)

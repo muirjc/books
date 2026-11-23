@@ -2,6 +2,8 @@
 {#- Spec 010: catalog rows. "On my list" comes from my own entry only (Principle I). -#}
 {% if htmx %}
 <div hx-swap-oob="innerHTML:#list-count">{% include "partials/catalog_count.html" %}</div>
+{#- Spec 015: a filter change clears the quick-add notice (PR #35 review). -#}
+<div hx-swap-oob="innerHTML:#quick-notice-area"></div>
 <a id="catalog-clear" href="/catalog" hx-swap-oob="true"{% if not filters_open %} hidden{% endif %}>Clear</a>
 {% endif %}
 {% if view.total == 0 %}

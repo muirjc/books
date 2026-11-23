@@ -153,5 +153,7 @@ async def test_stale_ids_on_a_row_fall_back_to_the_typed_name(
     )  # fmt: skip
     page = await member.post("/books/add", data=data)
     assert page.status_code == 409
-    assert field_error(page.text, "story_author_name_0") == "Story 1: " + PROMPT.format("Zed Writer")
+    assert field_error(page.text, "story_author_name_0") == "Story 1: " + PROMPT.format(
+        "Zed Writer"
+    )
     assert field_value(page.text, "story_author_id_0") == ""

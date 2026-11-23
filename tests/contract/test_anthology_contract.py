@@ -167,3 +167,15 @@ async def test_without_stories_as_before(
     empty = await api.post(URL, json={**body(ids, []), "new_book": {
         "title": "Empty", "author_ids": [str(ids["jim"])]}})  # fmt: skip
     assert empty.status_code == 201
+
+
+async def test_an_invalid_new_book_gives_no_stories_error(
+    api: httpx.AsyncClient, ids: dict[str, uuid.UUID]
+) -> None:
+    """PR #33 review: only the new book's own error is reported."""
+    payload = body(ids, [{"title": "X", "series_number": "1"}])
+    payload["new_book"]["title"] = ""
+    response = await api.post(URL, json=payload)
+    assert response.status_code == 422
+    fields = [e["field"] for e in response.json()["errors"]]
+    assert fields and all(not f.startswith("stories") for f in fields), fields

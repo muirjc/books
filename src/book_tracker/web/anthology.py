@@ -22,7 +22,12 @@ from book_tracker.domain import models as domain
 from book_tracker.domain.values import format_series_number, similar_names
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services.catalog import STORY_DELETED, StoryForBook
-from book_tracker.services.errors import NotFoundError, StoryNumberTaken, ValidationFailed
+from book_tracker.services.errors import (
+    ConflictError,
+    NotFoundError,
+    StoryNumberTaken,
+    ValidationFailed,
+)
 from book_tracker.web.forms import (
     MAX_STORY_ROWS,
     AddBookForm,
@@ -233,6 +238,9 @@ async def story_name_prompts(db: AsyncSession, form: AddBookForm, state: NameSta
 # --------------------------------------------------------------------------- numbers
 
 
+BOOK_SERIES = "\0book"  # the cache key for the book's own picked series
+
+
 async def _existing_series_id(
     db: AsyncSession, form: AddBookForm, row: StoryRow, named: dict[str, uuid.UUID | None]
 ) -> uuid.UUID | None:
@@ -243,9 +251,13 @@ async def _existing_series_id(
             return row.series_id  # settled by story_name_prompts
         name = row.series_name
     elif form.series_name:
-        picked = await _picked(db, "series", form.use_series_id, form.series_id, form.series_name)
-        if picked is not None:
-            return picked[0]
+        if BOOK_SERIES not in named:  # once per save, not once per row (PR #33 review)
+            picked = await _picked(
+                db, "series", form.use_series_id, form.series_id, form.series_name
+            )
+            named[BOOK_SERIES] = picked[0] if picked else None
+        if named[BOOK_SERIES] is not None:
+            return named[BOOK_SERIES]
         name = form.series_name
     else:
         return None
@@ -273,7 +285,13 @@ async def taken_story_rows(db: AsyncSession, form: AddBookForm) -> dict[int, dom
     named: dict[str, uuid.UUID | None] = {}
     wanted: list[tuple[StoryRow, tuple[uuid.UUID, Decimal]]] = []
     for row in form.filled_stories:
-        if row.story_id is not None or row.number is None:
+        if row.story_id is not None:  # a chosen story deleted meanwhile (research R5)
+            try:
+                await catalog_service.get_story(db, row.story_id)
+            except NotFoundError:
+                form.errors[f"story_title_{row.index}"] = f"{row.label}: {STORY_DELETED}"
+            continue
+        if row.number is None:
             continue
         series_id = await _existing_series_id(db, form, row, named)
         if series_id is not None:
@@ -295,14 +313,18 @@ async def _record_id(db: AsyncSession, auth: Authenticated, kind: str, row: Stor
     if picked is not None:
         return picked
     name = _row_name(row, kind)
-    if kind == "author":
-        found = await catalog_service.author_id_named(db, name)
-        if found is None:
-            found = (await catalog_service.create_author(db, auth.account.id, name=name)).id
-    else:
-        found = await catalog_service.series_id_named(db, name)
-        if found is None:
-            found = (await catalog_service.create_series(db, auth.account.id, name=name)).id
+    named = catalog_service.author_id_named if kind == "author" else catalog_service.series_id_named
+    found = await named(db, name)
+    if found is None:
+        create = (
+            catalog_service.create_author if kind == "author" else catalog_service.create_series
+        )
+        try:
+            found = (await create(db, auth.account.id, name=name)).id
+        except ConflictError as exc:  # another member added the same name meanwhile
+            if exc.existing_id is None:  # pragma: no cover - conflicts always name it
+                raise
+            found = exc.existing_id
     _set_row_record(row, kind, (found, name))  # a name typed in two rows is created once
     return found
 
@@ -343,7 +365,7 @@ async def stories_to_save(
 
 
 ROW_FIELDS = {"story_id": "story_title", "series_id": "story_series_name",
-              "author_ids": "story_author_name"}  # fmt: skip
+              "author_ids": "story_author_name", "series_number": "story_number"}  # fmt: skip
 
 
 def save_errors(

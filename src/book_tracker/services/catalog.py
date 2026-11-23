@@ -599,6 +599,14 @@ async def add_book_stories(
         new.append(
             (i, NewStory(title, item.author_ids or book_authors, series_id, item.series_number))
         )
+    seen: dict[tuple[uuid.UUID, Decimal], int] = {}
+    for i, n in new:  # e.g. two rows that a "Use …" name choice made one series (PR #33)
+        first = seen.setdefault((n.series_id, n.series_number), i)
+        if first != i:
+            raise ValidationFailed.single(
+                f"stories.{i}.series_number",
+                "Has the same series and number as another story in this save",
+            )
     await _check_story_references(db, new)
     taken = await stories_at(db, [(n.series_id, n.series_number) for _, n in new])
     for i, n in new:

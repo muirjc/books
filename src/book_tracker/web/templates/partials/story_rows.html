@@ -21,7 +21,8 @@
     <legend>{{ row.label }}</legend>
     {% if row.story_id %}
     {#- An existing story chosen with "Use that story" (AC-13): linked, not edited. -#}
-    <p class="chosen-story">#{{ row.number_text }} “{{ row.title }}” ({{ row.series_name or form.series_name }}), already in the catalog.</p>
+    {#- Ids for the error summary's links (PR #33 review); tabindex lets a link focus them. -#}
+    <p class="chosen-story" id="story_title_{{ i }}" tabindex="-1"><span id="story_number_{{ i }}" tabindex="-1">#{{ row.number_text }}</span> “{{ row.title }}” ({{ row.series_name or form.series_name }}), already in the catalog.</p>
     <input type="hidden" name="story_id_{{ i }}" value="{{ row.story_id }}">
     <input type="hidden" name="story_title_{{ i }}" value="{{ row.title }}">
     <input type="hidden" name="story_number_{{ i }}" value="{{ row.number_text }}">

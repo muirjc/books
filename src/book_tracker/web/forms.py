@@ -5,6 +5,7 @@ collects friendly, per-field error messages."""
 from __future__ import annotations
 
 import math
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -200,7 +201,11 @@ class AddBookForm:
         return min(MAX_AUTHOR_ROWS, max(MIN_AUTHOR_ROWS, max(filled, default=-1) + 2))
 
 
-def parse_add_book(form: FormData) -> AddBookForm:
+NAME_TOO_LONG = "Keep the name to 200 characters or fewer"
+
+
+def parse_add_book(form: FormData, *, stories: bool = True) -> AddBookForm:
+    """``stories``: read the spec 013 story rows (Add a book only)."""
     parsed = AddBookForm(raw={key: text(form, key) for key in form})
     errors = parsed.errors
     # The last value wins: the hidden field comes first, the clicked button later (R2).
@@ -230,6 +235,11 @@ def parse_add_book(form: FormData) -> AddBookForm:
             errors["title"] = "Keep the title to 300 characters or fewer"
         if not parsed.chosen_authors:
             errors["author_name_0"] = "Enter at least one author"
+        for row in parsed.chosen_authors:  # the column holds 200 (PR #33 review)
+            if len(row.name) > 200:
+                errors.setdefault(f"author_name_{row.index}", NAME_TOO_LONG)
+        if len(parsed.series_name) > 200:
+            errors["series_name"] = NAME_TOO_LONG
         try:
             parsed.series_number = _series_number.validate_python(text(form, "series_number"))
         except ValidationError as exc:
@@ -253,7 +263,7 @@ def parse_add_book(form: FormData) -> AddBookForm:
             errors["summary"] = "Keep the summary to 5,000 characters or fewer"
 
     _parse_entry_fields(form, parsed, errors)
-    if parsed.book_id is None:
+    if parsed.book_id is None and stories:
         _parse_stories(form, parsed)
     return parsed
 
@@ -266,7 +276,7 @@ def _story_indexes(form: FormData) -> list[int]:
     for key in form:
         if key.startswith(prefixes):
             tail = key.rsplit("_", 1)[1]
-            if tail.isdigit() and int(tail) < MAX_STORY_ROWS:
+            if tail.isascii() and tail.isdigit() and int(tail) < MAX_STORY_ROWS:
                 found.add(int(tail))
     return sorted(found)
 
@@ -290,9 +300,15 @@ def story_raw(row: StoryRow) -> dict[str, str]:
     return raw
 
 
+_ROW_KEY = re.compile(
+    r"(story_(?:" + "|".join(STORY_FIELDS) + r")|" + "|".join(STORY_ANSWERS) + r")_\d+"
+)
+
+
 def set_story_rows(parsed: AddBookForm, rows: list[StoryRow]) -> None:
-    """Renumber ``rows`` from 0 and rewrite their raw form values to match."""
-    for key in [k for k in parsed.raw if k.startswith(("story_", *STORY_ANSWERS))]:
+    """Renumber ``rows`` from 0 and rewrite their raw form values to match. Only the rows'
+    own numbered fields are touched (the spec 009 story form's ``story_id`` is kept)."""
+    for key in [k for k in parsed.raw if _ROW_KEY.fullmatch(k)]:
         del parsed.raw[key]
     for i, row in enumerate(rows):
         row.index = i
@@ -351,6 +367,9 @@ def _check_story_row(parsed: AddBookForm, row: StoryRow) -> None:
     else:
         if row.number is None:
             errors[f"story_number_{i}"] = f"{label}: Enter the story's number in the series"
+    for name, value in (("author", row.author_name), ("series", row.series_name)):
+        if len(value) > 200:
+            errors[f"story_{name}_name_{i}"] = f"{label}: {NAME_TOO_LONG}"
     if not row.series_name and not parsed.series_name:
         errors[f"story_series_name_{i}"] = (
             f"{label}: Choose a series for this story, or give the book a series"
@@ -520,7 +539,9 @@ def parse_story(form: FormData) -> tuple[AddBookForm, uuid.UUID | None, uuid.UUI
     form, a story picked from the title suggestions, and a story chosen with "Add that
     story to this book" (research R5)."""
     # Never a book id, so the book form's field checks always run.
-    parsed = parse_add_book(FormData([(k, v) for k, v in form.multi_items() if k != "book_id"]))
+    parsed = parse_add_book(
+        FormData([(k, v) for k, v in form.multi_items() if k != "book_id"]), stories=False
+    )
     for name in ("isbn_13", "release_date", "summary"):
         parsed.errors.pop(name, None)
     if not parsed.series_name:

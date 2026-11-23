@@ -150,3 +150,33 @@ def test_name_answers_are_read_per_row() -> None:
     row = form.stories[0]
     assert row.author_confirmed == "J DM Robb" and row.use_series_id == robb
     assert row.author_id is None and row.series_id == robb
+
+
+def test_non_ascii_digits_in_field_names_are_ignored() -> None:
+    """PR #33 review: "²".isdigit() is True but int("²") fails."""
+    form = parse(("story_title_²", "x"), ("story_title_0", "A"), ("story_number_0", "1"))
+    assert [row.title for row in form.stories] == ["A"]
+
+
+@pytest.mark.ac("013/AC-10")
+def test_long_author_and_series_names_are_refused() -> None:
+    """PR #33 review: names over 200 characters were a database error (500)."""
+    form = parse(
+        ("story_title_0", "A"), ("story_number_0", "1"),
+        ("story_author_name_0", "A" * 201), ("story_series_name_0", "S" * 201),
+    )  # fmt: skip
+    assert form.errors["story_author_name_0"] == "Story 1: Keep the name to 200 characters or fewer"
+    assert form.errors["story_series_name_0"] == "Story 1: Keep the name to 200 characters or fewer"
+    book = parse_add_book(FormData([("title", "T"), ("author_name_0", "A" * 201),
+                                    ("series_name", "S" * 201)]))  # fmt: skip
+    assert book.errors["author_name_0"] == "Keep the name to 200 characters or fewer"
+    assert book.errors["series_name"] == "Keep the name to 200 characters or fewer"
+
+
+def test_the_story_forms_keep_their_picked_story() -> None:
+    """PR #33 review: the spec 009 Add story form's ``story_id`` survived a redraw."""
+    from book_tracker.web.forms import parse_story
+
+    story = str(uuid.uuid4())
+    form, picked, _ = parse_story(FormData([("title", "A"), ("story_id", story)]))
+    assert picked == uuid.UUID(story) and form.raw["story_id"] == story

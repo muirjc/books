@@ -263,8 +263,8 @@ def _add_form(
     story_focus: str | None = None,
 ) -> Response:
     form = form or AddBookForm()
-    if chosen is None and form.book_id is None:
-        anthology.ensure_a_row(form)  # spec 013
+    if chosen is None:
+        anthology.ensure_a_row(form)  # spec 013: the story section shows with a row
     return render(
         request,
         "pages/add_book.html",
@@ -405,7 +405,7 @@ async def add_book(
         return _add_form(request, auth, form, status_code=409)
     if form.book_id is None:
         taken = await anthology.taken_story_rows(db, form)  # spec 013 AC-13
-        if taken:
+        if taken or form.errors:  # a taken number, or a chosen story deleted meanwhile
             return _add_form(request, auth, form, status_code=409, taken_rows=taken)
     user_id = auth.account.id
     try:

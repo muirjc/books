@@ -176,16 +176,19 @@ async def test_a_taken_number_offers_the_story(
 
 async def test_using_a_story_that_was_deleted(
     member: httpx.AsyncClient,
+    factory: Factory,
     dresden: dict[str, uuid.UUID],
 ) -> None:
     page = await member.post("/books/add", data=side_jobs(dresden, use_story_0=str(uuid.uuid4()),
                                                           story_title_0="A"))  # fmt: skip
     assert page.status_code == 409
     assert "That story was just deleted from the catalog" in field_error(page.text, "story_title_0")
+    before = await counts(factory)
     gone = await member.post("/books/add", data=side_jobs(
         dresden, story_id_0=str(uuid.uuid4()), story_title_0="A", story_number_0="9.5",
     ))  # fmt: skip
-    assert gone.status_code == 422
+    assert gone.status_code == 409  # found by the check before anything is written
+    assert await counts(factory) == before
     assert "That story was just deleted from the catalog" in field_error(gone.text, "story_title_0")
 
 
@@ -258,3 +261,70 @@ async def test_a_late_failure_leaves_nothing_behind(
         "Story 3: That series is not in the catalog"
     )
     assert story_rows(page.text) == 3
+
+
+@pytest.mark.ac("013/AC-12")
+async def test_rows_that_become_one_series_after_a_name_choice(
+    member: httpx.AsyncClient, factory: Factory, dresden: dict[str, uuid.UUID]
+) -> None:
+    """PR #33 review: "Use “The Dresden Files”" on a misspelt row series makes it the
+    book's series, so the two rows now share a number: refused before anything is saved."""
+    data = side_jobs(
+        dresden, story_title_0="A", story_number_0="1",
+        story_title_1="B", story_number_1="1", story_series_name_1="The Dresdon Files",
+        use_story_series_1=str(dresden["series"]),
+    )  # fmt: skip
+    before = await counts(factory)
+    page = await member.post("/books/add", data=data)
+    assert page.status_code == 422, page.text
+    assert await counts(factory) == before
+    assert "same series and number" in field_error(page.text, "story_number_1")
+    assert 'name="use_story_1"' not in page.text  # not offered a story that never existed
+
+
+async def test_a_name_created_meanwhile_is_used(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser,
+    dresden: dict[str, uuid.UUID], monkeypatch: pytest.MonkeyPatch,
+) -> None:  # fmt: skip
+    """PR #33 review: another member adds the row's new author between prompt and save."""
+    leckie = await factory.author("Ann Leckie", alice)
+
+    async def not_yet(db: Any, name: str) -> None:
+        return None  # as if the author didn't exist when the save looked
+
+    monkeypatch.setattr(catalog_service, "author_id_named", not_yet)
+    data = side_jobs(dresden, story_title_0="A", story_number_0="1",
+                     story_author_name_0="Ann Leckie")  # fmt: skip
+    response = await member.post("/books/add", data=data)
+    assert response.status_code == 303, response.text
+    assert await factory.scalar("SELECT count(*) FROM author WHERE name = 'Ann Leckie'") == 1
+    assert (await stories_of(factory, "Side Jobs"))[0][3] == "Ann Leckie"
+    assert await factory.scalar("SELECT author_id FROM story_author") == leckie
+
+
+async def test_summary_links_reach_an_existing_story_row(
+    member: httpx.AsyncClient, dresden: dict[str, uuid.UUID], publicity: uuid.UUID
+) -> None:
+    """PR #33 review: errors on a chosen story's row link to an element on the page."""
+    data = side_jobs(
+        dresden, story_id_0=str(publicity), story_title_0="Publicity and Advertising",
+        story_number_0="2.5", story_series_name_0="The Dresden Files",
+        story_title_1="B", story_number_1="2.5",
+    )  # fmt: skip
+    page = await member.post("/books/add", data=data)
+    assert page.status_code == 422
+    assert summary_has(page.text, "story_number_0")
+    assert re.search(r'id="story_number_0"', page.text)
+    assert re.search(r'id="story_title_0"', page.text)
+
+
+async def test_a_chosen_book_deleted_meanwhile_shows_a_story_row(
+    member: httpx.AsyncClient,
+) -> None:
+    """PR #33 review: the fallback to editable fields still shows one story row (AC-02)."""
+    page = await member.post(
+        "/books/add", data={"book_id": str(uuid.uuid4()), "status": "finished"}
+    )
+    assert page.status_code == 422
+    assert "That book is no longer in the catalog" in page.text
+    assert story_rows(page.text) == 1

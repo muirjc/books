@@ -48,9 +48,9 @@ class ReadingEntryCreate(RequestModel):
     ) -> list[NewBookStory] | None:
         """AC-23, AC-24, AC-26: only with a new book; a series for every new story; no
         two items at one series and number, or naming one story twice."""
-        if not stories:
-            return stories
-        new_book = info.data.get("new_book")
+        if not stories or "new_book" not in info.data:
+            return stories  # an invalid new_book reports its own error (PR #33 review)
+        new_book = info.data["new_book"]
         if new_book is None:
             raise ValueError("Stories can only be given with new_book")
         seen_pairs: set[tuple[uuid.UUID, object]] = set()

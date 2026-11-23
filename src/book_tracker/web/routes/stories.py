@@ -44,6 +44,9 @@ def _page(
     entry_id: uuid.UUID | None = None,
     added_label: str | None = None,
     back: tuple[str, str] | None = None,
+    back_from: str = "",
+    already: bool = False,
+    another: bool = False,
 ) -> Response:
     return render(
         request,
@@ -52,7 +55,10 @@ def _page(
             "origin": f"entry:{entry_id}" if entry_id else "",
             "back_url": _back(book, entry_id) if book is not None else None,
             "added_label": added_label,
+            "already": already,
+            "another": another,
             "back": back,
+            "back_from": back_from,
             "book": book,
             "story": story,
             "form": form,
@@ -97,8 +103,9 @@ def _after_add(
 ) -> Response:
     """Spec 014 AC-03, AC-04: a fresh form, my entry page, or Edit book as before."""
     if another:
+        already = "&already=1" if msg == "story_already" else ""
         origin = f"&from=entry:{entry_id}" if entry_id else ""
-        url = f"/catalog/books/{book.id}/stories/add?added={story_id}{origin}"
+        url = f"/catalog/books/{book.id}/stories/add?added={story_id}{already}{origin}"
         return RedirectResponse(url, status_code=303)
     if entry_id is not None:
         return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
@@ -143,6 +150,7 @@ async def add_story_form(
     return _page(
         request, auth, "pages/add_story.html", story_start_form(book), book=book,
         entry_id=entry_id, added_label=added_label,
+        already=request.query_params.get("already") == "1",
     )  # fmt: skip
 
 
@@ -163,7 +171,7 @@ async def add_story(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
         return _page(
             request, auth, "pages/add_story.html", form, book=book, taken=taken,
             author_conflicts=author_conflicts, series_conflict=series_conflict,
-            status_code=status_code, entry_id=entry_id,
+            status_code=status_code, entry_id=entry_id, another=another,
         )  # fmt: skip
 
     existing: domain.Story | None = None
@@ -222,10 +230,18 @@ async def edit_story_form(
     story_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     story = await service.get_story(db, story_id)
+    came = _came_from(story, request.query_params.get("from", ""))
     return _page(
         request, auth, "pages/edit_story.html", story_form(story), story=story,
-        back=_story_back(story, request.query_params.get("from", "")),
+        back=_story_back(story, came), back_from=came,
     )  # fmt: skip
+
+
+def _came_from(story: domain.Story, raw: str) -> str:
+    """``book:<id>`` when it names one of the story's books, else "" (spec 014 AC-09)."""
+    kind, _, value = raw.partition(":")
+    found = kind == "book" and any(str(ref.id) == value for ref in story.books)
+    return raw if found else ""
 
 
 def _story_back(story: domain.Story, raw: str) -> tuple[str, str] | None:
@@ -242,7 +258,9 @@ async def edit_story(
     story_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     story = await service.get_story(db, story_id)
-    form, _, _ = parse_story(await request.form())
+    data = await request.form()
+    form, _, _ = parse_story(data)
+    came = _came_from(story, text(data, "from"))
 
     def page(
         status_code: int,
@@ -253,7 +271,7 @@ async def edit_story(
         return _page(
             request, auth, "pages/edit_story.html", form, story=story, taken=taken,
             author_conflicts=author_conflicts, series_conflict=series_conflict,
-            status_code=status_code, back=_story_back(story, ""),
+            status_code=status_code, back=_story_back(story, came), back_from=came,
         )  # fmt: skip
 
     await new_name_prompts(db, form)
@@ -279,7 +297,8 @@ async def edit_story(
     except ValidationFailed as exc:
         _field_errors(form, exc)
         return page(422)
-    return RedirectResponse(f"/catalog/stories/{story_id}/edit?msg=saved", status_code=303)
+    origin = f"&from={came}" if came else ""
+    return RedirectResponse(f"/catalog/stories/{story_id}/edit?msg=saved{origin}", status_code=303)
 
 
 # --------------------------------------------------------------------------- remove

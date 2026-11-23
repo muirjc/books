@@ -30,7 +30,7 @@
       </nav>
       <div class="account-actions">
         <span class="signed-in-as"><span class="signed-in-label">Signed in as </span><strong>{{ current_user.display_name }}</strong></span>
-        <a class="button-link" href="/account/password">Change password</a>
+        <a class="button-link" href="/account/password"{% if active == "password" %} aria-current="page"{% endif %}>Change password</a>
         <form method="post" action="/switch-user" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="button-link">Switch user</button>

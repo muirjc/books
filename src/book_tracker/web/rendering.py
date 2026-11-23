@@ -79,6 +79,8 @@ def render(
 ACTIVE_TABS = {
     "pages/entry.html": "list",
     "pages/favorite_authors.html": "list",
+    "pages/confirm_remove.html": "list",
+    "pages/change_password.html": "password",
     **{
         f"pages/{page}.html": "catalog"
         for page in (

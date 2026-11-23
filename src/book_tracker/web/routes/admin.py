@@ -90,6 +90,8 @@ def _confirm_page(
             "active": "admin",
         },
         auth=auth,
+        # The reset page carries the typed password in a hidden field (PR #34 review).
+        headers={"Cache-Control": "no-store"},
     )
 
 

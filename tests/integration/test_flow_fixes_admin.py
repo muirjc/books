@@ -123,3 +123,10 @@ async def test_confirming_an_unknown_account_is_not_found(admin: httpx.AsyncClie
     reset = await admin.post(f"/admin/users/{missing}/reset-password",
                              data={"temporary_password": "temporary-1"})  # fmt: skip
     assert reset.status_code == 404
+
+
+@pytest.mark.ac("014/AC-17")
+async def test_reset_confirmation_is_not_cached(admin: httpx.AsyncClient, ben: TestUser) -> None:
+    asked = await admin.post(f"/admin/users/{ben.id}/reset-password",
+                             data={"temporary_password": "temporary-1"})  # fmt: skip
+    assert asked.headers["cache-control"] == "no-store"

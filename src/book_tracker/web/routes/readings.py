@@ -67,7 +67,7 @@ MESSAGES = {
         "Added to your list. The stories you typed were not added. Add them with Add a story below."
     ),
     "story_added": "Story added.",  # spec 014 AC-04
-    "story_already": "That story was already in this book.",
+    "story_already": "That story is already in this book.",  # as on Edit book
 }
 STATUSES = [
     (s.value, label)
@@ -885,6 +885,7 @@ async def update_entry(
     update, errors, raw = parse_entry_update(data)
     details = parse_add_book(data, stories=False) if "title" in data else None
     stories = await catalog_service.book_stories(db, current.book.id)  # spec 014 AC-01
+    source_ref = await imports_service.source_ref(db, current.book.id)  # kept on errors
     if details is not None:
         for name in ENTRY_FIELDS:  # checked by parse_entry_update
             details.errors.pop(name, None)
@@ -893,14 +894,14 @@ async def update_entry(
     if update is None or (details is not None and details.field_errors):
         return _entry_page(
             request, auth, current, errors=errors, raw=raw, form=details, status_code=422,
-            stories=stories,
+            stories=stories, source_ref=source_ref,
         )  # fmt: skip
     if details is not None:
         problem = await save_book_details(db, auth, current.book, details, only_if_changed=True)
         if problem is not None:
             return _entry_page(
                 request, auth, current, raw=raw, form=details, problem=problem,
-                status_code=problem.status_code, stories=stories,
+                status_code=problem.status_code, stories=stories, source_ref=source_ref,
             )  # fmt: skip
     changes = {name: getattr(update, name) for name in update.model_fields_set}
     if changes.get("times_read") == current.times_read:

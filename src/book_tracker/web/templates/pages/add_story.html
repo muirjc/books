@@ -4,16 +4,19 @@
 {% block content %}
 <h1>Add a story to “{{ book.title }}”</h1>
 <p class="muted">For a collection: each story gets its own place in its series, so the series page shows where it falls.</p>
-{% if added_label %}<p class="notice" role="status" id="added-notice">Added “{{ added_label }}”.</p>{% endif %}
+{% if added_label %}<p class="notice" role="status" id="added-notice">{% if already %}That story is already in this book.{% else %}Added “{{ added_label }}”.{% endif %}</p>{% endif %}
 {{ error_summary(form.errors) }}
 <form method="post" action="/catalog/books/{{ book.id }}/stories/add" class="stack" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {#- Spec 014 AC-04: where saving or cancelling returns to (an entry of mine). -#}
   {% if origin %}<input type="hidden" name="from" value="{{ origin }}">{% endif %}
+  {#- PR #34 review: a conflict page keeps "Add and add another" for its own buttons;
+      "Add story" (later in the form, so its value wins) still saves plainly. -#}
+  {% if another %}<input type="hidden" name="then" value="another">{% endif %}
   {% if taken %}{% with offer=true %}{% include "partials/story_taken.html" %}{% endwith %}{% endif %}
   {% with suggest_title=true, focus_title=added_label %}{% include "partials/story_fields.html" %}{% endwith %}
   <div class="actions">
-    <button type="submit" class="button-primary">Add story</button>
+    <button type="submit" name="then" value="list" class="button-primary">Add story</button>
     <button type="submit" name="then" value="another">Add and add another</button>
     <a href="{{ back_url }}">Cancel</a>
   </div>

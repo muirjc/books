@@ -54,7 +54,8 @@ right tab.
 
 **Decision**: add `SeriesView.next_number: int | None`. It is
 `floor(max(book and story numbers)) + 1` when that is ≤ 999, else None. It is also None
-when nothing is numbered. The template adds a last row in the gap-row style, linking to
+when nothing is numbered. The template adds a row in the gap-row style after the last numbered row (before books
+with no number), linking to
 `/books/add?series=…&number=<next>&from_series=…`.
 
 ## R6 – Add a book prefills (AC-13, AC-14)

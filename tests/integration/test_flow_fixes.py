@@ -10,6 +10,7 @@ import re
 import uuid
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 import pytest
@@ -371,3 +372,103 @@ async def test_entry_page_jump_links(member: httpx.AsyncClient, w: dict[str, Any
     assert jump
     links = re.findall(r'href="(#[^"]+)"', jump.group(0))
     assert links == ["#book-details-heading", "#my-reading-heading", "#stories-heading"]
+
+
+# --------------------------------------------------------------------------- PR #34 review
+
+
+@pytest.mark.ac("014/AC-03")
+async def test_add_another_survives_a_number_conflict(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, w: dict[str, Any]
+) -> None:
+    taken = await factory.story("Taken", alice, series_id=w["dresden"], series_number="3",
+                                author_ids=[w["jim"]], book_ids=[w["fool"]])  # fmt: skip
+    url = f"/catalog/books/{w['side']}/stories/add"
+    origin = f"entry:{w['entry']}"
+    page = await member.post(
+        url, data=story_form(w, "Taken", "3", then="another", **{"from": origin})
+    )
+    assert page.status_code == 409
+    assert re.search(r'<input type="hidden" name="then" value="another">', page.text)
+    used = await member.post(url, data=story_form(
+        w, "Taken", "3", then="another", use_story=str(taken), **{"from": origin}
+    ))  # fmt: skip
+    assert used.headers["location"] == f"{url}?added={taken}&from={origin}"
+    # "Add story" (then=list) after the hidden "another" still returns as a plain save.
+    pairs = [*story_form(w, "New", "4", **{"from": origin}).items(), ("then", "another"),
+             ("then", "list")]  # fmt: skip
+    form_type = {"Content-Type": "application/x-www-form-urlencoded"}
+    plain = await member.post(url, content=urlencode(pairs), headers=form_type)
+    assert plain.headers["location"] == f"/entries/{w['entry']}?msg=story_added"
+
+
+@pytest.mark.ac("014/AC-03")
+async def test_add_another_with_a_story_already_in_the_book(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, w: dict[str, Any]
+) -> None:
+    story = await factory.story("Held", alice, series_id=w["dresden"], series_number="3",
+                                author_ids=[w["jim"]], book_ids=[w["side"]])  # fmt: skip
+    url = f"/catalog/books/{w['side']}/stories/add"
+    again = await member.post(
+        url, data=story_form(w, "Held", "3", then="another", story_id=str(story))
+    )
+    assert again.headers["location"] == f"{url}?added={story}&already=1"
+    page = text_of((await member.get(again.headers["location"])).text)
+    assert "That story is already in this book." in page and "Added “" not in page
+
+
+@pytest.mark.ac("014/AC-09")
+async def test_edit_story_keeps_where_it_came_from(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, w: dict[str, Any]
+) -> None:
+    story = await factory.story("Tale", alice, series_id=w["dresden"], series_number="1.5",
+                                author_ids=[w["jim"]], book_ids=[w["side"], w["fool"]])  # fmt: skip
+    url = f"/catalog/stories/{story}/edit"
+    page = (await member.get(url, params={"from": f"book:{w['fool']}"})).text
+    assert re.search(rf'<input type="hidden" name="from" value="book:{w["fool"]}">', page)
+    form = story_form(w, "Tale", "1.5", **{"from": f"book:{w['fool']}"})
+    saved = await member.post(url, data=form)
+    assert saved.headers["location"] == f"{url}?msg=saved&from=book:{w['fool']}"
+    after = (await member.get(saved.headers["location"])).text
+    assert link(after, "Back to “Fool Moon”") == f"/catalog/books/{w['fool']}/edit#stories"
+    bad = await member.post(url, data={**form, "title": ""})
+    assert bad.status_code == 422
+    assert link(bad.text, "Back to “Fool Moon”") == f"/catalog/books/{w['fool']}/edit#stories"
+
+
+async def test_added_notice_is_read_with_the_title(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    url = f"/catalog/books/{w['side']}/stories/add"
+    response = await member.post(url, data=story_form(w, "A", "1.5", then="another"))
+    page = (await member.get(response.headers["location"])).text
+    title = re.search(r'<input id="title"[^>]*>', page)
+    assert title and re.search(r'aria-describedby="[^"]*added-notice', title.group(0))
+
+
+@pytest.mark.ac("014/AC-10")
+async def test_remove_confirmation_and_change_password_mark_their_tab(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    remove = await member.post(f"/entries/{w['entry']}/remove", data={})
+    assert current_tab(remove.text) == "My books"
+    password = (await member.get("/account/password")).text
+    assert re.search(r'<a [^>]*href="/account/password"[^>]*aria-current="page"', password)
+
+
+async def test_entry_errors_keep_the_source_reference(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, w: dict[str, Any]
+) -> None:
+    """PR #34 review (pre-existing): the "Imported from Open Library" note stays."""
+    await factory.execute(
+        "INSERT INTO book_source_ref (id, book_id, source, source_work_id, imported_by) "
+        "VALUES (gen_random_uuid(), :b, 'open_library', 'OL9W', :u)",
+        b=w["side"],
+        u=alice.id,
+    )
+    page = (await member.get(f"/entries/{w['entry']}")).text
+    assert "OL9W" in page
+    bad = await member.post(
+        f"/entries/{w['entry']}", data={"status": "finished", "times_read": "500"}
+    )
+    assert bad.status_code == 422 and "OL9W" in bad.text

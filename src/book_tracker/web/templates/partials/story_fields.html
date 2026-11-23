@@ -8,7 +8,7 @@
   <label for="title">Story title</label>
   {% if suggest_title %}
   <p class="hint" id="title-hint">Start typing: if the story is already in the family catalog, in another book, pick it from the list.</p>
-  {% with name="title", kind="stories", id_field="story_id", value=form.raw.get("title", ""), errors=form.errors, maxlength=300, describedby_extra="title-hint", autofocus=(focus_title is defined and focus_title) %}{% include "partials/combobox.html" %}{% endwith %}
+  {% with name="title", kind="stories", id_field="story_id", value=form.raw.get("title", ""), errors=form.errors, maxlength=300, describedby_extra=("title-hint added-notice" if focus_title is defined and focus_title else "title-hint"), autofocus=(focus_title is defined and focus_title) %}{% include "partials/combobox.html" %}{% endwith %}
   <input type="hidden" id="story_id" name="story_id" value="{{ form.raw.get('story_id', '') }}">
   {% else %}
   <input id="title" name="title" type="text" required maxlength="300" value="{{ form.raw.get('title', '') }}"{{ described(form.errors, "title") }}>

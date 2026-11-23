@@ -127,8 +127,9 @@ filled in.
 
 - **AC-12**: **Given** a series page whose highest book or story number is N, **When** it
   shows, **Then**:
-  - after the last row there is a row "#<next> Not in the family catalog yet · **Add
-    #<next>**", where next is the next whole number after N;
+  - after the last numbered row (before any books with no number) there is a row
+    "#<next> Not in the family catalog yet · **Add #<next>**", where next is the next
+    whole number after N;
   - **Add #<next>** opens Add a book with the series and that number filled in, returning
     to the series page (spec 006).
 

@@ -110,6 +110,54 @@ async def upcoming_view(db: AsyncSession, user_id: uuid.UUID, today: date) -> Up
     )
 
 
+@dataclass(frozen=True, slots=True)
+class CatalogRow:
+    """A Catalog page row (spec 010): a catalog book and my own entry for it, if any."""
+
+    book: Book
+    entry: ReadingEntry | None
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogPage:
+    rows: tuple[CatalogRow, ...]
+    page: int  # clamped to the last page
+    page_size: int
+    total: int
+
+
+async def catalog_view(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    page: int,
+    page_size: int,
+    q: str = "",
+    sort: str = "title",
+    not_mine: bool = False,
+) -> CatalogPage:
+    """Every catalog book, searched, sorted and paged (spec 010). My entries come only from
+    the user-bound repository (Principle I): the markers and the Not on my list filter."""
+    repo = ReadingEntryRepository(db, user_id)
+    q = q.strip()
+    books, total, page = await catalog.browse_books(
+        db,
+        page=page,
+        page_size=page_size,
+        q=q or None,
+        isbn_13=catalog_service.as_isbn(q) if q else None,
+        sort=sort if sort in catalog.CATALOG_SORTS else "title",
+        exclude=repo.not_on_list() if not_mine else None,
+    )
+    mine = {entry.book.id: entry for entry in await repo.list_books([b.id for b in books])}
+    return CatalogPage(
+        rows=tuple(CatalogRow(book=b, entry=mine.get(b.id)) for b in books),
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
 async def now_out(db: AsyncSession, user_id: uuid.UUID, today: date) -> tuple[ReadingEntry, ...]:
     """My Want to read books released in the last 30 days (spec 007 R6)."""
     return await ReadingEntryRepository(db, user_id).list_now_out(today)

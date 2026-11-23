@@ -137,6 +137,7 @@ button, .button {
 .book-times { grid-area: times; color: var(--muted); display: none; }
 .badge { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 0 0.5rem; font-size: 0.9rem; }
 .pagination { display: flex; gap: 1rem; align-items: center; margin-top: 1rem; }
+.pagination a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); } /* nav links: 44 px */
 
 .recent-profiles { margin-bottom: 1.5rem; }
 .profile-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -261,3 +262,10 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .story-list a, .story-list button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--target); min-width: var(--target); }
 .story-title { font-weight: 600; }
 .story-actions { display: inline-flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+
+/* Spec 010: the Catalog page. Rows wrap on a phone and sit on one line where they fit,
+   with the action at the end, like the Upcoming lists. */
+.catalog-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; min-height: var(--target); }
+.catalog-list .book-title, .catalog-mine { display: inline-flex; align-items: center; min-height: var(--target); }
+.catalog-list .catalog-detail { flex: 1 1 16rem; min-width: 0; }
+.catalog-list .series-action, .catalog-mine { margin-left: auto; }

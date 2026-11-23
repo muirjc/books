@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Catalog{% endblock %}
+{% block content %}
+{#- Spec 010: every catalog book. The only personal data is my own: which are on my list. -#}
+<div class="page-head">
+  <h1>Catalog</h1>
+  <p><a class="button button-primary" href="/books/add">Add a book</a></p>
+</div>
+
+<form method="get" action="/catalog" role="search" aria-label="Search the catalog" class="filters catalog-filters"
+      data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/catalog" hx-target="#catalog-list" hx-push-url="true"
+      hx-trigger="submit, change, input changed delay:300ms from:#q">
+  <div class="field">
+    <label for="q">Search the catalog</label>
+    <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off" aria-describedby="q-hint">
+    <p class="hint" id="q-hint">Title, author, series, story or ISBN</p>
+  </div>
+  {# Spec 003: on a phone, app.js shows this and folds the rest; without JavaScript all show. #}
+  <button type="button" class="filters-toggle" aria-controls="filter-extra"
+          aria-expanded="{{ 'true' if filters_open else 'false' }}" hidden>Sort and filter</button>
+  <div id="filter-extra" class="filter-extra">
+  <div class="field">
+    <label for="sort">Sort by</label>
+    <select id="sort" name="sort">
+      {% for value, label in sort_options %}
+      <option value="{{ value }}"{% if value == sort %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field checkbox-field">
+    <input type="checkbox" id="not_mine" name="not_mine" value="1"{% if filters.not_mine %} checked{% endif %}>
+    <label for="not_mine">Not on my list</label>
+  </div>
+  <div class="actions">
+    <button type="submit">Apply</button>
+    {% if filters_open %}<a href="/catalog">Clear</a>{% endif %}
+  </div>
+  </div>
+</form>
+
+<div id="catalog-list" aria-live="polite">
+  {% include "partials/catalog_list.html" %}
+</div>
+{% endblock %}

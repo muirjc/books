@@ -26,6 +26,7 @@
 </section>
 <h2>Related</h2>
 <ul>
+  {% for a in book.authors %}<li>All books by <a href="/authors/{{ a.id }}">{{ a.name }}</a></li>{% endfor %}
   {% for a in book.authors %}<li><a href="/catalog/authors/{{ a.id }}/edit">Edit author “{{ a.name }}”</a></li>{% endfor %}
   {% if book.series %}<li><a href="/catalog/series/{{ book.series.id }}/edit">Edit series “{{ book.series.name }}”</a></li>{% endif %}
   <li><a href="/catalog/books/{{ book.id }}/summary">Summary</a></li>

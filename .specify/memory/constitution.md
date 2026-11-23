@@ -1,6 +1,22 @@
 <!--
 Sync Impact Report
 ==================
+Version change: 1.0.1 → 2.0.0 (MAJOR: a NON-NEGOTIABLE principle is narrowed), 2026-11-22
+
+Principle I gains one stated exception, chosen by the maintainer for spec 011 (Author page
+and favorite authors). The spec 008 rule "an author no book lists may be deleted" now also
+refuses while any member keeps that author as a favorite. That refusal, and leaving
+the author out of the deletable-authors list and count, show other members that *some*
+member favorites the author. The exception allows only that one fact. The
+refusal must not name the member, give a count, or reveal any other favorite or entry. No
+other principle changes.
+
+Templates: no change needed (the spec template already asks each spec to name the ratified
+spec behind any cross-user access).
+Follow-up TODOs: none.
+
+------------------------------------------------------------------------------------------
+
 Version change: 1.0.0 → 1.0.1 (PATCH: clarification), 2026-11-19
 
 Principle III: the caching rule now states the keys for lookups made for an author (spec 002,
@@ -73,6 +89,11 @@ Each family member's reading records belong to that member alone.
   another member's entries unless a ratified spec explicitly introduces that feature.
 - Every endpoint that touches personal records MUST have an automated cross-user test
   proving user A cannot see or change user B's data.
+- **Exception (2.0.0, spec 011):** an author that no book or story lists MAY be kept from
+  deletion because a member keeps them as a favorite author. Such an author is then left out
+  of the list (and count) of authors that can be deleted. The refusal and the list reveal
+  only that *some* member does. They MUST NOT name the member, say how many, or reveal
+  anything else about any member's favorites or entries.
 
 *Rationale:* separation of each person's list is the core promise of the product; one
 leak breaks trust in it.
@@ -318,4 +339,4 @@ requirement, not an optional extra.
 - Runtime guidance for AI coding agents (for example `CLAUDE.md` or
   `.github/copilot-instructions.md`) MUST reference this file and MUST NOT contradict it.
 
-**Version**: 1.0.1 | **Ratified**: 2026-11-18 | **Last Amended**: 2026-11-19
+**Version**: 2.0.0 | **Ratified**: 2026-11-18 | **Last Amended**: 2026-11-22

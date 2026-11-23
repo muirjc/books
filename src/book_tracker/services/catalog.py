@@ -217,23 +217,42 @@ async def unused_authors(db: AsyncSession) -> list[domain.Author]:
     return await catalog.unused_authors(db)
 
 
+async def author_favorited(db: AsyncSession, author_id: uuid.UUID) -> bool:
+    """Whether any member favorites the author (spec 011's delete rule only)."""
+    return await catalog.author_favorited(db, author_id)
+
+
 async def unused_author_count(db: AsyncSession) -> int:
     return await catalog.unused_author_count(db)
 
 
-async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.UUID) -> None:
-    """Delete an author no book lists; any member may (spec 008). Unknown → not found; with
-    books (even one linked a moment ago) → conflict, and nothing is deleted."""
+async def _try_delete(db: AsyncSession, author_id: uuid.UUID) -> bool:
     try:
         async with db.begin_nested():
-            deleted = await catalog.delete_unused_author(db, author_id)
-    except IntegrityError:  # the foreign key backstops the NOT EXISTS check
-        deleted = False
-    if not deleted:
+            return await catalog.delete_unused_author(db, author_id)
+    except IntegrityError:  # the foreign keys backstop the NOT EXISTS checks
+        return False
+
+
+async def delete_author(db: AsyncSession, actor_id: uuid.UUID, author_id: uuid.UUID) -> None:
+    """Delete an author no book lists; any member may (spec 008). Unknown → not found; with
+    books (even one linked a moment ago) → conflict, and nothing is deleted. Favorited by any
+    member (spec 011) → conflict ``author_is_favorite``, naming nobody. If whatever blocked
+    the delete has gone by the time it is classified, the delete is tried once more (PR #30
+    review)."""
+    for _ in range(2):
+        if await _try_delete(db, author_id):
+            logger.info("author %s deleted by member %s", author_id, actor_id)
+            return
         if await catalog.get_author(db, author_id) is None:
             raise NotFoundError()  # unknown, or deleted by someone else meanwhile
-        raise ConflictError("author_has_books", "This author has books")
-    logger.info("author %s deleted by member %s", author_id, actor_id)
+        if await catalog.author_has_works(db, author_id):
+            raise ConflictError("author_has_books", "This author has books")
+        if await catalog.author_favorited(db, author_id):
+            raise ConflictError(
+                "author_is_favorite", "A family member has this author as a favorite"
+            )
+    raise ConflictError("author_has_books", "This author has books")  # changing under us
 
 
 async def upcoming_books(db: AsyncSession, today: date) -> list[domain.Book]:

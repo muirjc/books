@@ -74,9 +74,11 @@ async def list_entries(
     status: ReadingStatus | None = None,
     sort: str = "title",
     upcoming_after: date | None = None,
+    favorite_authors: bool = False,
 ) -> ReadingEntryPage:
     """My list, sorted, filtered and searched (FR-021, FR-023). With ``upcoming_after``
-    (today), only books not out yet, soonest first (spec 007)."""
+    (today), only books not out yet, soonest first (spec 007). With ``favorite_authors``,
+    only books by one of my favorite authors (spec 011)."""
     return await ReadingEntryRepository(db, user_id).list(
         page=page,
         page_size=page_size,
@@ -86,6 +88,7 @@ async def list_entries(
         status=status,
         sort=sort if sort in SORTS else "title",
         upcoming_after=upcoming_after,
+        favorite_authors=favorite_authors,
     )
 
 

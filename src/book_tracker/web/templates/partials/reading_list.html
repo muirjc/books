@@ -1,4 +1,4 @@
-{% from "macros.html" import authors_line, series_line, release_label %}
+{% from "macros.html" import author_links, series_line, release_label %}
 {% if page.total == 0 %}
 {% if filtered %}
 <p>No books on your list match. <a href="/">Show all my books</a>.</p>
@@ -12,7 +12,7 @@
   <li>
     <a class="book-title" href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>
     <div class="book-meta">
-      {{ authors_line(entry.book) }}
+      {{ author_links(entry.book) }}
       {% if entry.book.series %} · <a href="/series/{{ entry.book.series.id }}">{{ series_line(entry.book) }}</a>{% endif %}
     </div>
     <div class="book-status"><span class="badge">{{ STATUS_LABELS[entry.status] }}</span></div>

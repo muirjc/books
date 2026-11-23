@@ -19,6 +19,7 @@ from book_tracker.domain import models as domain
 from book_tracker.domain.imports import SourceRef
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import AuthorUpdate, CatalogQuery, SeriesWrite, SummaryCreate
+from book_tracker.services import authors as authors_service
 from book_tracker.services import catalog as service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as readings_service
@@ -187,6 +188,22 @@ async def edit_book(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
 # --------------------------------------------------------------------------- authors
 
 
+FAVORITE_MINE = (
+    "This author is one of your favorite authors. Remove them from your favorites to delete them."
+)
+FAVORITE_OTHER = "A family member has this author as a favorite, so they can't be deleted."
+
+
+async def _favorite_block(db: DbSession, auth: Authenticated, author: domain.Author) -> str | None:
+    """Why an author no book lists can't be deleted: my own favorite, or some member's
+    (spec 011; the refusal names nobody, constitution 2.0.0)."""
+    if await authors_service.is_favorite(db, auth.account.id, author.id):
+        return FAVORITE_MINE
+    if await service.author_favorited(db, author.id):
+        return FAVORITE_OTHER
+    return None
+
+
 async def _author_page(
     request: Request,
     auth: Authenticated,
@@ -197,6 +214,10 @@ async def _author_page(
     status_code: int = 200,
     delete_problem: str | None = None,
 ) -> Response:
+    books = await service.author_books(db, author.id)
+    stories = await service.author_stories(db, author.id)
+    # Spec 011: only an author with no works can be blocked by a favorite.
+    favorite_block = None if books or stories else await _favorite_block(db, auth, author)
     if values is None:
         values = {
             "name": author.name,
@@ -209,8 +230,9 @@ async def _author_page(
         "pages/edit_author.html",
         {
             "author": author,
-            "books": await service.author_books(db, author.id),
-            "stories": await service.author_stories(db, author.id),  # spec 009
+            "favorite_block": favorite_block,
+            "books": books,
+            "stories": stories,  # spec 009
             "values": values,
             "errors": errors or {},
             "message": _message(request),
@@ -341,10 +363,18 @@ async def delete_author(
             return await _author_page(
                 request, auth, db, author, delete_problem=problem, status_code=409
             )
+        if await _favorite_block(db, auth, author):  # spec 011: Edit author says why
+            return await _author_page(request, auth, db, author, status_code=409)
         return render(request, "pages/confirm_delete_author.html", {"author": author}, auth=auth)
     try:
         await service.delete_author(db, auth.account.id, author_id)
-    except ConflictError:
+    except ConflictError as exc:
+        if exc.code == "author_is_favorite":  # spec 011: favorited meanwhile
+            # Say why even if the favorite is gone again by now (PR #30 review).
+            reason = None if await _favorite_block(db, auth, author) else FAVORITE_OTHER
+            return await _author_page(
+                request, auth, db, author, delete_problem=reason, status_code=409
+            )
         # The foreign key caught a link made in the same instant (spec 008).
         problem = await _has_works(db, author, "wasn't deleted") or (
             f"“{author.name}” now has a book, so it wasn't deleted."

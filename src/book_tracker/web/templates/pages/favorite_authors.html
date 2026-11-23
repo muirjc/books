@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}My favorite authors{% endblock %}
+{% block content %}
+{#- Spec 011: my own favorites only (Principle I). -#}
+<h1>My favorite authors</h1>
+{% if authors %}
+<ul class="link-list">
+  {% for author in authors %}<li><a href="/authors/{{ author.id }}">{{ author.name }}</a></li>{% endfor %}
+</ul>
+<p><a href="/?author_id=favorites">My books by these authors</a></p>
+{% else %}
+<p>You haven't chosen any favorite authors yet. Open an author's page and choose Add to my favorite authors.</p>
+{% endif %}
+{% endblock %}

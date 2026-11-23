@@ -468,3 +468,23 @@ class ReadingEntry(Base):
     updated_at: Mapped[datetime] = _updated_at()
 
     book: Mapped[Book] = relationship(lazy="joined", innerjoin=True)
+
+
+class FavoriteAuthor(Base):
+    """A member's favorite author (spec 011): personal data, one row per member and
+    author."""
+
+    __tablename__ = "favorite_author"
+    __table_args__ = (Index("favorite_author_author_id_idx", "author_id"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app_user.id", ondelete="CASCADE", name="favorite_author_user_id_fkey"),
+        primary_key=True,
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("author.id", ondelete="RESTRICT", name="favorite_author_author_id_fkey"),
+        primary_key=True,
+    )
+    created_at: Mapped[datetime] = _created_at()

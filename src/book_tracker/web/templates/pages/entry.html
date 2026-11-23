@@ -64,6 +64,7 @@
 <section aria-labelledby="more-heading">
   <h2 id="more-heading">More</h2>
   <ul>
+    {% for a in entry.book.authors %}<li>All books by <a href="/authors/{{ a.id }}">{{ a.name }}</a></li>{% endfor %}
     {% for a in entry.book.authors %}<li><a href="/catalog/authors/{{ a.id }}/edit">Edit author “{{ a.name }}”</a>{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}</li>{% endfor %}
     {% if entry.book.series %}<li><a href="/series/{{ entry.book.series.id }}">All of {{ entry.book.series.name }}</a></li>
     <li><a href="/catalog/series/{{ entry.book.series.id }}/edit">Edit series “{{ entry.book.series.name }}”</a></li>{% endif %}

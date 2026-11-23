@@ -25,6 +25,11 @@
 {{ book.authors | map(attribute="name") | join(", ") }}
 {%- endmacro %}
 
+{#- Spec 011: each author's name links to their page. -#}
+{% macro author_links(book) -%}
+{%- for a in book.authors %}<a href="/authors/{{ a.id }}">{{ a.name }}</a>{{ ", " if not loop.last }}{% endfor -%}
+{%- endmacro %}
+
 {% macro series_line(book) -%}
 {%- if book.series %}{{ book.series.name }}{% if book.series_number is not none %} #{{ book.series_number | series_number }}{% endif %}{% endif -%}
 {%- endmacro %}

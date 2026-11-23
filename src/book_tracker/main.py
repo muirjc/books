@@ -15,6 +15,7 @@ from book_tracker.api import admin as api_admin
 from book_tracker.api import auth as api_auth
 from book_tracker.api import authors as api_authors
 from book_tracker.api import books as api_books
+from book_tracker.api import favorites as api_favorites
 from book_tracker.api import imports as api_imports
 from book_tracker.api import me as api_me
 from book_tracker.api import readings as api_readings
@@ -35,6 +36,7 @@ from book_tracker.sources.open_library import OpenLibrarySource, make_client
 from book_tracker.web.cookies import refresh_session_cookie
 from book_tracker.web.routes import admin as web_admin
 from book_tracker.web.routes import auth as web_auth
+from book_tracker.web.routes import authors as web_authors
 from book_tracker.web.routes import catalog as web_catalog
 from book_tracker.web.routes import health as web_health
 from book_tracker.web.routes import imports as web_imports
@@ -101,6 +103,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     api.include_router(api_auth.router)
     api.include_router(api_me.router)
     api.include_router(api_readings.router)
+    api.include_router(api_favorites.router)
     api.include_router(api_books.router)
     api.include_router(api_authors.router)
     api.include_router(api_series.router)
@@ -114,6 +117,7 @@ def create_app(settings: Settings, *, book_source: BookSource | None = None) -> 
     app.include_router(web_admin.router)
     app.include_router(web_catalog.router)
     app.include_router(web_stories.router)
+    app.include_router(web_authors.router)
     app.include_router(web_suggest.router)
     app.include_router(web_health.router)
     app.include_router(web_imports.router)

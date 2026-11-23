@@ -22,7 +22,7 @@ from playwright.async_api import Browser, Page, async_playwright
 from book_tracker.main import create_app
 from book_tracker.settings import Settings
 from tests.conftest import Factory, TestUser
-from tests.fakes import FakeBookSource
+from tests.fakes import FakeBookSource, FakeSummaryGenerator
 
 WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]
 _axe = Axe()
@@ -42,12 +42,23 @@ def live_book_source() -> FakeBookSource:
 
 
 @pytest.fixture(scope="session")
+def live_summary_generator() -> FakeSummaryGenerator:
+    """The live server's AI: a fake (spec 012). Tests script it and should reset it."""
+    return FakeSummaryGenerator()
+
+
+@pytest.fixture(scope="session")
 def live_server(
-    settings: Settings, database_url: str, live_book_source: FakeBookSource
+    settings: Settings,
+    database_url: str,
+    live_book_source: FakeBookSource,
+    live_summary_generator: FakeSummaryGenerator,
 ) -> Iterator[str]:
     port = _free_port()
     config = uvicorn.Config(
-        create_app(settings, book_source=live_book_source),
+        create_app(
+            settings, book_source=live_book_source, summary_generator=live_summary_generator
+        ),
         host="127.0.0.1",
         port=port,
         log_level="warning",

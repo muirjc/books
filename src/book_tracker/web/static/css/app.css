@@ -278,3 +278,11 @@ main p, main .hint, main .notice { max-width: 75ch; }
 /* Author and series links in a row's details: at least 24 px (WCAG 2.5.8), even where a
    cell holds only links, so axe doesn't count them as inline. */
 .book-meta a { display: inline-block; min-height: 1.5rem; line-height: 1.5rem; }
+
+/* Spec 012: AI summary drafts. */
+.draft-sources { padding-left: 1.25rem; margin: 0 0 0.75rem; }
+.draft-sources li { overflow-wrap: anywhere; word-break: break-word; margin: 0.25rem 0; }
+.draft-sources a { display: inline-block; min-height: 24px; }
+.series-hint { margin: 0.5rem 0; font-weight: 600; }
+.htmx-indicator { display: none; }
+.htmx-indicator.htmx-request, .htmx-request .htmx-indicator { display: block; }

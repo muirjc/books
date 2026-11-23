@@ -43,6 +43,10 @@ services:
       BOOK_TRACKER_ADMIN_LOGIN: ${BOOK_TRACKER_ADMIN_LOGIN:-}
       BOOK_TRACKER_ADMIN_DISPLAY_NAME: ${BOOK_TRACKER_ADMIN_DISPLAY_NAME:-}
       BOOK_TRACKER_ADMIN_PASSWORD: ${BOOK_TRACKER_ADMIN_PASSWORD:-}
+      # Spec 012: AI summary drafts. Without a key, drafting says "not set up".
+      BOOK_TRACKER_ANTHROPIC_API_KEY: ${BOOK_TRACKER_ANTHROPIC_API_KEY:-}
+      BOOK_TRACKER_AI_MODEL: ${BOOK_TRACKER_AI_MODEL:-claude-opus-5-5}
+      BOOK_TRACKER_AI_DAILY_DRAFT_LIMIT: ${BOOK_TRACKER_AI_DAILY_DRAFT_LIMIT:-10}
     # edge: reachable by the proxy, and outbound HTTPS from spec 002. backend: the database.
     networks: [edge, backend]
     depends_on:

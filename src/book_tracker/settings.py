@@ -37,6 +37,14 @@ class Settings(BaseSettings):
         # One driver (psycopg 3) for the async app and sync migrations (research R5).
         return value.replace("postgresql://", "postgresql+psycopg://", 1)
 
+    @field_validator("anthropic_api_key", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """Compose passes an unset variable as an empty string: no key (spec 012)."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @field_validator("secret_key")
     @classmethod
     def _long_enough(cls, value: SecretStr) -> SecretStr:

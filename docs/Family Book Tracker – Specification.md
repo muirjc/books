@@ -89,7 +89,7 @@ Recommended approach: a pluggable **source adapter** layer.
 
 Amazon or Goodreads adapters can be added later if a permitted access route becomes available; the rest of the design does not change.
 
-In use so far: Open Library, for importing an author's books (spec 002). Google Books is deferred: its branding guidelines forbid reordering or altering its results, which import's combining, sorting and filtering would do (decision books-zl3; follow-up books-395).
+In use so far: Open Library, for importing an author's books (spec 002), and for a book's description when drafting a summary (spec 012). AI drafts use Claude (default Claude Opus 5.5) with its web search tool, Amazon and Goodreads blocked (spec 012). Google Books is deferred: its branding guidelines forbid reordering or altering its results, which import's combining, sorting and filtering would do (decision books-zl3; follow-up books-395).
 
 ### Flow
 

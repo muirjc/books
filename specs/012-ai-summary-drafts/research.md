@@ -202,12 +202,15 @@ tables. Keeping old rows makes draft ids stable under concurrent regenerates.
   and re-renders the form with every field kept, the summary filled in and a hidden
   `summary_draft_id`. Saving the book passes that id to the summary save. The origin check
   uses the new book's key.
-- **Use this series:** a GET link to `/catalog/books/{id}/edit?suggest_series=<name>&suggest_number=<n>`.
-  - Edit book pre-fills its series fields from these, unsaved, with a notice.
-  - Saving runs the existing checks.
-  - On the Summary page with an unsaved draft, the link first goes to a small confirmation
-    (AC-21). That confirmation is a page with **Save summary first** (a form posting the
-    draft) and **Leave the draft** (the link).
+- **Use this series:** a submit button in the summary form, posting `text` and `draft_id`
+  to `POST /catalog/books/{id}/summary/use-series`, so edits to the draft aren't lost.
+  - That page (AC-21) offers **Save summary first** (posts the text, `draft_id` and
+    `then=series` to the save route, which then redirects to Edit book) and **Leave the
+    draft** (a link to Edit book).
+  - The suggestion is read from the stored draft, never from the request.
+  - Edit book (`?suggest_series=<name>&suggest_number=<n>`, validated by a Pydantic query
+    model; a bad number is dropped) pre-fills its series fields, unsaved, with a notice.
+    Saving runs the existing checks.
 
 ## R11 – The JSON API
 

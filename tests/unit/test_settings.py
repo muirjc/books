@@ -38,3 +38,11 @@ def test_ai_settings_defaults_and_secret() -> None:
     assert "sk-test-secret" not in repr(keyed)
     assert keyed.anthropic_api_key is not None
     assert keyed.anthropic_api_key.get_secret_value() == "sk-test-secret"
+
+
+@pytest.mark.ac("012/AC-09")
+def test_blank_ai_key_means_not_set_up() -> None:
+    """Compose passes an unset variable as an empty string: that is no key at all."""
+    for blank in ("", "   "):
+        settings = Settings(**BASE, anthropic_api_key=blank)  # type: ignore[arg-type]
+        assert settings.anthropic_api_key is None

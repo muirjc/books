@@ -38,8 +38,6 @@ class DraftUsageRepository:
                 self._mine(), models.AiDraftUsage.day < day - timedelta(days=KEEP_DAYS)
             )
         )
-        if limit < 1:
-            return None
         usage = models.AiDraftUsage
         statement = pg_insert(usage).values(user_id=self._user_id, day=day, count=1)
         count: int | None = await self._db.scalar(

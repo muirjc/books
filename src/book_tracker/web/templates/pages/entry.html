@@ -9,6 +9,15 @@
 {% if is_upcoming(entry.book.release_date, today) %}<p class="release">{{ release }}</p>
 {% elif entry.book.release_date %}<p class="release">Released {{ entry.book.release_date | nice_date }}{% if release | trim %} · {{ release }}{% endif %}</p>{% endif %}
 {% include "partials/source_ref.html" %}
+{#- Spec 014 AC-19: a long page on a phone. -#}
+<nav class="jump-links" aria-label="On this page">
+  <span>Jump to:</span>
+  <ul>
+    <li><a href="#book-details-heading">Book details</a></li>
+    <li><a href="#my-reading-heading">My reading</a></li>
+    <li><a href="#stories-heading">Stories in this book</a></li>
+  </ul>
+</nav>
 {{ error_summary(all_errors) }}
 {% if conflict %}
 <div class="conflict" role="alert">{{ conflict_notice(conflict) }}</div>
@@ -59,13 +68,19 @@
   </div>
 </section>
 
-{% if stories %}
+{#- Spec 014 AC-01: always, so any book on my list can become a collection. -#}
 <section aria-labelledby="stories-heading">
   <h2 id="stories-heading">Stories in this book</h2>
+  {% if stories %}
   {% with editable=false, book=entry.book %}{% include "partials/book_stories.html" %}{% endwith %}
-  <p><a href="/catalog/books/{{ entry.book.id }}/edit#stories">Edit the stories</a></p>
+  {% else %}
+  <p class="muted">No stories recorded. If this book is an anthology or collection, add its stories.</p>
+  {% endif %}
+  <ul class="link-list">
+    <li><a href="/catalog/books/{{ entry.book.id }}/stories/add?from=entry:{{ entry.id }}">Add a story</a></li>
+    {% if stories %}<li><a href="/catalog/books/{{ entry.book.id }}/edit#stories">Edit the stories</a></li>{% endif %}
+  </ul>
 </section>
-{% endif %}
 
 <section aria-labelledby="more-heading">
   <h2 id="more-heading">More</h2>

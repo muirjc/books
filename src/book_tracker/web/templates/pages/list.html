@@ -53,6 +53,8 @@
       <option value="{{ id }}"{% if id | string == filters.author_id %} selected{% endif %}>{{ name }}</option>
       {% endfor %}
     </select>
+    {#- Spec 014 AC-18: by the Author filter, so phones needn't scroll past the list. -#}
+    <p class="filter-link"><a href="/authors/favorites">My favorite authors</a></p>
   </div>
   <div class="field">
     <label for="series_id">Series</label>
@@ -78,7 +80,7 @@
 <div id="reading-list" aria-live="polite">
   {% include "partials/reading_list.html" %}
 </div>
-<p class="tidy-link"><a href="/authors/favorites">My favorite authors</a></p>
+
 {% if unused_authors %}
 {#- Spec 008: tidy the catalog. -#}
 <p class="tidy-link"><a href="/catalog/authors/unused">Authors with no books ({{ unused_authors }})</a></p>

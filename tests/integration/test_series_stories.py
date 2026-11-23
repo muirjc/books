@@ -97,6 +97,7 @@ async def test_the_spec_example(member: httpx.AsyncClient, dresden: dict[str, uu
         "#2.5 Story Publicity and Advertising In Side Jobs · Finished · 1 Sep 2025",
         "#3–#6 Not in the family catalog yet Add #3",
         "#6.5 Story Something Borrowed In Side Jobs · Finished · 1 Sep 2025",
+        "#7 Not in the family catalog yet Add #7",  # spec 014 AC-12
         "No number Side Jobs Jim Butcher · Finished · 1 Sep 2025 · Contains #1.5, #2.5, #6.5",
     ]
     # The containing book links to my entry.

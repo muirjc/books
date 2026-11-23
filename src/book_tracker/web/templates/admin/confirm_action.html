@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Confirm: {{ question }}{% endblock %}
+{% block content %}
+{#- Spec 014 AC-16, AC-17: account changes that are hard to undo ask first. Nothing has
+    changed yet; Confirm posts the same action with confirm=yes. -#}
+<h1>{{ question }}</h1>
+<p>{{ consequence }}</p>
+<form method="post" action="{{ action_url }}" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="confirm" value="yes">
+  {% for name, value in fields %}<input type="hidden" name="{{ name }}" value="{{ value }}">
+  {% endfor %}<button type="submit" class="button-primary">Confirm</button>
+  <a href="/admin/users">Cancel</a>
+</form>
+{% endblock %}

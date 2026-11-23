@@ -514,6 +514,12 @@ def book_start_form(book: domain.Book) -> AddBookForm:
     return AddBookForm(book_id=book.id, status=ReadingStatus.WANT_TO_READ, raw=raw)
 
 
+def choose_author(form: AddBookForm, author: domain.Author) -> None:
+    """Start Add a book with this catalog author chosen (spec 014 AC-14)."""
+    form.raw["author_name_0"] = author.name
+    form.raw["author_id_0"] = str(author.id)
+
+
 def series_start_form(series: domain.Series, number: str) -> AddBookForm:
     """Add a book starting from a series and number, as for a gap row (spec 006 R3). An
     invalid number is left blank."""

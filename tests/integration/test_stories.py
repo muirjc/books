@@ -360,7 +360,8 @@ async def test_edit_book_lists_stories(
         < stories.index("#1.5 The Dresden Files — Restoration of Faith")
         < stories.index("#6.5 The Dresden Files — Something Borrowed")
     )
-    assert f'href="/catalog/stories/{world["restoration"]}/edit"' in page.text
+    edit_story = f"/catalog/stories/{world['restoration']}/edit?from=book:{world['side_jobs']}"
+    assert f'href="{edit_story}"' in page.text  # spec 014 AC-09
     assert (
         f'action="/catalog/books/{world["side_jobs"]}/stories/{world["restoration"]}/remove"'
         in page.text
@@ -552,7 +553,8 @@ async def test_entry_page_lists_stories(
         in page.text
     )
     plain = await factory.entry(alice, world["brief_cases"])
-    assert "Stories in this book" not in (await member.get(f"/entries/{plain}")).text
+    # Spec 014 AC-01: the section always shows, offering Add a story.
+    assert "No stories recorded." in (await member.get(f"/entries/{plain}")).text
 
 
 # --------------------------------------------------------------------------- US3

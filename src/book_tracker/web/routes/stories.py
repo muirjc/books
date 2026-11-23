@@ -14,8 +14,9 @@ from book_tracker.auth.dependencies import Authenticated, UiUser
 from book_tracker.domain import models as domain
 from book_tracker.persistence.db import DbSession
 from book_tracker.services import catalog as service
+from book_tracker.services import readings as readings_service
 from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
-from book_tracker.web.forms import AddBookForm, parse_story, story_form, story_start_form
+from book_tracker.web.forms import AddBookForm, parse_story, story_form, story_start_form, text
 from book_tracker.web.rendering import render
 from book_tracker.web.routes.readings import (
     BOOK_FIELD_MESSAGES,
@@ -40,11 +41,18 @@ def _page(
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
     status_code: int = 200,
+    entry_id: uuid.UUID | None = None,
+    added_label: str | None = None,
+    back: tuple[str, str] | None = None,
 ) -> Response:
     return render(
         request,
         name,
         {
+            "origin": f"entry:{entry_id}" if entry_id else "",
+            "back_url": _back(book, entry_id) if book is not None else None,
+            "added_label": added_label,
+            "back": back,
             "book": book,
             "story": story,
             "form": form,
@@ -63,6 +71,38 @@ def _field_errors(form: AddBookForm, exc: ValidationFailed) -> None:
     form.errors.update(
         {BOOK_FIELD_MESSAGES.get(e.field, (e.field,))[0]: e.message for e in exc.errors}
     )
+
+
+async def _origin(
+    db: DbSession, auth: Authenticated, book: domain.Book, raw: str
+) -> uuid.UUID | None:
+    """``from=entry:<id>`` (spec 014 R1): my own entry for this book, or None. Only an id
+    is taken from it, so it can never send the member elsewhere."""
+    kind, _, value = raw.partition(":")
+    if kind != "entry":
+        return None
+    try:
+        entry = await readings_service.get_entry(db, auth.account.id, uuid.UUID(value))
+    except (ValueError, NotFoundError):
+        return None
+    return entry.id if entry.book.id == book.id else None
+
+
+def _back(book: domain.Book, entry_id: uuid.UUID | None) -> str:
+    return f"/entries/{entry_id}" if entry_id else f"/catalog/books/{book.id}/edit#stories"
+
+
+def _after_add(
+    book: domain.Book, story_id: uuid.UUID, msg: str, entry_id: uuid.UUID | None, another: bool
+) -> Response:
+    """Spec 014 AC-03, AC-04: a fresh form, my entry page, or Edit book as before."""
+    if another:
+        origin = f"&from=entry:{entry_id}" if entry_id else ""
+        url = f"/catalog/books/{book.id}/stories/add?added={story_id}{origin}"
+        return RedirectResponse(url, status_code=303)
+    if entry_id is not None:
+        return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
+    return _to_book(book.id, msg, story_id)
 
 
 def _to_book(book_id: uuid.UUID, msg: str, story_id: uuid.UUID | None = None) -> Response:
@@ -90,13 +130,29 @@ async def add_story_form(
     book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     book = await service.get_book(db, book_id)
-    return _page(request, auth, "pages/add_story.html", story_start_form(book), book=book)
+    entry_id = await _origin(db, auth, book, request.query_params.get("from", ""))
+    added_label = None
+    try:
+        added = uuid.UUID(request.query_params.get("added", ""))
+    except ValueError:
+        added = None
+    if added is not None:  # spec 014 AC-03: only a story in this book is named
+        for story in await service.book_stories(db, book.id):
+            if story.id == added:
+                added_label = service.story_label(story)
+    return _page(
+        request, auth, "pages/add_story.html", story_start_form(book), book=book,
+        entry_id=entry_id, added_label=added_label,
+    )  # fmt: skip
 
 
 @router.post("/books/{book_id}/stories/add")
 async def add_story(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
     book = await service.get_book(db, book_id)
-    form, story_id, use_story = parse_story(await request.form())
+    data = await request.form()
+    form, story_id, use_story = parse_story(data)
+    entry_id = await _origin(db, auth, book, text(data, "from"))
+    another = text(data, "then") == "another"
 
     def page(
         status_code: int,
@@ -107,7 +163,7 @@ async def add_story(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
         return _page(
             request, auth, "pages/add_story.html", form, book=book, taken=taken,
             author_conflicts=author_conflicts, series_conflict=series_conflict,
-            status_code=status_code,
+            status_code=status_code, entry_id=entry_id,
         )  # fmt: skip
 
     existing: domain.Story | None = None
@@ -125,7 +181,8 @@ async def add_story(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
         except NotFoundError:
             form.errors["title"] = service.STORY_DELETED
             return page(409)
-        return _to_book(book.id, "story_added" if added else "story_already", existing.id)
+        msg = "story_added" if added else "story_already"
+        return _after_add(book, existing.id, msg, entry_id, another)
 
     await new_name_prompts(db, form)
     if form.field_errors:
@@ -154,7 +211,7 @@ async def add_story(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
     except ValidationFailed as exc:
         _field_errors(form, exc)
         return page(422)
-    return _to_book(book.id, "story_added", story.id)
+    return _after_add(book, story.id, "story_added", entry_id, another)
 
 
 # --------------------------------------------------------------------------- edit
@@ -165,7 +222,19 @@ async def edit_story_form(
     story_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     story = await service.get_story(db, story_id)
-    return _page(request, auth, "pages/edit_story.html", story_form(story), story=story)
+    return _page(
+        request, auth, "pages/edit_story.html", story_form(story), story=story,
+        back=_story_back(story, request.query_params.get("from", "")),
+    )  # fmt: skip
+
+
+def _story_back(story: domain.Story, raw: str) -> tuple[str, str] | None:
+    """Spec 014 AC-09: back to the book the member came from (``from=book:<id>``) if the
+    story is in it, else its first book."""
+    kind, _, value = raw.partition(":")
+    came = next((ref for ref in story.books if kind == "book" and str(ref.id) == value), None)
+    ref = came or (story.books[0] if story.books else None)
+    return (ref.title, f"/catalog/books/{ref.id}/edit#stories") if ref else None
 
 
 @router.post("/stories/{story_id}/edit")
@@ -184,7 +253,7 @@ async def edit_story(
         return _page(
             request, auth, "pages/edit_story.html", form, story=story, taken=taken,
             author_conflicts=author_conflicts, series_conflict=series_conflict,
-            status_code=status_code,
+            status_code=status_code, back=_story_back(story, ""),
         )  # fmt: skip
 
     await new_name_prompts(db, form)

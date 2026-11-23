@@ -167,6 +167,7 @@ async def _book_page(
             "source_ref": source_ref,
             "message": _message(request),
             "suggested": suggested,
+            "my_entry": await readings_service.entry_for_book(db, auth.account.id, book.id),
         },
         auth=auth,
         status_code=status_code,
@@ -502,6 +503,7 @@ async def _summary_page(
         "drafts_left": drafts_left,
         "draft_id": draft.id if draft else draft_id,
         "before_text": before_text,
+        "my_entry": await readings_service.entry_for_book(db, auth.account.id, book.id),
     }
     template = "partials/summary_draft.html" if is_htmx(request) else "pages/summary.html"
     return render(request, template, context, auth=auth, status_code=status_code)

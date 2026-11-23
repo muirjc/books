@@ -3,6 +3,7 @@
 {% block title %}Edit {{ series.name }}{% endblock %}
 {% block content %}
 <h1>Edit series “{{ series.name }}”</h1>
+<p class="back-link"><a href="/series/{{ series.id }}">View the series</a></p>
 <p class="muted">Last edited by {{ series.updated_by.display_name }} on {{ series.updated_at | nice_date }}.</p>
 {{ error_summary(errors) }}
 <form method="post" action="/catalog/series/{{ series.id }}/edit" class="stack narrow" novalidate>

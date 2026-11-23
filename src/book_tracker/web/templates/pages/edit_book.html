@@ -2,9 +2,16 @@
 {% from "macros.html" import error_summary, conflict_notice %}
 {% block title %}Edit {{ book.title }}{% endblock %}
 {% block content %}
+{#- Spec 014 AC-06: back to my entry for the book, or to the catalog. -#}
+{% if my_entry %}<p class="back-link"><a href="/entries/{{ my_entry.id }}">Back to “{{ book.title }}”</a></p>
+{% else %}<p class="back-link"><a href="/catalog">Back to the catalog</a></p>{% endif %}
 <h1>Edit “{{ book.title }}”</h1>
 <p class="muted">Changes show on every family member's list. Last edited by {{ book.updated_by.display_name }} on {{ book.updated_at | nice_date }}.</p>
 {% include "partials/source_ref.html" %}
+<nav class="jump-links" aria-label="On this page">
+  <span>Jump to:</span>
+  <ul><li><a href="#stories">Stories in this book</a></li></ul>
+</nav>
 {% if suggested %}<p class="notice" role="status">Series and number suggested by the AI. Check them, then save.</p>{% endif %}
 {{ error_summary(form.errors) }}
 {% if conflict %}
@@ -23,7 +30,8 @@
 {% else %}
 <p class="muted">No stories recorded for this book.</p>
 {% endif %}
-<p><a href="/catalog/books/{{ book.id }}/stories/add">Add a story</a> <span class="muted">(for a collection whose stories belong at places in a series)</span></p>
+<p class="hint">For an anthology or collection: each story gets its place in its series.</p>
+<p><a href="/catalog/books/{{ book.id }}/stories/add">Add a story</a></p>
 </section>
 <h2>Related</h2>
 <ul>

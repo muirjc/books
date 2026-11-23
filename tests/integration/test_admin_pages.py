@@ -95,13 +95,17 @@ async def test_deactivate_reactivate_and_role(
     client_factory: Callable[[], httpx.AsyncClient],
 ) -> None:
     ben = await factory.user("ben", display_name="Ben")
-    off = await admin_browser.post(f"/admin/users/{ben.id}", data={"action": "deactivate"})
+    off = await admin_browser.post(
+        f"/admin/users/{ben.id}", data={"action": "deactivate", "confirm": "yes"}
+    )
     assert off.status_code == 303
     assert (await api_login(client_factory(), "ben")).status_code == 401
     on = await admin_browser.post(f"/admin/users/{ben.id}", data={"action": "reactivate"})
     assert on.status_code == 303
     assert (await api_login(client_factory(), "ben")).status_code == 200
-    promote = await admin_browser.post(f"/admin/users/{ben.id}", data={"action": "make_admin"})
+    promote = await admin_browser.post(
+        f"/admin/users/{ben.id}", data={"action": "make_admin", "confirm": "yes"}
+    )
     assert promote.status_code == 303
     assert await factory.scalar("SELECT role FROM app_user WHERE id = :id", id=ben.id) == "admin"
     demote = await admin_browser.post(f"/admin/users/{ben.id}", data={"action": "make_member"})
@@ -120,7 +124,8 @@ async def test_reset_password_page(
     )
     assert short.status_code == 422
     ok = await admin_browser.post(
-        f"/admin/users/{ben.id}/reset-password", data={"temporary_password": "temporary-1"}
+        f"/admin/users/{ben.id}/reset-password",
+        data={"temporary_password": "temporary-1", "confirm": "yes"},
     )
     assert ok.status_code == 303
     listed = await admin_browser.get(ok.headers["location"])
@@ -133,6 +138,8 @@ async def test_reset_password_page(
 async def test_last_admin_refusal_is_shown(
     admin_browser: httpx.AsyncClient, parent: TestUser
 ) -> None:
-    response = await admin_browser.post(f"/admin/users/{parent.id}", data={"action": "deactivate"})
+    response = await admin_browser.post(
+        f"/admin/users/{parent.id}", data={"action": "deactivate", "confirm": "yes"}
+    )
     assert response.status_code == 409
     assert "last active Admin" in response.text

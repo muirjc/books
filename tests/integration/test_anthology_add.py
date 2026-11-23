@@ -290,7 +290,7 @@ async def test_choosing_the_existing_book_drops_the_stories(
     assert re.fullmatch(r"/entries/[0-9a-f-]+\?msg=stories_not_added", location)
     assert await factory.scalar("SELECT count(*) FROM story") == 0
     entry = text_of((await member.get(location)).text)
-    assert "The stories you typed were not added. Add them from Edit book." in entry
+    assert "The stories you typed were not added. Add them with Add a story below." in entry
 
 
 @pytest.mark.ac("013/AC-21")

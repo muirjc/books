@@ -64,6 +64,35 @@ async def _users_page(
     )
 
 
+# Spec 014 AC-16: actions that are hard to undo ask first ({} = the member's name).
+CONFIRM = {
+    "deactivate": ("Deactivate {}?", "{} won't be able to sign in until reactivated."),
+    "make_admin": ("Make {} an Admin?", "{} will be able to manage every account."),
+}
+
+
+def _confirm_page(
+    request: Request,
+    auth: Authenticated,
+    question: str,
+    consequence: str,
+    action_url: str,
+    fields: list[tuple[str, str]],
+) -> Response:
+    return render(
+        request,
+        "admin/confirm_action.html",
+        {
+            "question": question,
+            "consequence": consequence,
+            "action_url": action_url,
+            "fields": fields,
+            "active": "admin",
+        },
+        auth=auth,
+    )
+
+
 @router.get("")
 async def list_users(request: Request, auth: UiAdmin, db: DbSession) -> Response:
     return await _users_page(request, auth, db)
@@ -128,9 +157,22 @@ async def update_user(
     user_id: uuid.UUID, request: Request, auth: UiAdmin, db: DbSession
 ) -> Response:
     form = await request.form()
-    changes = ACTIONS.get(text(form, "action"))
+    action = text(form, "action")
+    changes = ACTIONS.get(action)
     if changes is None:
         return await _users_page(request, auth, db, error="Choose an action", status_code=422)
+    if action in CONFIRM and text(form, "confirm") != "yes":  # spec 014 AC-16
+        account = await service.get_account(db, user_id)
+        question, consequence = CONFIRM[action]
+        name = account.display_name
+        return _confirm_page(
+            request,
+            auth,
+            question.format(name),
+            consequence.format(name),
+            f"/admin/users/{user_id}",
+            [("action", action)],
+        )
     try:
         await service.update_account(db, user_id, **changes)
     except ConflictError as exc:
@@ -155,6 +197,17 @@ async def reset_password(
             db,
             reset_errors={str(user_id): "The temporary password must be at least 8 characters"},
             status_code=422,
+        )
+    if text(form, "confirm") != "yes":  # spec 014 AC-17: the password is not shown
+        account = await service.get_account(db, user_id)
+        name = account.display_name
+        return _confirm_page(
+            request,
+            auth,
+            f"Reset {name}'s password?",
+            f"{name} will sign in with the temporary password you typed, then choose a new one.",
+            f"/admin/users/{user_id}/reset-password",
+            [("temporary_password", body.temporary_password)],
         )
     await service.reset_password(db, user_id, body.temporary_password)
     return RedirectResponse("/admin/users?msg=reset", status_code=303)

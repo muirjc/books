@@ -6,7 +6,7 @@
     <span class="story-place">#{{ story.series_number | series_number }} <a href="/series/{{ story.series.id }}">{{ story.series.name }}</a> — </span><span class="story-title">{{ story.title }}</span>
     {% if editable %}
     <span class="story-actions">
-      <a href="/catalog/stories/{{ story.id }}/edit">Edit<span class="visually-hidden"> “{{ story.title }}”</span></a>
+      <a href="/catalog/stories/{{ story.id }}/edit?from=book:{{ book.id }}">Edit<span class="visually-hidden"> “{{ story.title }}”</span></a>
       <form method="post" action="/catalog/books/{{ book.id }}/stories/{{ story.id }}/remove" class="inline-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Remove<span class="visually-hidden"> “{{ story.title }}”</span></button>

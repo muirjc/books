@@ -913,6 +913,77 @@
         "title": "MySeriesView",
         "type": "object"
       },
+      "NewBookStory": {
+        "additionalProperties": false,
+        "description": "A story for a new book (spec 013): an existing one (``story_id``), or a new one with\n``title`` and ``series_number``. A new story's series and authors default to the\nbook's.",
+        "properties": {
+          "author_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Ids"
+          },
+          "series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Id"
+          },
+          "series_number": {
+            "description": "Decimal as a string, 0\u2013999.99; only with a series",
+            "pattern": "^[0-9]{1,3}(\\.[0-9]{1,2})?$",
+            "title": "Series Number",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "story_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Story Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "NewBookStory",
+        "type": "object"
+      },
       "PasswordChange": {
         "additionalProperties": false,
         "properties": {
@@ -1105,6 +1176,22 @@
           "status": {
             "$ref": "#/components/schemas/ReadingStatus",
             "default": "finished"
+          },
+          "stories": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NewBookStory"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Spec 013: stories in the new book, saved with it; only with new_book",
+            "title": "Stories"
           }
         },
         "title": "ReadingEntryCreate",

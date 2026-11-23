@@ -28,6 +28,7 @@ from book_tracker.schemas.types import (
 )
 
 MAX_AUTHOR_ROWS = 20  # the API's limit
+MAX_STORY_ROWS = 50  # spec 013: story rows on one Add a book save
 # Book fields an edit page remembers as first shown, sent back as "<name>_was" (books-mbx).
 SHOWN_FIELDS = ("title", "authors", "series_id", "series_number", "isbn_13", "release_date")
 MIN_AUTHOR_ROWS = 3
@@ -82,19 +83,57 @@ class NewName:
 
     @property
     def use_field(self) -> str:
-        return (
-            "use_series"
-            if self.kind == "series"
-            else self.field.replace("author_name", "use_author", 1)
-        )
+        return self._answer_field("use")
 
     @property
     def confirm_field(self) -> str:
-        return (
-            "confirm_series"
-            if self.kind == "series"
-            else self.field.replace("author_name", "confirm_author", 1)
+        return self._answer_field("confirm")
+
+    def _answer_field(self, verb: str) -> str:
+        if self.field.startswith("story_"):  # spec 013: story_<kind>_name_<i>
+            return f"{verb}_story_{self.kind}_{self.field.rsplit('_', 1)[1]}"
+        if self.kind == "series":
+            return f"{verb}_series"
+        return self.field.replace("author_name", f"{verb}_author", 1)
+
+
+@dataclass
+class StoryRow:
+    """One story typed on Add a book (spec 013). A blank series or author means the
+    book's. ``story_id`` is an existing story chosen with "Use that story" (AC-13); its
+    title, number and series are then carried read-only so the checks still see them."""
+
+    index: int
+    title: str = ""
+    number_text: str = ""
+    number: Decimal | None = None
+    series_id: uuid.UUID | None = None
+    series_name: str = ""
+    author_id: uuid.UUID | None = None
+    author_name: str = ""
+    story_id: uuid.UUID | None = None
+    # Spec 005 answers for this row's names.
+    author_confirmed: str = ""
+    use_author_id: uuid.UUID | None = None
+    series_confirmed: str = ""
+    use_series_id: uuid.UUID | None = None
+
+    @property
+    def is_blank(self) -> bool:
+        return self.story_id is None and not (
+            self.title or self.number_text or self.series_name or self.author_name
         )
+
+    @property
+    def label(self) -> str:
+        return f"Story {self.index + 1}"
+
+
+STORY_FIELDS = (
+    "title", "number", "series_name", "series_id", "author_name", "author_id", "id",
+)  # fmt: skip
+STORY_ANSWERS = ("confirm_story_author", "use_story_author", "confirm_story_series",
+                 "use_story_series")  # fmt: skip
 
 
 @dataclass
@@ -132,6 +171,13 @@ class AddBookForm:
     errors: dict[str, str] = field(default_factory=dict)
     new_names: dict[str, NewName] = field(default_factory=dict)  # by field (spec 005)
     names_checked: bool = False  # new_name_prompts has run for this form
+    anthology: bool = False  # spec 013: "This book is an anthology or collection"
+    stories: list[StoryRow] = field(default_factory=list)
+
+    @property
+    def filled_stories(self) -> list[StoryRow]:
+        """The rows to save: blank rows are ignored (spec 013 AC-07)."""
+        return [row for row in self.stories if not row.is_blank]
 
     @property
     def field_errors(self) -> bool:
@@ -207,7 +253,127 @@ def parse_add_book(form: FormData) -> AddBookForm:
             errors["summary"] = "Keep the summary to 5,000 characters or fewer"
 
     _parse_entry_fields(form, parsed, errors)
+    if parsed.book_id is None:
+        _parse_stories(form, parsed)
     return parsed
+
+
+def _story_indexes(form: FormData) -> list[int]:
+    found: set[int] = set()
+    prefixes = tuple(f"story_{name}_" for name in STORY_FIELDS) + tuple(
+        f"{name}_" for name in STORY_ANSWERS
+    )
+    for key in form:
+        if key.startswith(prefixes):
+            tail = key.rsplit("_", 1)[1]
+            if tail.isdigit() and int(tail) < MAX_STORY_ROWS:
+                found.add(int(tail))
+    return sorted(found)
+
+
+def story_raw(row: StoryRow) -> dict[str, str]:
+    """The row's values as form fields at its (new) index, for redrawing the form."""
+    i = row.index
+    raw = {
+        f"story_title_{i}": row.title,
+        f"story_number_{i}": row.number_text,
+        f"story_series_name_{i}": row.series_name,
+        f"story_series_id_{i}": str(row.series_id or ""),
+        f"story_author_name_{i}": row.author_name,
+        f"story_author_id_{i}": str(row.author_id or ""),
+        f"story_id_{i}": str(row.story_id or ""),
+    }
+    if row.author_confirmed:
+        raw[f"confirm_story_author_{i}"] = row.author_confirmed
+    if row.series_confirmed:
+        raw[f"confirm_story_series_{i}"] = row.series_confirmed
+    return raw
+
+
+def set_story_rows(parsed: AddBookForm, rows: list[StoryRow]) -> None:
+    """Renumber ``rows`` from 0 and rewrite their raw form values to match."""
+    for key in [k for k in parsed.raw if k.startswith(("story_", *STORY_ANSWERS))]:
+        del parsed.raw[key]
+    for i, row in enumerate(rows):
+        row.index = i
+        parsed.raw.update(story_raw(row))
+    parsed.stories = rows
+
+
+def _parse_stories(form: FormData, parsed: AddBookForm) -> None:
+    """Spec 013: the story rows and their checks (AC-07, AC-08, AC-10 to AC-12)."""
+    parsed.anthology = text(form, "anthology") == "yes"
+    rows: list[StoryRow] = []
+    for i in _story_indexes(form):
+        number_text = text(form, f"story_number_{i}")
+        rows.append(
+            StoryRow(
+                index=i,
+                title=" ".join(text(form, f"story_title_{i}").split()),
+                number_text=number_text,
+                series_id=optional_uuid(form, f"story_series_id_{i}"),
+                series_name=" ".join(text(form, f"story_series_name_{i}").split()),
+                author_id=optional_uuid(form, f"story_author_id_{i}"),
+                author_name=normalize_name(text(form, f"story_author_name_{i}")),
+                story_id=optional_uuid(form, f"story_id_{i}"),
+                author_confirmed=normalize_name(text(form, f"confirm_story_author_{i}")),
+                use_author_id=optional_uuid(form, f"use_story_author_{i}"),
+                series_confirmed=normalize_name(text(form, f"confirm_story_series_{i}")),
+                use_series_id=optional_uuid(form, f"use_story_series_{i}"),
+            )
+        )
+    if parsed.anthology and not rows:
+        rows.append(StoryRow(index=0))
+    set_story_rows(parsed, rows)
+    filled = parsed.filled_stories
+    if not filled:
+        return
+    if not parsed.anthology:
+        parsed.errors["anthology"] = (
+            "Tick “This book is an anthology or collection” to save these stories, or clear them"
+        )
+        return
+    for row in filled:
+        _check_story_row(parsed, row)
+    _check_story_pairs(parsed, filled)
+
+
+def _check_story_row(parsed: AddBookForm, row: StoryRow) -> None:
+    errors, i, label = parsed.errors, row.index, row.label
+    if not row.title:
+        errors[f"story_title_{i}"] = f"{label}: Enter the story's title"
+    elif len(row.title) > 300:
+        errors[f"story_title_{i}"] = f"{label}: Keep the title to 300 characters or fewer"
+    try:
+        row.number = _series_number.validate_python(row.number_text)
+    except ValidationError as exc:
+        errors[f"story_number_{i}"] = f"{label}: {first_error(exc)}"
+    else:
+        if row.number is None:
+            errors[f"story_number_{i}"] = f"{label}: Enter the story's number in the series"
+    if not row.series_name and not parsed.series_name:
+        errors[f"story_series_name_{i}"] = (
+            f"{label}: Choose a series for this story, or give the book a series"
+        )
+
+
+def _check_story_pairs(parsed: AddBookForm, rows: list[StoryRow]) -> None:
+    """AC-12: no two rows at the same series and number; a blank series is the book's."""
+    groups: dict[tuple[str, Decimal], list[StoryRow]] = {}
+    for row in rows:
+        series = row.series_name or parsed.series_name
+        if row.number is not None and series:
+            groups.setdefault((series.casefold(), row.number), []).append(row)
+    for same in groups.values():
+        if len(same) < 2:
+            continue
+        labels = [row.label for row in same]
+        named = " and ".join([", ".join(labels[:-1]), labels[-1]])
+        series = same[0].series_name or parsed.series_name
+        for row in same:
+            parsed.errors.setdefault(
+                f"story_number_{row.index}", f"{named} have the same number in {series}"
+            )
 
 
 def _parse_entry_fields(form: FormData, parsed: AddBookForm, errors: dict[str, str]) -> None:

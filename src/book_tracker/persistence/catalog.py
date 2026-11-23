@@ -8,7 +8,18 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import ColumnElement, Select, delete, exists, func, insert, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    delete,
+    exists,
+    func,
+    insert,
+    or_,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -622,6 +633,18 @@ async def find_story_by_series_number(
         )
     ).scalar_one_or_none()
     return to_story(row) if row else None
+
+
+async def stories_at(
+    db: AsyncSession, pairs: list[tuple[uuid.UUID, Decimal]]
+) -> dict[tuple[uuid.UUID, Decimal], domain.Story]:
+    """The stories holding any of these (series, number) pairs, in one query (spec 013)."""
+    if not pairs:
+        return {}
+    found = await _story_list(
+        db, _stories().where(tuple_(models.Story.series_id, models.Story.series_number).in_(pairs))
+    )
+    return {(story.series.id, story.series_number): story for story in found}
 
 
 async def search_stories(db: AsyncSession, q: str, limit: int) -> list[domain.Story]:

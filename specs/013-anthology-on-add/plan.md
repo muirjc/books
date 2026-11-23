@@ -110,7 +110,7 @@ src/book_tracker/
 ├── api/readings.py              # pass body.stories to add_entry; 409 for StoryNumberTaken
 ├── schemas/readings.py          # ReadingEntryCreate.stories + validators
 ├── schemas/catalog.py           # NewBookStory
-├── services/catalog.py          # BookStory values; story creation for a new book
+├── services/catalog.py          # StoryForBook values; story creation for a new book
 ├── services/errors.py           # StoryNumberTaken(index, story)
 ├── services/readings.py         # add_entry(..., stories=...)
 ├── web/forms.py                 # StoryRow, AddBookForm.anthology/stories, parse + row checks

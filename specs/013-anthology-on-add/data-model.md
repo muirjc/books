@@ -29,7 +29,7 @@ save (AC-07).
 
 ## Service values (`services/catalog.py`)
 
-### BookStory
+### StoryForBook
 
 Either:
 - **New**: `title`, `series_number`, `author_ids: list[UUID] | None`, `series_id: UUID | None`

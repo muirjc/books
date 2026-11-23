@@ -311,6 +311,8 @@ Typing a story's title on Add a book suggests the collection that contains it.
 - **Authors default to the book's** but are stored per story, since anthologies mix authors.
 - **Stories are managed from Edit book**, not from Add a book: a member adds the collection
   first, then its stories.
+  *Update (spec 013):* a new book's stories can now also be entered on Add a book; existing
+  books' stories are still managed from Edit book.
 - **Open Library import is unchanged**: it doesn't read story contents.
 - **Release dates (spec 007)** don't apply to stories.
 - **No table of contents order:** a book's stories are listed by series and number, not in

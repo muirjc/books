@@ -4,7 +4,7 @@
 {% block content %}
 <h1>{{ series.name }}</h1>
 {% if added %}
-<p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list.</p>
+<p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list{% if stories_added %}, with {{ stories_added }} stor{{ "y" if stories_added == 1 else "ies" }}{% endif %}.</p>
 {% endif %}
 {% if view.rows %}
 <p>You've finished {{ view.finished }} of {{ view.total }} book{{ "" if view.total == 1 else "s" }}

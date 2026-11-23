@@ -126,9 +126,9 @@ logic in one place. `new_name_prompts` is generalized to walk the list of
 ## R7 – One service for the form and the API
 
 **Decision**: `services/readings.add_entry` gains
-`stories: Sequence[catalog_service.BookStory] = ()`. It is allowed only with `new_book`.
+`stories: Sequence[catalog_service.StoryForBook] = ()`. It is allowed only with `new_book`.
 
-- `BookStory` is either `NewStory`-like, with `title`, `series_number`,
+- `StoryForBook` is either `NewStory`-like, with `title`, `series_number`,
   `author_ids: list | None` and `series_id: UUID | None` (None means the book's), or an
   existing `story_id`.
 - After `create_book`, for each item in order, a new story is created and linked with

@@ -16,13 +16,15 @@ from starlette.responses import Response
 
 from book_tracker.auth.dependencies import Authenticated, UiUser, now, today
 from book_tracker.domain import models as domain
-from book_tracker.domain.drafts import BookFacts, DraftView
+from book_tracker.domain.drafts import BookFacts, CachedDraft, DraftView
 from book_tracker.domain.imports import SourceRef
+from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import (
     AuthorUpdate,
     CatalogQuery,
     DraftForm,
+    SeriesSuggestion,
     SeriesWrite,
     SummaryCreate,
     SummaryForm,
@@ -157,6 +159,7 @@ async def _book_page(
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
     source_ref: SourceRef | None = None,
+    suggested: bool = False,
 ) -> Response:
     stories = await service.book_stories(db, book.id)
     return render(
@@ -172,6 +175,7 @@ async def _book_page(
             "series_conflict": series_conflict,
             "source_ref": source_ref,
             "message": _message(request),
+            "suggested": suggested,
         },
         auth=auth,
         status_code=status_code,
@@ -184,7 +188,17 @@ async def edit_book_form(
 ) -> Response:
     book = await service.get_book(db, book_id)
     source_ref = await imports_service.source_ref(db, book_id)
-    return await _book_page(request, auth, db, book, book_form(book), source_ref=source_ref)
+    form = book_form(book)
+    suggestion = SeriesSuggestion.model_validate(dict(request.query_params))
+    if suggestion.suggest_series:  # spec 012 AC-20: filled in, not saved
+        form.raw["series_name"] = suggestion.suggest_series
+        form.raw.pop("series_id", None)
+        number = suggestion.suggest_number
+        form.raw["series_number"] = format_series_number(number) if number is not None else ""
+    return await _book_page(
+        request, auth, db, book, form, source_ref=source_ref,
+        suggested=bool(suggestion.suggest_series),
+    )  # fmt: skip
 
 
 @router.post("/books/{book_id}/edit")
@@ -578,7 +592,7 @@ async def save_summary(
     book = await service.get_book(db, book_id)
     data = await request.form()
     form = SummaryForm.model_validate(
-        {"text": text(data, "text"), "draft_id": data.get("draft_id")}
+        {"text": text(data, "text"), "draft_id": data.get("draft_id"), "then": data.get("then")}
     )
     try:
         body = SummaryCreate.model_validate({"text": form.text})
@@ -595,4 +609,39 @@ async def save_summary(
     await summaries.save_summary(
         db, auth.account.id, book_id, body.text, draft_id=form.draft_id, now=now(request)
     )
+    if form.then == "series" and form.draft_id:
+        draft = await drafts_service.get_draft(db, form.draft_id)
+        if draft is not None and draft.series_name:
+            return RedirectResponse(_suggestion_url(book_id, draft), status_code=303)
     return RedirectResponse(f"/catalog/books/{book_id}/summary?msg=saved", status_code=303)
+
+
+def _suggestion_url(book_id: uuid.UUID, draft: CachedDraft) -> str:
+    query = {"suggest_series": draft.series_name or ""}
+    if draft.series_number is not None:
+        query["suggest_number"] = format_series_number(draft.series_number)
+    return f"/catalog/books/{book_id}/edit?{urlencode(query)}"
+
+
+@router.post("/books/{book_id}/summary/use-series")
+async def use_series(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
+    """Use this series with an unsaved draft: offer to save it first (spec 012 AC-21)."""
+    book = await service.get_book(db, book_id)
+    data = await request.form()
+    form = SummaryForm.model_validate(
+        {"text": text(data, "text"), "draft_id": data.get("draft_id")}
+    )
+    draft = await drafts_service.get_draft(db, form.draft_id) if form.draft_id else None
+    if draft is None or not draft.series_name:
+        return RedirectResponse(f"/catalog/books/{book_id}/summary", status_code=303)
+    return render(
+        request,
+        "pages/use_series.html",
+        {
+            "book": book,
+            "draft": draft,
+            "text_value": form.text,
+            "edit_url": _suggestion_url(book_id, draft),
+        },
+        auth=auth,
+    )

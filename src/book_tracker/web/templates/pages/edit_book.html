@@ -5,6 +5,7 @@
 <h1>Edit “{{ book.title }}”</h1>
 <p class="muted">Changes show on every family member's list. Last edited by {{ book.updated_by.display_name }} on {{ book.updated_at | nice_date }}.</p>
 {% include "partials/source_ref.html" %}
+{% if suggested %}<p class="notice" role="status">Series and number suggested by the AI. Check them, then save.</p>{% endif %}
 {{ error_summary(form.errors) }}
 {% if conflict %}
 <div class="conflict" role="alert">{{ conflict_notice(conflict) }}</div>

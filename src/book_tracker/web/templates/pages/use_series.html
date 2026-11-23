@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Use the suggested series{% endblock %}
+{% block content %}
+<h1>Use the suggested series for “{{ book.title }}”</h1>
+<p>Looks like {{ draft.series_name }}{% if draft.series_number is not none %} #{{ draft.series_number | series_number }}{% endif %}.</p>
+<p>Your AI draft isn't saved yet. Save it first, or leave it: it stays available for 30 days, and drafting again shows it without using one of your AI drafts.</p>
+<form method="post" action="/catalog/books/{{ book.id }}/summary" class="form-actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="text" value="{{ text_value }}">
+  <input type="hidden" name="draft_id" value="{{ draft.id }}">
+  <input type="hidden" name="then" value="series">
+  <button type="submit" class="button-primary">Save summary first</button>
+  <a href="{{ edit_url }}">Leave the draft</a>
+</form>
+{% endblock %}

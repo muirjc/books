@@ -69,6 +69,10 @@ def _view(draft: CachedDraft, *, cached: bool, left: int) -> DraftView:
     )
 
 
+async def get_draft(db: AsyncSession, draft_id: str) -> CachedDraft | None:
+    return await drafts.get(db, draft_id)
+
+
 async def drafts_left(db: AsyncSession, user_id: uuid.UUID, today: date, limit: int) -> int:
     return await DraftUsageRepository(db, user_id).left(today, limit)
 

@@ -11,7 +11,7 @@ from typing import Annotated, Literal, Self, get_args
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from book_tracker.domain.enums import SummaryOrigin
-from book_tracker.domain.values import PEN_NAME_FIRST
+from book_tracker.domain.values import PEN_NAME_FIRST, parse_series_number
 from book_tracker.schemas.auth import RequestModel
 from book_tracker.schemas.types import (
     Isbn13In,
@@ -227,12 +227,42 @@ def _uuid_or_none(value: object) -> str | None:
 
 
 class SummaryForm(BaseModel):
-    """The Summary page's save form (spec 012)."""
+    """The Summary page's save form (spec 012); ``then`` "series" goes on to Edit book with
+    the draft's series suggestion (AC-21)."""
 
     text: str = ""
     draft_id: str | None = None
+    then: Literal["summary", "series"] = "summary"
+
+    @field_validator("then", mode="before")
+    @classmethod
+    def _then(cls, value: object) -> str:
+        return "series" if value == "series" else "summary"
 
     _draft = field_validator("draft_id", mode="before")(_uuid_or_none)
+
+
+class SeriesSuggestion(BaseModel):
+    """Edit book's ``suggest_series`` and ``suggest_number`` (spec 012 AC-20). Bad values
+    are dropped rather than failing: the member checks them before saving anyway."""
+
+    suggest_series: str = ""
+    suggest_number: Decimal | None = None
+
+    @field_validator("suggest_series", mode="before")
+    @classmethod
+    def _name(cls, value: object) -> str:
+        return value.replace("\x00", "").strip()[:200] if isinstance(value, str) else ""
+
+    @field_validator("suggest_number", mode="before")
+    @classmethod
+    def _number(cls, value: object) -> Decimal | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            return parse_series_number(value)
+        except ValueError:
+            return None
 
 
 class DraftForm(BaseModel):

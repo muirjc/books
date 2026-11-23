@@ -82,26 +82,31 @@ BLOCKED = "https://www.goodreads.com/book/show/47212"
 SHORT = "Too short to be a summary."
 
 
+UNAVAILABLE = "The AI didn't answer in time. Try again, or write the summary yourself."
+TOO_LITTLE = (
+    "The AI couldn't find enough about this book to write a summary. You can write one yourself."
+)
+DECLINED = "The AI couldn't write a summary of this book. You can write one yourself."
+CHECKS = "The AI's draft didn't pass our checks. Try again, or write the summary yourself."
+
+
 @pytest.mark.ac("012/AC-09")
 @pytest.mark.parametrize(
     ("result", "message"),
     [
-        (AiUnavailable(), "The AI didn't answer in time. Try again, or write the summary yourself."),
-        (good_draft(status="not_enough_information", text=""),
-         "The AI couldn't find enough about this book to write a summary. You can write one yourself."),
-        (AiDeclined(), "The AI couldn't write a summary of this book. You can write one yourself."),
-        (good_draft(source_urls=(BLOCKED,), known_urls=frozenset({BLOCKED}), cited_urls=()),
-         "The AI's draft didn't pass our checks. Try again, or write the summary yourself."),
-        (good_draft(cited_urls=(BLOCKED,)),
-         "The AI's draft didn't pass our checks. Try again, or write the summary yourself."),
-        (good_draft(text=SHORT),
-         "The AI's draft didn't pass our checks. Try again, or write the summary yourself."),
-        (good_draft(text=" ".join(["word"] * 251)),
-         "The AI's draft didn't pass our checks. Try again, or write the summary yourself."),
-        (good_draft(source_urls=(), known_urls=frozenset(), cited_urls=()),
-         "The AI couldn't find enough about this book to write a summary. You can write one yourself."),
+        (AiUnavailable(), UNAVAILABLE),
+        (good_draft(status="not_enough_information", text=""), TOO_LITTLE),
+        (AiDeclined(), DECLINED),
+        (
+            good_draft(source_urls=(BLOCKED,), known_urls=frozenset({BLOCKED}), cited_urls=()),
+            CHECKS,
+        ),
+        (good_draft(cited_urls=(BLOCKED,)), CHECKS),
+        (good_draft(text=SHORT), CHECKS),
+        (good_draft(text=" ".join(["word"] * 251)), CHECKS),
+        (good_draft(source_urls=(), known_urls=frozenset(), cited_urls=()), TOO_LITTLE),
     ],
-)  # fmt: skip
+)
 async def test_each_failure_keeps_hand_writing(
     alice: httpx.AsyncClient,
     book: uuid.UUID,

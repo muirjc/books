@@ -161,6 +161,17 @@ def _deletable() -> Any:
     return _has_no_books() & _not_favorited()
 
 
+async def author_has_works(db: AsyncSession, author_id: uuid.UUID) -> bool:
+    """Whether any book or story lists the author: an EXISTS, not the lists themselves."""
+    found = await db.scalar(
+        select(
+            exists().where(models.BookAuthor.author_id == author_id)
+            | exists().where(models.StoryAuthor.author_id == author_id)
+        )
+    )
+    return bool(found)
+
+
 async def author_favorited(db: AsyncSession, author_id: uuid.UUID) -> bool:
     """Whether *any* member favorites the author: the one fact the delete refusal may show
     (constitution 2.0.0). It never says who, or how many."""

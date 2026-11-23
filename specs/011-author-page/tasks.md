@@ -81,3 +81,19 @@ tagged `@pytest.mark.ac("011/AC-xx")`.
 - **T016**: p95 was 249 ms for the 300-book author page, 17 ms for My favorite authors, and
   174 ms for the favorites filter.
 - **T015**: author names in book rows link to the Author page. On My books at phone width, axe saw that link alone in a grid cell, not as inline text, and flagged it as a 19 px target. Links in row details now get the 24 px WCAG minimum (`.book-meta a`). The spec 007 Upcoming check of 44 px targets now covers each row's own targets, not the inline author links.
+
+## PR #30 review fixes
+
+- **Delete retry**: `delete_author` classifies with EXISTS checks (`author_has_works`,
+  `author_favorited`), not by loading lists. If nothing blocks the delete by the time it is
+  classified, it tries the delete once more, instead of answering `author_has_books` for an
+  author with no books.
+- **Refusal message**: a refusal for a favorite always says why. If the favorite is gone
+  again, the page shows the "family member" reason.
+- **User binding**: the My books favorites condition is built inside
+  `ReadingEntryRepository` (`favorite_authors: bool`) from its own bound user. The
+  repository no longer accepts an arbitrary condition.
+- **API cross-user test**: Ben's PUT and DELETE leave Alice's favorites unchanged.
+- **Constitution 2.0.0 wording**: the exception covers leaving a favorited author out of
+  the deletable-authors list and count (AC-15), not only the refusal.
+- **Fewer queries**: Edit author looks up favorites only for an author with no works.

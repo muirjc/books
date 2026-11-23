@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.models import Book, BookRef, ReadingEntry, ReadingEntryPage, Series, Story
 from book_tracker.persistence import catalog
-from book_tracker.persistence.favorites import FavoriteAuthorRepository
 from book_tracker.persistence.readings import SORTS, FilterOptions, ReadingEntryRepository
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services import summaries
@@ -80,7 +79,6 @@ async def list_entries(
     """My list, sorted, filtered and searched (FR-021, FR-023). With ``upcoming_after``
     (today), only books not out yet, soonest first (spec 007). With ``favorite_authors``,
     only books by one of my favorite authors (spec 011)."""
-    favorites = FavoriteAuthorRepository(db, user_id).condition() if favorite_authors else None
     return await ReadingEntryRepository(db, user_id).list(
         page=page,
         page_size=page_size,
@@ -90,7 +88,7 @@ async def list_entries(
         status=status,
         sort=sort if sort in SORTS else "title",
         upcoming_after=upcoming_after,
-        extra=favorites,
+        favorite_authors=favorite_authors,
     )
 
 

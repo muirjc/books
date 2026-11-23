@@ -214,6 +214,10 @@ async def _author_page(
     status_code: int = 200,
     delete_problem: str | None = None,
 ) -> Response:
+    books = await service.author_books(db, author.id)
+    stories = await service.author_stories(db, author.id)
+    # Spec 011: only an author with no works can be blocked by a favorite.
+    favorite_block = None if books or stories else await _favorite_block(db, auth, author)
     if values is None:
         values = {
             "name": author.name,
@@ -226,9 +230,9 @@ async def _author_page(
         "pages/edit_author.html",
         {
             "author": author,
-            "favorite_block": await _favorite_block(db, auth, author),
-            "books": await service.author_books(db, author.id),
-            "stories": await service.author_stories(db, author.id),  # spec 009
+            "favorite_block": favorite_block,
+            "books": books,
+            "stories": stories,  # spec 009
             "values": values,
             "errors": errors or {},
             "message": _message(request),
@@ -366,7 +370,11 @@ async def delete_author(
         await service.delete_author(db, auth.account.id, author_id)
     except ConflictError as exc:
         if exc.code == "author_is_favorite":  # spec 011: favorited meanwhile
-            return await _author_page(request, auth, db, author, status_code=409)
+            # Say why even if the favorite is gone again by now (PR #30 review).
+            reason = None if await _favorite_block(db, auth, author) else FAVORITE_OTHER
+            return await _author_page(
+                request, auth, db, author, delete_problem=reason, status_code=409
+            )
         # The foreign key caught a link made in the same instant (spec 008).
         problem = await _has_works(db, author, "wasn't deleted") or (
             f"“{author.name}” now has a book, so it wasn't deleted."

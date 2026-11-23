@@ -39,6 +39,15 @@ async def test_favorite_endpoints(
     assert [a["name"] for a in listed.json()] == ["Jim Butcher", "Nobody Yet"]  # sort names
     assert_matches_contract(listed)
     assert (await other.get("/api/v1/me/favorite-authors")).json() == []
+    # Principle I: Ben's PUT and DELETE change only his own favorites.
+    assert (await other.delete(f"/api/v1/me/favorite-authors/{butcher}")).status_code == 204
+    assert (await other.put(f"/api/v1/me/favorite-authors/{austen}")).status_code == 204
+    after = [a["name"] for a in (await api.get("/api/v1/me/favorite-authors")).json()]
+    assert after == ["Jim Butcher", "Nobody Yet"]
+    assert [a["name"] for a in (await other.get("/api/v1/me/favorite-authors")).json()] == [
+        "Jane Austen"
+    ]
+    assert (await other.delete(f"/api/v1/me/favorite-authors/{austen}")).status_code == 204
 
     mine = await api.get("/api/v1/me/readings", params={"favorite_authors": "true"})
     assert mine.status_code == 200

@@ -220,3 +220,41 @@ async def test_favorite_for_an_author_deleted_meanwhile(people: Any, factory: Fa
     )
     assert added.status_code == 404
     assert await factory.scalar("SELECT count(*) FROM favorite_author") == 0
+
+
+@pytest.mark.ac("011/AC-16")
+async def test_blocker_gone_before_classifying_retries(
+    people: Any, app: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The first delete was refused, but nothing blocks it by the time it is classified
+    (say a favorite was removed): the delete is tried again (PR #30 review)."""
+    real = persistence_catalog.delete_unused_author
+    calls: list[int] = []
+
+    async def refused_once(db: Any, author_id: uuid.UUID) -> bool:
+        calls.append(1)
+        return False if len(calls) == 1 else await real(db, author_id)
+
+    monkeypatch.setattr(persistence_catalog, "delete_unused_author", refused_once)
+    async with app.state.db.sessionmaker() as db:
+        await catalog_service.delete_author(db, people.alice.id, people.lonely)
+        await db.commit()
+    assert len(calls) == 2
+    async with app.state.db.sessionmaker() as db:
+        assert await persistence_catalog.get_author(db, people.lonely) is None
+
+
+@pytest.mark.ac("011/AC-16")
+async def test_refusal_says_why_even_if_the_favorite_is_gone(
+    people: Any, factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A favorite blocked the delete but was removed before the page was drawn: the page
+    still says why it wasn't deleted, and names nobody."""
+
+    async def blocked(db: Any, actor: uuid.UUID, author_id: uuid.UUID) -> None:
+        raise ConflictError("author_is_favorite", "A family member has this author as a favorite")
+
+    monkeypatch.setattr(catalog_service, "delete_author", blocked)
+    refused = await _delete(people.member, people.lonely, confirm=True)
+    assert refused.status_code == 409
+    assert OTHERS in refused.text

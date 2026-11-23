@@ -14,9 +14,9 @@ from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from starlette.responses import Response
 
-from book_tracker.auth.dependencies import Authenticated, UiUser, now, today
+from book_tracker.auth.dependencies import Authenticated, UiUser, now
 from book_tracker.domain import models as domain
-from book_tracker.domain.drafts import BookFacts, CachedDraft, DraftView
+from book_tracker.domain.drafts import CachedDraft, DraftView
 from book_tracker.domain.imports import SourceRef
 from book_tracker.domain.values import format_series_number
 from book_tracker.persistence.db import DbSession
@@ -35,19 +35,10 @@ from book_tracker.services import drafts as drafts_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as readings_service
 from book_tracker.services import summaries
-from book_tracker.services.errors import (
-    AiDeclined,
-    AiNotConfigured,
-    AiUnavailable,
-    ConflictError,
-    DraftLimitReached,
-    DraftRejected,
-    NotEnoughInformation,
-    ValidationFailed,
-)
-from book_tracker.sources.base import BookSource
+from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.sources.dependencies import BookSourceDep
-from book_tracker.sources.summary_generator import SummaryGenerator, SummaryGeneratorDep
+from book_tracker.sources.summary_generator import SummaryGeneratorDep
+from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import is_htmx, render
 from book_tracker.web.routes.readings import (
@@ -512,46 +503,6 @@ async def summary_form(
     book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
     return await _summary_page(request, auth, db, await service.get_book(db, book_id))
-
-
-DRAFT_FAILURES = (
-    AiNotConfigured,
-    AiUnavailable,
-    AiDeclined,
-    NotEnoughInformation,
-    DraftRejected,
-    DraftLimitReached,
-)
-
-
-async def draft_for_page(
-    request: Request,
-    auth: Authenticated,
-    db: DbSession,
-    facts: BookFacts,
-    *,
-    regenerate: bool,
-    source: BookSource,
-    generator: SummaryGenerator,
-) -> tuple[DraftView | None, str | None, int]:
-    """A draft, or the message saying why there is none; and the drafts left today."""
-    limit = request.app.state.settings.ai_daily_draft_limit
-    try:
-        view = await drafts_service.request_draft(
-            db,
-            user_id=auth.account.id,
-            facts=facts,
-            regenerate=regenerate,
-            source=source,
-            generator=generator,
-            now=now(request),
-            today=today(request),
-            limit=limit,
-        )
-    except DRAFT_FAILURES as exc:
-        left = await drafts_service.drafts_left(db, auth.account.id, today(request), limit)
-        return None, exc.title, left
-    return view, None, view.drafts_left
 
 
 @router.post("/books/{book_id}/summary/draft")

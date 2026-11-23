@@ -50,7 +50,13 @@
   {% else %}
   <p class="muted">No summary yet.</p>
   {% endif %}
-  <p><a href="/catalog/books/{{ entry.book.id }}/summary">{% if entry.book.current_summary %}Write a new summary{% else %}Write a summary{% endif %}</a></p>
+  <div class="form-actions">
+    <a href="/catalog/books/{{ entry.book.id }}/summary">{% if entry.book.current_summary %}Write a new summary{% else %}Write a summary{% endif %}</a>
+    <form method="post" action="/catalog/books/{{ entry.book.id }}/summary/draft">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Draft with AI</button>
+    </form>
+  </div>
 </section>
 
 {% if stories %}

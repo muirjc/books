@@ -56,6 +56,7 @@ class NewBook:
     isbn_13: str | None = None
     summary: str | None = None
     release_date: date | None = None  # spec 007
+    summary_draft_id: str | None = None  # spec 012: the AI draft the summary came from
 
 
 @dataclass(frozen=True, slots=True)

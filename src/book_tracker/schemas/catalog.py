@@ -210,6 +210,32 @@ def _require_changes(model: BaseModel, nullable: set[str]) -> None:
             raise ValueError(f"{name} can't be empty")
 
 
+class SummaryDraftRequest(RequestModel):
+    """Ask for an AI draft (spec 012); ``regenerate`` bypasses the 30-day cache."""
+
+    regenerate: bool = False
+
+
+class SeriesSuggestionOut(BaseModel):
+    name: str
+    number: str | None = Field(
+        description='Decimal as a string, e.g. "2.5"', pattern=r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
+    )
+
+
+class SummaryDraft(BaseModel):
+    """An unsaved AI draft (spec 012). Save it with ``draft_id`` on the summaries endpoint."""
+
+    id: uuid.UUID
+    text: str
+    source_urls: list[str]
+    model: str
+    series_suggestion: SeriesSuggestionOut | None
+    cached: bool = Field(description="Drafted earlier and reused; no AI request was made")
+    created_at: datetime
+    drafts_left_today: int
+
+
 class SummaryCreate(RequestModel):
     text: SummaryText
     # Spec 012: the AI draft this text came from; any other value saves it as manual.

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import uuid
+
 from book_tracker.domain import imports as imports_domain
 from book_tracker.domain import models as domain
+from book_tracker.domain.drafts import DraftView
 from book_tracker.domain.values import format_series_number
 from book_tracker.schemas import catalog as c
 from book_tracker.schemas import imports as i
@@ -198,4 +201,27 @@ def story_out(story: domain.Story) -> c.Story:
         created_at=story.created_at,
         updated_by=user_ref_out(story.updated_by),
         updated_at=story.updated_at,
+    )
+
+
+def summary_draft_out(view: DraftView) -> c.SummaryDraft:
+    suggestion = (
+        c.SeriesSuggestionOut(
+            name=view.series_name,
+            number=format_series_number(view.series_number)
+            if view.series_number is not None
+            else None,
+        )
+        if view.series_name
+        else None
+    )
+    return c.SummaryDraft(
+        id=uuid.UUID(view.id),
+        text=view.text,
+        source_urls=list(view.source_urls),
+        model=view.model,
+        series_suggestion=suggestion,
+        cached=view.cached,
+        created_at=view.created_at,
+        drafts_left_today=view.drafts_left,
     )

@@ -408,6 +408,53 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "422": { $ref: "#/components/responses/ValidationError" }
 
+  /books/{book_id}/summary-drafts:
+    parameters:
+      - $ref: "#/components/parameters/BookId"
+    post:
+      tags: [catalog]
+      summary: An AI draft of the book's summary; nothing is saved (spec 012)
+      description: |
+        Returns the newest draft for the book from the last 30 days without asking the AI
+        (it doesn't count against the daily allowance), unless regenerate is true. Save a
+        draft with POST /books/{book_id}/summaries and its draft_id.
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SummaryDraftRequest" }
+      responses:
+        "200":
+          description: An unsaved draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SummaryDraft" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: |
+            Request failed validation, or code=not_enough_information, ai_declined or
+            draft_rejected: no draft this time; write the summary by hand
+          content:
+            application/problem+json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/ValidationProblem"
+                  - $ref: "#/components/schemas/Problem"
+        "429":
+          description: code=draft_limit_reached; today's AI drafts are used
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "503":
+          description: code=ai_not_configured or ai_unavailable (timeout or AI service error)
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
   /books/{book_id}/stories:
     parameters:
       - $ref: "#/components/parameters/BookId"
@@ -1264,6 +1311,41 @@ components:
       additionalProperties: false
       properties:
         text: { type: string, minLength: 1, maxLength: 5000 }
+        draft_id:
+          type: [string, "null"]
+          format: uuid
+          description: |
+            The AI draft this text came from (spec 012). With the app's own current draft of
+            this book, the summary is saved as ai or ai_edited; otherwise as manual.
+
+    SummaryDraftRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        regenerate: { type: boolean, default: false }
+
+    SummaryDraft:
+      type: object
+      required: [id, text, source_urls, model, series_suggestion, cached, created_at, drafts_left_today]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string }
+        source_urls: { type: array, items: { type: string } }
+        model: { type: string }
+        series_suggestion:
+          oneOf:
+            - $ref: "#/components/schemas/SeriesSuggestion"
+            - type: "null"
+        cached: { type: boolean, description: Drafted earlier and reused; no AI request was made }
+        created_at: { type: string, format: date-time }
+        drafts_left_today: { type: integer, minimum: 0 }
+
+    SeriesSuggestion:
+      type: object
+      required: [name, number]
+      properties:
+        name: { type: string }
+        number: { $ref: "#/components/schemas/SeriesNumber" }
 
     ReadingStatus:
       type: string

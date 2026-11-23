@@ -5,16 +5,25 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from book_tracker.api import responses as r
-from book_tracker.auth.dependencies import ApiUser
+from book_tracker.auth.dependencies import ApiUser, now, today
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import Book, BookUpdate, Summary, SummaryCreate
-from book_tracker.schemas.mappers import book_out, summary_out
+from book_tracker.schemas.catalog import (
+    Book,
+    BookUpdate,
+    Summary,
+    SummaryCreate,
+    SummaryDraft,
+    SummaryDraftRequest,
+)
+from book_tracker.schemas.mappers import book_out, summary_draft_out, summary_out
 from book_tracker.schemas.types import TypeAheadText
 from book_tracker.services import catalog as service
-from book_tracker.services import summaries
+from book_tracker.services import drafts, summaries
+from book_tracker.sources.dependencies import BookSourceDep
+from book_tracker.sources.summary_generator import SummaryGeneratorDep
 
 TypeAheadQuery = Annotated[str, TypeAheadText, Query(min_length=1, max_length=200)]
 TypeAheadLimit = Annotated[int, Query(ge=1, le=25)]
@@ -73,6 +82,41 @@ async def list_summaries(book_id: uuid.UUID, auth: ApiUser, db: DbSession) -> li
     responses=r.merge(r.WRITE, r.NOT_FOUND),
 )
 async def save_summary(
-    book_id: uuid.UUID, body: SummaryCreate, auth: ApiUser, db: DbSession
+    book_id: uuid.UUID, body: SummaryCreate, request: Request, auth: ApiUser, db: DbSession
 ) -> Summary:
-    return summary_out(await summaries.save_summary(db, auth.account.id, book_id, body.text))
+    draft_id = str(body.draft_id) if body.draft_id else None
+    return summary_out(
+        await summaries.save_summary(
+            db, auth.account.id, book_id, body.text, draft_id=draft_id, now=now(request)
+        )
+    )
+
+
+@router.post(
+    "/{book_id}/summary-drafts",
+    response_model=SummaryDraft,
+    summary="An AI draft of the book's summary; nothing is saved (spec 012)",
+    responses=r.merge(r.WRITE, r.NOT_FOUND, r.DRAFT_FAILED, r.DRAFT_LIMIT, r.AI_UNAVAILABLE),
+)
+async def request_summary_draft(
+    book_id: uuid.UUID,
+    body: SummaryDraftRequest,
+    request: Request,
+    auth: ApiUser,
+    db: DbSession,
+    source: BookSourceDep,
+    generator: SummaryGeneratorDep,
+) -> SummaryDraft:
+    book = await service.get_book(db, book_id)
+    view = await drafts.request_draft(
+        db,
+        user_id=auth.account.id,
+        facts=drafts.facts_for(book),
+        regenerate=body.regenerate,
+        source=source,
+        generator=generator,
+        now=now(request),
+        today=today(request),
+        limit=request.app.state.settings.ai_daily_draft_limit,
+    )
+    return summary_draft_out(view)

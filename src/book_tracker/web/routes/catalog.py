@@ -1,4 +1,5 @@
-"""Catalog edit pages: books, authors and series. Any member may edit (FR-009, FR-014)."""
+"""The Catalog page (spec 010), and the catalog edit pages: books, authors and series. Any
+member may edit (FR-009, FR-014)."""
 
 from __future__ import annotations
 
@@ -17,15 +18,17 @@ from book_tracker.auth.dependencies import Authenticated, UiUser
 from book_tracker.domain import models as domain
 from book_tracker.domain.imports import SourceRef
 from book_tracker.persistence.db import DbSession
-from book_tracker.schemas.catalog import AuthorUpdate, SeriesWrite, SummaryCreate
+from book_tracker.schemas.catalog import AuthorUpdate, CatalogQuery, SeriesWrite, SummaryCreate
 from book_tracker.services import catalog as service
 from book_tracker.services import imports as imports_service
+from book_tracker.services import readings as readings_service
 from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
-from book_tracker.web.rendering import render
+from book_tracker.web.rendering import is_htmx, render
 from book_tracker.web.routes.readings import (
     MERGED,
+    PAGE_SIZE,
     book_form,
     keep_unedited,
     new_name_prompts,
@@ -45,6 +48,56 @@ AUTHOR_MESSAGES = {
 def _message(request: Request) -> str | None:
     msg = request.query_params.get("msg")
     return SAVED if msg == "saved" else MERGED if msg == "merged" else None
+
+
+# --------------------------------------------------------------------------- the catalog
+
+CATALOG_SORT_OPTIONS = [
+    ("title", "Title (A–Z)"),
+    ("-title", "Title (Z–A)"),
+    ("author", "Author"),
+    ("series", "Series"),
+    ("-added", "Newest in the catalog"),
+]
+
+
+@router.get("")
+async def catalog_page(request: Request, auth: UiUser, db: DbSession) -> Response:
+    """Every catalog book, searched, sorted, filtered and paged; HTMX gets just the list
+    (spec 010). The query is validated by ``CatalogQuery``; bad values fall back to the
+    defaults."""
+    params = request.query_params
+    query = CatalogQuery.model_validate(
+        {name: params[name] for name in CatalogQuery.model_fields if name in params}
+    )
+    view = await readings_service.catalog_view(
+        db,
+        auth.account.id,
+        page=query.page,
+        page_size=PAGE_SIZE,
+        q=query.q,
+        sort=query.sort,
+        not_mine=query.not_mine,
+    )
+    kept = {
+        "q": query.q,
+        "sort": "" if query.sort == "title" else query.sort,
+        "not_mine": "1" if query.not_mine else "",
+    }
+    encoded = urlencode({k: v for k, v in kept.items() if v})
+    context: dict[str, Any] = {
+        "view": view,
+        "active": "catalog",
+        "filters": kept,
+        "sort": query.sort,
+        "sort_options": CATALOG_SORT_OPTIONS,
+        "query_without_page": f"{encoded}&" if encoded else "",
+        "filtered": bool(query.q or query.not_mine),
+        "filters_open": any(kept.values()),
+        "htmx": is_htmx(request),
+    }
+    template = "partials/catalog_list.html" if context["htmx"] else "pages/catalog.html"
+    return render(request, template, context, auth=auth)
 
 
 # --------------------------------------------------------------------------- books

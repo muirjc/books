@@ -43,7 +43,12 @@ templates.env.globals["SHOWN_FIELDS"] = SHOWN_FIELDS  # books-mbx
 
 
 def is_htmx(request: Request) -> bool:
-    return request.headers.get("hx-request") == "true"
+    """An htmx request wanting a fragment. A history restore (a cache miss on Back) needs
+    the whole page, so it isn't one (PR #29 review)."""
+    return (
+        request.headers.get("hx-request") == "true"
+        and request.headers.get("hx-history-restore-request") != "true"
+    )
 
 
 def render(
@@ -64,6 +69,8 @@ def render(
     if status_code >= 400:
         # The request failed: get_db rolls back instead of committing partial writes.
         request.state.db_rollback = True
+    # A URL may answer with a page or an htmx fragment, so caches must key on the header.
+    headers = {"Vary": "HX-Request", **(headers or {})}
     return templates.TemplateResponse(request, name, ctx, status_code=status_code, headers=headers)
 
 

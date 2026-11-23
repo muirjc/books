@@ -245,3 +245,28 @@ async def test_series_page_with_stories_under_one_second(
     print("\nspec 009 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert results["series page"] < 1.0 and results["edit book"] < 1.0, results
     assert results["type-ahead"] < 0.3, results
+
+
+CATALOG_PARAMS: dict[str, dict[str, str]] = {
+    "plain": {},
+    "search": {"q": "title 12"},
+    "author search": {"q": "author 7"},
+    "isbn": {"q": "978-0-14-143958-7"},
+    "z-a": {"sort": "-title"},
+    "author sort": {"sort": "author"},
+    "series sort": {"sort": "series"},
+    "newest": {"sort": "-added"},
+    "not on my list": {"not_mine": "1"},
+    "late page": {"page": "90"},
+}
+
+
+@pytest.mark.ac("010/AC-06")
+async def test_catalog_page_under_one_second(big_list: httpx.AsyncClient) -> None:
+    """Spec 010 SC-001: 5,000 catalog books, 2,000 on the viewer's list."""
+    results = {
+        name: await p95(lambda i, params=params: big_list.get("/catalog", params=params), runs=40)
+        for name, params in CATALOG_PARAMS.items()
+    }
+    print("\nspec 010 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
+    assert all(value < 1.0 for value in results.values()), results

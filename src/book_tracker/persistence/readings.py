@@ -19,7 +19,7 @@ from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.models import ReadingEntry, ReadingEntryPage
 from book_tracker.domain.values import NOW_OUT_DAYS
 from book_tracker.persistence import models
-from book_tracker.persistence.catalog import like_patterns
+from book_tracker.persistence.catalog import first_author_key, like_patterns
 from book_tracker.persistence.mappers import to_reading_entry
 
 FilterOptions = list[tuple[uuid.UUID, str]]
@@ -58,14 +58,7 @@ def _order(sort: str) -> list[Any]:
     descending = sort.startswith("-")
     key = sort.lstrip("-")
     title = func.lower(models.Book.title)
-    first_author = (
-        select(func.lower(models.Author.sort_name))
-        .join(models.BookAuthor, models.BookAuthor.author_id == models.Author.id)
-        .where(models.BookAuthor.book_id == models.Book.id)
-        .order_by(models.BookAuthor.position)
-        .limit(1)
-        .scalar_subquery()
-    )
+    first_author = first_author_key()
     primary: list[Any]
     if key == "author":
         primary = [first_author]
@@ -249,6 +242,14 @@ class ReadingEntryRepository:
             )
         ).scalar_one_or_none()
         return to_reading_entry(row) if row else None
+
+    def not_on_list(self) -> ColumnElement[bool]:
+        """A condition on ``Book``: not on the bound user's list (spec 010 R3, the Catalog
+        page's Not on my list filter)."""
+        return ~exists().where(
+            models.ReadingEntry.user_id == self._user_id,
+            models.ReadingEntry.book_id == models.Book.id,
+        )
 
     async def book_ids_on_list(self, book_ids: Collection[uuid.UUID]) -> set[uuid.UUID]:
         """Which of these catalog books are on the bound user's list (spec 002 FR-005)."""

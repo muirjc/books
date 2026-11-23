@@ -7,8 +7,10 @@ import uuid
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 
 from book_tracker.domain.enums import ReadingStatus
+from book_tracker.persistence import models
 from book_tracker.persistence.readings import ReadingEntryRepository
 from tests.conftest import Factory
 
@@ -108,3 +110,13 @@ async def test_list_books_returns_only_own_entries(app: Any, world: dict[str, An
             world["ben_hobbit"]
         ]
         assert await ben.list_books(set()) == ()
+
+
+@pytest.mark.ac("010/AC-14")
+async def test_not_on_list_excludes_only_own_books(app: Any, world: dict[str, Any]) -> None:
+    """Spec 010 R3: the Catalog page's Not on my list condition is bound to the user."""
+    async with app.state.db.sessionmaker() as db:
+        for user, expected in (("alice", set()), ("ben", {world["dune"]})):
+            condition = ReadingEntryRepository(db, world[user].id).not_on_list()
+            rows = await db.scalars(select(models.Book.id).where(condition))
+            assert set(rows) == expected, user

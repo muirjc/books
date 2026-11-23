@@ -327,7 +327,7 @@ async def create_book(db: AsyncSession, actor_id: uuid.UUID, new: NewBook) -> do
 # --------------------------------------------------------------------------- search
 
 
-def _as_isbn(q: str) -> str | None:
+def as_isbn(q: str) -> str | None:
     try:
         return parse_isbn13(q)
     except ValueError:
@@ -335,7 +335,7 @@ def _as_isbn(q: str) -> str | None:
 
 
 async def search_books(db: AsyncSession, q: str, limit: int = 10) -> list[domain.Book]:
-    return await catalog.search_books(db, q.strip(), limit, isbn_13=_as_isbn(q))
+    return await catalog.search_books(db, q.strip(), limit, isbn_13=as_isbn(q))
 
 
 async def search_authors(db: AsyncSession, q: str, limit: int = 10) -> list[domain.Author]:

@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, delete, exists, func, insert, or_, select, update
+from sqlalchemy import ColumnElement, Select, delete, exists, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -300,12 +300,23 @@ def like_patterns(q: str) -> tuple[str, str]:
     return f"%{escaped}%", f"{escaped}%"
 
 
-async def search_books(
-    db: AsyncSession, q: str, limit: int, isbn_13: str | None = None
-) -> list[domain.Book]:
-    """Title, author name, real name or a story's title (spec 009); an exact ISBN match
-    ranks first (research R7)."""
-    contains, prefix = like_patterns(q)
+def first_author_key() -> Any:
+    """The book's first author's sort name, lower-cased: the Author sort (My books and the
+    Catalog page)."""
+    return (
+        select(func.lower(models.Author.sort_name))
+        .join(models.BookAuthor, models.BookAuthor.author_id == models.Author.id)
+        .where(models.BookAuthor.book_id == models.Book.id)
+        .order_by(models.BookAuthor.position)
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
+def _book_matches(q: str, *, series: bool) -> list[ColumnElement[bool]]:
+    """Title, author name, real name or a story's title (spec 009), and with ``series`` the
+    series name (spec 010 R2; the query must join ``Series``)."""
+    contains = like_patterns(q)[0]
     by_author = exists().where(
         models.BookAuthor.book_id == models.Book.id,
         models.BookAuthor.author_id == models.Author.id,
@@ -320,10 +331,26 @@ async def search_books(
         models.Story.title.ilike(contains, escape="\\"),
     )
     conditions = [models.Book.title.ilike(contains, escape="\\"), by_author, by_story]
+    if series:
+        conditions.append(models.Series.name.ilike(contains, escape="\\"))
+    return conditions
+
+
+def _isbn_first(isbn_13: str) -> Any:
+    return func.coalesce(models.Book.isbn_13 == isbn_13, False).desc()
+
+
+async def search_books(
+    db: AsyncSession, q: str, limit: int, isbn_13: str | None = None
+) -> list[domain.Book]:
+    """Type-ahead: title, author name, real name or a story's title (spec 009); an exact
+    ISBN match ranks first (research R7)."""
+    conditions = _book_matches(q, series=False)
     order: list[Any] = []
     if isbn_13 is not None:
         conditions.append(models.Book.isbn_13 == isbn_13)
-        order.append(func.coalesce(models.Book.isbn_13 == isbn_13, False).desc())
+        order.append(_isbn_first(isbn_13))
+    prefix = like_patterns(q)[1]
     order += [models.Book.title.ilike(prefix, escape="\\").desc(), func.lower(models.Book.title)]
     rows = (
         (
@@ -336,6 +363,70 @@ async def search_books(
         .all()
     )
     return [to_book(row) for row in rows]
+
+
+CATALOG_SORTS = ("title", "-title", "author", "series", "-added")
+
+
+def _catalog_order(sort: str) -> list[Any]:
+    """Spec 010 R4. Ties end on title, then id, so pages are stable."""
+    title = func.lower(models.Book.title)
+    primary: list[Any]
+    if sort == "-title":
+        return [title.desc(), models.Book.id.asc()]
+    if sort == "author":
+        primary = [first_author_key().asc().nulls_last()]
+    elif sort == "series":
+        primary = [
+            func.lower(models.Series.name).asc().nulls_last(),
+            models.Book.series_number.asc().nulls_last(),
+        ]
+    elif sort == "-added":
+        primary = [models.Book.created_at.desc()]
+    else:
+        primary = []
+    return [*primary, title.asc(), models.Book.id.asc()]
+
+
+async def browse_books(
+    db: AsyncSession,
+    *,
+    page: int,
+    page_size: int,
+    q: str | None = None,
+    isbn_13: str | None = None,
+    sort: str = "title",
+    exclude: ColumnElement[bool] | None = None,
+) -> tuple[list[domain.Book], int, int]:
+    """The Catalog page (spec 010 R1): (books, total, page), the page clamped to the last
+    one. ``exclude`` is a condition from the user-bound reading repository (R3)."""
+    filtered = select(models.Book).outerjoin(
+        models.Series, models.Series.id == models.Book.series_id
+    )
+    order: list[Any] = []
+    if q:
+        conditions = _book_matches(q, series=True)
+        if isbn_13 is not None:
+            conditions.append(models.Book.isbn_13 == isbn_13)
+            order.append(_isbn_first(isbn_13))
+        filtered = filtered.where(or_(*conditions))
+    if exclude is not None:
+        filtered = filtered.where(exclude)
+    total = int(await db.scalar(select(func.count()).select_from(filtered.subquery())) or 0)
+    page = max(1, min(page, (total + page_size - 1) // page_size))
+    rows = (
+        (
+            await db.execute(
+                filtered.order_by(*order, *_catalog_order(sort))
+                .limit(page_size)
+                .offset((page - 1) * page_size)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    return [to_book(row) for row in rows], total, page
 
 
 async def search_authors(db: AsyncSession, q: str, limit: int) -> list[domain.Author]:

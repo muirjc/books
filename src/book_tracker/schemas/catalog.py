@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self, get_args
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from book_tracker.domain.enums import SummaryOrigin
 from book_tracker.domain.values import PEN_NAME_FIRST
@@ -253,3 +254,49 @@ class StoryUpdate(RequestModel):
     def _something(self) -> Self:
         _require_changes(self, nullable=set())
         return self
+
+
+PAGE_RE = re.compile(r"[0-9]{1,6}")
+
+
+def parse_page(raw: object) -> int:
+    """A page number from a query string: ASCII digits, at least 1; anything else is 1."""
+    text = raw if isinstance(raw, str) else ""
+    return int(text) if PAGE_RE.fullmatch(text) and int(text) >= 1 else 1
+
+
+CatalogSort = Literal["title", "-title", "author", "series", "-added"]
+CATALOG_SORT_VALUES: tuple[str, ...] = get_args(CatalogSort)
+
+
+class CatalogQuery(BaseModel):
+    """The Catalog page's query string (spec 010). Bad values fall back to the defaults
+    rather than failing, as on My books."""
+
+    model_config = ConfigDict(frozen=True)
+
+    q: str = ""
+    sort: CatalogSort = "title"
+    not_mine: bool = False
+    page: int = Field(default=1, ge=1)
+
+    @field_validator("q", mode="before")
+    @classmethod
+    def _q(cls, value: object) -> str:
+        text = value if isinstance(value, str) else ""
+        return text.replace("\x00", "").strip()[:200]  # PostgreSQL text has no NUL
+
+    @field_validator("sort", mode="before")
+    @classmethod
+    def _sort(cls, value: object) -> str:
+        return value if isinstance(value, str) and value in CATALOG_SORT_VALUES else "title"
+
+    @field_validator("not_mine", mode="before")
+    @classmethod
+    def _not_mine(cls, value: object) -> bool:
+        return value is True or value == "1"
+
+    @field_validator("page", mode="before")
+    @classmethod
+    def _page(cls, value: object) -> int:
+        return parse_page(value)

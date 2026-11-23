@@ -1,0 +1,8 @@
+{#- Spec 010: the one live text (PR #29 review), so a swap announces the count, not 50 rows. -#}
+{%- if view.total == 0 -%}
+{{ "No catalog books match." if filtered else "The family catalog is empty." }}
+{%- elif filtered -%}
+{{ view.total }} book{{ "" if view.total == 1 else "s" }} match{{ "es" if view.total == 1 else "" }}
+{%- else -%}
+{{ view.total }} book{{ "" if view.total == 1 else "s" }} in the family catalog
+{%- endif -%}

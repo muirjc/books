@@ -333,9 +333,15 @@ async def add_entry(
     notes: str | None = None,
     pre_ordered: bool = False,
     now: datetime | None = None,
+    stories: Sequence[catalog_service.StoryForBook] = (),
 ) -> ReadingEntry:
-    """``now`` is the app clock; a summary from an AI draft is judged by it (spec 012)."""
+    """``now`` is the app clock; a summary from an AI draft is judged by it (spec 012).
+
+    ``stories`` go in the new book (spec 013); the caller's transaction makes the book, its
+    stories and the entry all-or-nothing."""
     repo = ReadingEntryRepository(db, user_id)
+    if stories and new_book is None:
+        raise ValidationFailed.single("stories", "Stories can only be added with a new book")
     if new_book is not None:
         try:
             book = await catalog_service.create_book(db, user_id, new_book)
@@ -349,6 +355,8 @@ async def add_entry(
                 db, user_id, book_id, new_book.summary,
                 draft_id=new_book.summary_draft_id, now=now or datetime.now(UTC),
             )  # fmt: skip
+        if stories:
+            await catalog_service.add_book_stories(db, user_id, book, stories)
     elif book_id is None or not await catalog.book_exists(db, book_id):
         raise NotFoundError()
     existing = await repo.get_by_book(book_id)

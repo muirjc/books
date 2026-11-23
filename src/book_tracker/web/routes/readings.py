@@ -24,10 +24,16 @@ from book_tracker.services import catalog as catalog_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
 from book_tracker.services.catalog import AUTHOR_DELETED, NewBook
-from book_tracker.services.errors import ConflictError, NotFoundError, ValidationFailed
+from book_tracker.services.errors import (
+    ConflictError,
+    NotFoundError,
+    StoryNumberTaken,
+    ValidationFailed,
+)
 from book_tracker.sources.base import BookSource
 from book_tracker.sources.dependencies import BookSourceDep
 from book_tracker.sources.summary_generator import SummaryGenerator, SummaryGeneratorDep
+from book_tracker.web import anthology
 from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import (
     AddBookForm,
@@ -55,6 +61,10 @@ MESSAGES = {
     "merged": MERGED,
     "reread": "Started a re-read.",
     "password": "Your password has been changed.",
+    # Spec 013 AC-20: the existing book was added instead of the one typed with stories.
+    "stories_not_added": (
+        "Added to your list. The stories you typed were not added. Add them from Edit book."
+    ),
 }
 STATUSES = [
     (s.value, label)
@@ -67,7 +77,16 @@ STATUSES = [
 
 
 def message(request: Request) -> str | None:
-    return MESSAGES.get(request.query_params.get("msg", ""))
+    code = request.query_params.get("msg", "")
+    n = stories_added(request)
+    if code == "added" and n:  # spec 013
+        return f"Added to your list, with {n} stor{'y' if n == 1 else 'ies'}."
+    return MESSAGES.get(code)
+
+
+def stories_added(request: Request) -> int:
+    """Spec 013: how many stories the save that led here added (0 when none or invalid)."""
+    return anthology.stories_count(request.query_params.get("stories", ""))
 
 
 def page_number(request: Request) -> int:
@@ -184,7 +203,15 @@ async def series_page(
     if added is not None and (added.book.series is None or added.book.series.id != series.id):
         added = None  # only a book in this series (PR #22 review)
     return render(
-        request, "pages/series.html", {"series": series, "view": view, "added": added}, auth=auth
+        request,
+        "pages/series.html",
+        {
+            "series": series,
+            "view": view,
+            "added": added,
+            "stories_added": stories_added(request) if added else 0,
+        },
+        auth=auth,
     )
 
 
@@ -232,13 +259,21 @@ def _add_form(
     summary_draft: DraftView | None = None,
     draft_error: str | None = None,
     drafts_left: int | None = None,
+    taken_rows: dict[int, domain.Story] | None = None,
+    story_focus: str | None = None,
 ) -> Response:
+    form = form or AddBookForm()
+    if chosen is None:
+        anthology.ensure_a_row(form)  # spec 013: the story section shows with a row
     return render(
         request,
         "pages/add_book.html",
         {
-            "form": form or AddBookForm(),
+            "form": form,
             "added": added,
+            "stories_added": stories_added(request) if added else 0,
+            "taken_rows": taken_rows or {},
+            "story_focus": story_focus,
             "chosen": chosen,
             "statuses": STATUSES,
             "conflict": conflict,
@@ -356,6 +391,11 @@ async def add_book(
             regenerate=action == "regenerate_summary",
         )  # fmt: skip
     if form.book_id is None:
+        redraw = await anthology.story_action(db, form, data)  # spec 013: nothing saved
+        if redraw is not None:
+            return _add_form(
+                request, auth, form, status_code=redraw.status_code, story_focus=redraw.focus
+            )
         await new_name_prompts(db, form)  # spec 005: shown with any field errors
     # A chosen catalog book shows again as details, not editable fields (spec 006).
     chosen = await _chosen_book(db, form.book_id)
@@ -363,6 +403,10 @@ async def add_book(
         return _add_form(request, auth, form, status_code=422, chosen=chosen)
     if form.new_names:
         return _add_form(request, auth, form, status_code=409)
+    if form.book_id is None:
+        taken = await anthology.taken_story_rows(db, form)  # spec 013 AC-13
+        if taken or form.errors:  # a taken number, or a chosen story deleted meanwhile
+            return _add_form(request, auth, form, status_code=409, taken_rows=taken)
     user_id = auth.account.id
     try:
         if form.book_id is not None:
@@ -395,6 +439,7 @@ async def add_book(
                     author_conflicts=author_conflicts,
                     series_conflict=series_conflict,
                 )
+            stories = await anthology.stories_to_save(db, auth, form)
             try:
                 book = BookCreate(
                     title=form.title,
@@ -427,11 +472,17 @@ async def add_book(
                 finished_on=form.finished_on,
                 notes=form.notes,
                 pre_ordered=form.pre_ordered,
+                stories=stories,
             )
+    except StoryNumberTaken as exc:  # another member took the number a moment ago (AC-16)
+        lost = anthology.save_errors(form, exc) or {}
+        return _add_form(request, auth, form, status_code=409, taken_rows=lost)
     except ConflictError as exc:
         return _add_form(request, auth, form, status_code=409, conflict=exc, chosen=chosen)
     except ValidationFailed as exc:
-        if any(e.field.endswith("author_ids") for e in exc.errors):
+        if anthology.save_errors(form, exc) is not None:
+            pass  # a story's error, shown on its row
+        elif any(e.field.endswith("author_ids") for e in exc.errors):
             # A chosen author was deleted meanwhile (spec 008, PR #24 review).
             form.errors["author_name_0"] = AUTHOR_DELETED
         else:
@@ -440,12 +491,16 @@ async def add_book(
     except NotFoundError:
         form.errors["title"] = "That book is no longer in the catalog. Enter its details."
         return _add_form(request, auth, form, status_code=422)
+    if form.book_id is not None and text(data, "dropped_stories") == "yes":  # spec 013 AC-20
+        return RedirectResponse(f"/entries/{entry.id}?msg=stories_not_added", status_code=303)
     if form.then == "another":
-        return RedirectResponse(f"/books/add?after={entry.id}", status_code=303)
+        location = anthology.with_stories(f"/books/add?after={entry.id}", form)
+        return RedirectResponse(location, status_code=303)
     back = await _existing_series(db, form.from_series)
     if back is not None:  # spec 006: the path is built from a parsed, existing series id
-        return RedirectResponse(f"/series/{back.id}?added={entry.id}", status_code=303)
-    return RedirectResponse("/?msg=added", status_code=303)
+        location = anthology.with_stories(f"/series/{back.id}?added={entry.id}", form)
+        return RedirectResponse(location, status_code=303)
+    return RedirectResponse(anthology.with_stories("/?msg=added", form), status_code=303)
 
 
 NEW_NAME = "“{}” is not in the family catalog yet"
@@ -501,12 +556,25 @@ async def new_name_prompts(db: DbSession, form: AddBookForm) -> None:
     if form.names_checked:
         return
     form.names_checked = True
+    used: dict[str, dict[str, tuple[uuid.UUID, str]]] = {"author": {}, "series": {}}
+    await _book_name_prompts(db, form, used)
+    state = anthology.NameState.from_book(form)  # spec 013: the rows come after the book
+    state.used = used
+    await anthology.story_name_prompts(db, form, state)
+
+
+async def _book_name_prompts(
+    db: DbSession, form: AddBookForm, used: dict[str, dict[str, tuple[uuid.UUID, str]]]
+) -> None:
+    """The book's own names; "Use …" choices are recorded in ``used`` by typed name."""
     confirmed = {row.name for row in form.chosen_authors if row.confirmed == row.name}
     candidates: catalog_service.Candidates | None = None
     for row in form.chosen_authors:
         field = f"author_name_{row.index}"
         chosen = await _chosen_author(db, row)
         if chosen is not None:
+            if chosen.name.lower() != row.name.lower():
+                used["author"][row.name.lower()] = (chosen.id, chosen.name)
             form.raw[f"author_id_{row.index}"] = str(chosen.id)
             form.raw[field] = chosen.name
             continue
@@ -523,6 +591,8 @@ async def new_name_prompts(db: DbSession, form: AddBookForm) -> None:
         return
     series = await _chosen_series(db, form)
     if series is not None:
+        if series.name.lower() != name.lower():
+            used["series"][name.lower()] = (series.id, series.name)
         form.raw["series_id"] = str(series.id)
         form.raw["series_name"] = series.name
         return

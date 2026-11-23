@@ -108,7 +108,16 @@
     var target = document.getElementById(box.getAttribute("data-enables"));
     if (target) target.disabled = !box.checked;
   }
+  // Spec 013: "This book is an anthology or collection" shows or hides the story rows.
+  // Without JavaScript the rows are always shown; hidden rows are kept, never cleared.
+  function syncAnthology(box) {
+    var section = document.getElementById("stories");
+    if (section) section.hidden = !box.checked;
+  }
+  document.querySelectorAll("[data-anthology-toggle]").forEach(syncAnthology);
   document.addEventListener("change", function (event) {
-    if (event.target.matches && event.target.matches("[data-enables]")) syncToggle(event.target);
+    if (!event.target.matches) return;
+    if (event.target.matches("[data-enables]")) syncToggle(event.target);
+    if (event.target.matches("[data-anthology-toggle]")) syncAnthology(event.target);
   });
 })();

@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from book_tracker.domain.models import Story
 
 
 class ServiceError(Exception):
@@ -40,6 +44,21 @@ class ConflictError(ServiceError):
         super().__init__(code, title)
         self.existing_id = existing_id
         self.existing_label = existing_label
+
+
+class StoryNumberTaken(ConflictError):
+    """Item ``index`` of a new book's stories is at a series and number another story
+    holds (spec 013 AC-13, AC-16, AC-25)."""
+
+    def __init__(self, index: int, story: Story, label: str) -> None:
+        super().__init__(
+            "story_number_taken",
+            "Another story already has this number in the series",
+            existing_id=story.id,
+            existing_label=label,
+        )
+        self.index = index
+        self.story = story
 
 
 class SourceUnavailable(ServiceError):

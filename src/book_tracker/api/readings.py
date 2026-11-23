@@ -25,7 +25,7 @@ from book_tracker.schemas.readings import (
 )
 from book_tracker.schemas.types import drop_nul
 from book_tracker.services import readings as service
-from book_tracker.services.catalog import NewBook
+from book_tracker.services.catalog import NewBook, StoryForBook
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -112,12 +112,23 @@ async def add_reading(
             summary=nb.summary,
             release_date=nb.release_date,
         )
+    stories = [
+        StoryForBook(
+            story_id=item.story_id,
+            title=item.title or "",
+            series_number=item.series_number,
+            series_id=item.series_id,
+            author_ids=item.author_ids,
+        )
+        for item in body.stories or []
+    ]  # spec 013
     entry = await service.add_entry(
         db,
         auth.account.id,
         now=now(request),
         book_id=body.book_id,
         new_book=new_book,
+        stories=stories,
         status=body.status,
         finished_on=body.finished_on,
         notes=body.notes,

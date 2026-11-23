@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -31,6 +31,7 @@ from book_tracker.services.errors import (
     ConflictError,
     FieldError,
     NotFoundError,
+    StoryNumberTaken,
     ValidationFailed,
 )
 
@@ -69,6 +70,19 @@ class NewStory:
     series_number: Decimal
 
 
+@dataclass(frozen=True, slots=True)
+class StoryForBook:
+    """A story for a new book (spec 013): an existing one by ``story_id``, or a new one
+    whose missing series and authors are the book's."""
+
+    story_id: uuid.UUID | None = None
+    title: str = ""
+    series_number: Decimal | None = None
+    series_id: uuid.UUID | None = None
+    author_ids: list[uuid.UUID] | None = None
+
+
+NO_STORY_SERIES = "Choose a series for this story, or give the book a series"
 AUTHOR_DELETED = "An author you chose was just deleted from the catalog. Choose the author again."
 STORY_DELETED = "That story was just deleted from the catalog."
 
@@ -184,6 +198,18 @@ async def series_named(db: AsyncSession, name: str) -> bool:
 
 
 Candidates = list[tuple[uuid.UUID, str, tuple[str, ...]]]
+
+
+async def author_id_named(db: AsyncSession, name: str) -> uuid.UUID | None:
+    """The catalog author with exactly this name (any case), if any (spec 013)."""
+    found = await catalog.find_author_by_name(db, name)
+    return found[0] if found else None
+
+
+async def series_id_named(db: AsyncSession, name: str) -> uuid.UUID | None:
+    """The catalog series with exactly this name (any case), if any (spec 013)."""
+    found = await catalog.find_series_by_name(db, name)
+    return found[0] if found else None
 
 
 async def author_candidates(db: AsyncSession) -> Candidates:
@@ -543,6 +569,104 @@ async def add_existing_story(
     if added:
         logger.info("story %s added to book %s by member %s", story_id, book_id, actor_id)
     return await get_story(db, story_id), added
+
+
+async def stories_at(
+    db: AsyncSession, pairs: list[tuple[uuid.UUID, Decimal]]
+) -> dict[tuple[uuid.UUID, Decimal], domain.Story]:
+    """The stories holding any of these (series, number) pairs (spec 013, one query)."""
+    return await catalog.stories_at(db, pairs)
+
+
+async def add_book_stories(
+    db: AsyncSession, actor_id: uuid.UUID, book: domain.Book, stories: Sequence[StoryForBook]
+) -> None:
+    """Put each story in a just-created book, in order (spec 013). The caller's transaction
+    makes it all-or-nothing; errors name the item as ``stories.<i>.<field>``.
+
+    Up to 50 items, so lookups are batched: references are checked once, and numbers
+    already taken are found in one query before anything is inserted."""
+    new: list[tuple[int, NewStory]] = []
+    book_authors = [author.id for author in book.authors]
+    for i, item in enumerate(stories):
+        if item.story_id is not None:
+            continue
+        series_id = item.series_id or (book.series.id if book.series else None)
+        if series_id is None:
+            raise ValidationFailed.single(f"stories.{i}.series_id", NO_STORY_SERIES)
+        assert item.series_number is not None  # noqa: S101 - callers validate it
+        title = normalize_name(item.title)
+        new.append(
+            (i, NewStory(title, item.author_ids or book_authors, series_id, item.series_number))
+        )
+    seen: dict[tuple[uuid.UUID, Decimal], int] = {}
+    for i, n in new:  # e.g. two rows that a "Use …" name choice made one series (PR #33)
+        first = seen.setdefault((n.series_id, n.series_number), i)
+        if first != i:
+            raise ValidationFailed.single(
+                f"stories.{i}.series_number",
+                "Has the same series and number as another story in this save",
+            )
+    await _check_story_references(db, new)
+    taken = await stories_at(db, [(n.series_id, n.series_number) for _, n in new])
+    for i, n in new:
+        if (n.series_id, n.series_number) in taken:
+            story = taken[(n.series_id, n.series_number)]
+            raise StoryNumberTaken(i, story, story_label(story))
+    created = {i: n for i, n in new}
+    for i, item in enumerate(stories):
+        if item.story_id is not None:
+            try:
+                await add_existing_story(db, actor_id, book.id, item.story_id)
+            except NotFoundError:
+                raise ValidationFailed.single(f"stories.{i}.story_id", STORY_DELETED) from None
+            continue
+        await _create_book_story(db, actor_id, book.id, i, created[i])
+    logger.info("%d stories added to new book %s by member %s", len(stories), book.id, actor_id)
+
+
+async def _check_story_references(db: AsyncSession, new: list[tuple[int, NewStory]]) -> None:
+    """Every author and series named exists; else the first item naming a missing one."""
+    author_ids = list({a for _, n in new for a in n.author_ids})
+    known_authors = await catalog.existing_author_ids(db, author_ids)
+    missing_series = {
+        series_id
+        for series_id in {n.series_id for _, n in new}
+        if not await catalog.series_exists(db, series_id)
+    }
+    for i, n in new:
+        errors = []
+        if set(n.author_ids) - known_authors:
+            errors.append(
+                FieldError(f"stories.{i}.author_ids", "One or more authors are not in the catalog")
+            )
+        if n.series_id in missing_series:
+            errors.append(FieldError(f"stories.{i}.series_id", "That series is not in the catalog"))
+        if errors:
+            raise ValidationFailed(errors)
+
+
+async def _create_book_story(
+    db: AsyncSession, actor_id: uuid.UUID, book_id: uuid.UUID, index: int, new: NewStory
+) -> None:
+    async def create() -> None:
+        story_id = await catalog.create_story(
+            db, title=new.title, author_ids=new.author_ids, series_id=new.series_id,
+            series_number=new.series_number, actor_id=actor_id,
+        )  # fmt: skip
+        await catalog.link_story(db, book_id, story_id)
+
+    try:
+        await guarded(db, create, series_id=new.series_id, series_number=new.series_number)
+    except ValidationFailed as exc:  # e.g. an author deleted meanwhile (spec 008)
+        raise ValidationFailed(
+            [FieldError(f"stories.{index}.{e.field}", e.message) for e in exc.errors]
+        ) from None
+    except ConflictError as exc:  # another member took the number a moment ago (AC-16)
+        story = await story_at(db, new.series_id, new.series_number)
+        if story is None or exc.code != "story_number_taken":  # pragma: no cover - defensive
+            raise
+        raise StoryNumberTaken(index, story, story_label(story)) from None
 
 
 async def update_story(

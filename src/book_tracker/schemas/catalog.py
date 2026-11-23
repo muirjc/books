@@ -324,6 +324,36 @@ class StoryAdd(RequestModel):
         return self
 
 
+MAX_NEW_BOOK_STORIES = 50  # spec 013
+
+
+class NewBookStory(RequestModel):
+    """A story for a new book (spec 013): an existing one (``story_id``), or a new one with
+    ``title`` and ``series_number``. A new story's series and authors default to the
+    book's."""
+
+    story_id: uuid.UUID | None = None
+    title: Title | None = None
+    series_number: SeriesNumberIn = None
+    series_id: uuid.UUID | None = None
+    author_ids: AuthorIds | None = None
+
+    _unique_authors = field_validator("author_ids")(
+        lambda ids: _unique(ids) if ids is not None else ids
+    )
+
+    @model_validator(mode="after")
+    def _one_shape(self) -> Self:
+        if self.story_id is not None:
+            if self.model_fields_set - {"story_id"}:
+                raise ValueError("Give either story_id or a new story's details, not both")
+            return self
+        missing = [name for name in ("title", "series_number") if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f"A new story needs {' and '.join(missing)}")
+        return self
+
+
 class StoryUpdate(RequestModel):
     title: Title | None = None
     author_ids: AuthorIds | None = None

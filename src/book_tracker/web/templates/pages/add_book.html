@@ -5,7 +5,7 @@
 <h1>Add a book</h1>
 <p class="muted">Adding several books by one author? <a href="/import">Import them from Open Library</a>.</p>
 {% if added %}
-<p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list.</p>
+<p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list{% if stories_added %}, with {{ stories_added }} stor{{ "y" if stories_added == 1 else "ies" }}{% endif %}.</p>
 {% endif %}
 {{ error_summary(form.errors) }}
 
@@ -30,6 +30,8 @@
     <input type="hidden" name="pre_ordered" value="{{ 'yes' if form.pre_ordered else '' }}">
     <input type="hidden" name="then" value="{{ form.then }}">
     {% if form.from_series %}<input type="hidden" name="from_series" value="{{ form.from_series }}">{% endif %}
+    {#- Spec 013 AC-20: the typed stories are not added to the existing book; say so. -#}
+    {% if form.filled_stories %}<input type="hidden" name="dropped_stories" value="yes">{% endif %}
     <button type="submit" name="book_id" value="{{ conflict.existing_id }}">Add “{{ conflict.existing_label }}” to my list instead</button>
   </form>
   {% else %}
@@ -55,6 +57,7 @@
     <p><strong>{{ chosen.title }}</strong> · {{ authors_line(chosen) }}{% if chosen.series %} · {{ series_line(chosen) }}{% endif %}{% set release = release_label(chosen, today) %}{% if release | trim %} · {{ release }}{% endif %}</p>
     <input type="hidden" name="book_id" value="{{ chosen.id }}">
     <p><a href="/books/add{% if form.from_series %}?from_series={{ form.from_series }}{% endif %}">Add a different book</a></p>
+    <p class="hint">A book's stories can be added from its Edit book page once it's on your list.</p>
   </div>
   {% else %}
   {% with suggest_title=true %}{% include "partials/book_fields.html" %}{% endwith %}
@@ -87,6 +90,7 @@
   {% include "partials/entry_fields.html" %}
   </div>
   </div>
+  {% if not chosen %}{% include "partials/story_rows.html" %}{% endif %}
   <div class="form-actions">
     <button type="submit" name="then" value="list" class="button-primary">Add to my list</button>
     <button type="submit" name="then" value="another">Add and add another</button>

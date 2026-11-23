@@ -1,0 +1,82 @@
+{#- Spec 013: an anthology's stories on Add a book. Expects: form (AddBookForm),
+    taken_rows ({row index: Story}), story_focus ("new", "heading" or none).
+    Without JavaScript the section is always shown; app.js hides it while the box is
+    unticked (research R4). The buttons redraw the form and save nothing (R3). -#}
+{% from "macros.html" import described, field_error %}
+<div class="field anthology-choice">
+  <div class="checkbox-field">
+    <input type="checkbox" id="anthology" name="anthology" value="yes" data-anthology-toggle
+           {%- if form.anthology %} checked{% endif %}{{ described(form.errors, "anthology") }}>
+    <label for="anthology">This book is an anthology or collection</label>
+  </div>
+  {{ field_error(form.errors, "anthology") }}
+</div>
+<section id="stories" class="stories" aria-labelledby="stories-heading">
+  <h2 id="stories-heading"{% if story_focus == "heading" %} tabindex="-1" autofocus{% endif %}>Stories in this book</h2>
+  <p class="hint" id="stories-hint">Leave Series blank to use the book's series, and Author blank to use all the book's authors. A story with several authors of its own gets the others on Edit book.</p>
+  {% set last = form.stories | length - 1 %}
+  {% for row in form.stories %}
+  {% set i = row.index %}
+  <fieldset class="story-row" id="story-{{ i }}">
+    <legend>{{ row.label }}</legend>
+    {% if row.story_id %}
+    {#- An existing story chosen with "Use that story" (AC-13): linked, not edited. -#}
+    {#- Ids for the error summary's links (PR #33 review); tabindex lets a link focus them. -#}
+    <p class="chosen-story" id="story_title_{{ i }}" tabindex="-1"><span id="story_number_{{ i }}" tabindex="-1">#{{ row.number_text }}</span> “{{ row.title }}” ({{ row.series_name or form.series_name }}), already in the catalog.</p>
+    <input type="hidden" name="story_id_{{ i }}" value="{{ row.story_id }}">
+    <input type="hidden" name="story_title_{{ i }}" value="{{ row.title }}">
+    <input type="hidden" name="story_number_{{ i }}" value="{{ row.number_text }}">
+    <input type="hidden" name="story_series_name_{{ i }}" value="{{ row.series_name }}">
+    {{ field_error(form.errors, "story_title_" ~ i) }}
+    {{ field_error(form.errors, "story_number_" ~ i) }}
+    {% else %}
+    <div class="field-row">
+      <div class="field">
+        <label for="story_title_{{ i }}">Title</label>
+        <input id="story_title_{{ i }}" name="story_title_{{ i }}" type="text" maxlength="300"
+               value="{{ row.title }}"{{ described(form.errors, "story_title_" ~ i) }}
+               {%- if story_focus == "new" and loop.last %} autofocus{% endif %}>
+        {{ field_error(form.errors, "story_title_" ~ i) }}
+      </div>
+      <div class="field story-number">
+        <label for="story_number_{{ i }}">Number</label>
+        <input id="story_number_{{ i }}" name="story_number_{{ i }}" type="text" inputmode="decimal"
+               maxlength="6" value="{{ row.number_text }}"{{ described(form.errors, "story_number_" ~ i) }}>
+        {{ field_error(form.errors, "story_number_" ~ i) }}
+        {% set taken = taken_rows.get(i) %}
+        {% if taken %}
+        <div class="conflict" id="story_number_{{ i }}-taken">
+          <p><strong>#{{ taken.series_number | series_number }} “{{ taken.title }}”</strong> is already in the catalog, in {{ taken.books | map(attribute="title") | join(", ") }}.</p>
+          <p>If it's the same story, use it; otherwise change the number.</p>
+          <button type="submit" name="use_story_{{ i }}" value="{{ taken.id }}">Use that story</button>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="field-row">
+      {% for kind, label, suggest in (("series", "Series (optional)", "series"), ("author", "Author (optional)", "authors")) %}
+      {% set name_key = "story_" ~ kind ~ "_name_" ~ i %}
+      {% set id_key = "story_" ~ kind ~ "_id_" ~ i %}
+      {% set confirm_key = "confirm_story_" ~ kind ~ "_" ~ i %}
+      <div class="field">
+        <label for="{{ name_key }}">{{ label }}</label>
+        {% with name=name_key, kind=suggest, id_field=id_key, value=form.raw.get(name_key, ""), errors=form.errors, maxlength=200, describedby_extra="stories-hint" %}{% include "partials/combobox.html" %}{% endwith %}
+        <input type="hidden" id="{{ id_key }}" name="{{ id_key }}" value="{{ form.raw.get(id_key, '') }}">
+        {% if form.raw.get(confirm_key) %}<input type="hidden" name="{{ confirm_key }}" value="{{ form.raw.get(confirm_key) }}">{% endif %}
+        {{ field_error(form.errors, name_key) }}
+        {% if form.new_names.get(name_key) %}{% with nn=form.new_names.get(name_key) %}{% include "partials/new_name.html" %}{% endwith %}{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if last > 0 %}
+    <button type="submit" name="action" value="remove_story:{{ i }}" class="button-secondary">Remove story {{ i + 1 }}</button>
+    {% endif %}
+  </fieldset>
+  {% endfor %}
+  {% if form.stories | length < 50 %}
+  <button type="submit" name="action" value="add_story">Add another story</button>
+  {% else %}
+  <p class="muted">50 stories is the most for one save.</p>
+  {% endif %}
+</section>

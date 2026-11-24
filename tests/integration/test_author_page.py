@@ -16,8 +16,8 @@ import pytest
 
 from tests.conftest import Factory, TestUser, signed_in
 
-ROW = re.compile(  # spec 015: a title links to my entry when the book is on my list
-    r'class="book-title" href="(?:/catalog/books/([0-9a-f-]{36})/edit|/entries/[0-9a-f-]{36})">'
+ROW = re.compile(  # spec 016 AC-07: a title opens the book page
+    r'class="book-title" href="/books/([0-9a-f-]{36})">'
     r"([^<]+)</a>"
 )
 

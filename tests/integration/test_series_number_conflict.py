@@ -116,7 +116,7 @@ async def test_series_page_lists_every_catalog_book_in_the_series(
     ]  # fmt: skip
     assert "#5" in text and "#1" in text and "No number" in text
     for book in (dresden["rites"], dresden["storm"], guilty):
-        assert _edit_link(book) in page.text
+        assert f'href="/books/{book}"' in page.text  # spec 016 AC-07: the book page
 
 
 async def test_series_rename_errors_still_list_the_books(

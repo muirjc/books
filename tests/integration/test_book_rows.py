@@ -34,7 +34,7 @@ async def test_one_row_layout_with_my_status(
         title, meta, status = (mort.find('class="book-title"'), mort.find('class="book-meta"'),
                                mort.find('class="row-status"'))  # fmt: skip
         assert -1 < title < meta < status, path
-        assert f'href="/entries/{w["mort_entry"]}"' in mort  # the title opens my entry
+        assert f'<a class="book-title" href="/books/{w["mort"]}">' in mort  # spec 016 AC-07
         assert re.search(
             rf'<a class="badge status-link" href="/entries/{w["mort_entry"]}">Reading'
             r'<span class="visually-hidden">: “Mort”</span></a>', mort,
@@ -43,7 +43,7 @@ async def test_one_row_layout_with_my_status(
         assert "On my list" not in text_of(mort)
         gods = row(page, w["gods"])
         assert "Not on my list" in text_of(gods)
-        assert f'href="/catalog/books/{w["gods"]}/edit"' in gods  # not mine: Edit book
+        assert f'<a class="book-title" href="/books/{w["gods"]}">' in gods  # spec 016 AC-07
         assert gods.find('class="row-status"') < gods.find("want-to-read")
 
 

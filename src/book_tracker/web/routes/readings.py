@@ -920,6 +920,26 @@ async def update_entry(
     return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
 
 
+@router.get("/books/{book_id}")
+async def book_page(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
+    """Spec 016: a catalog book, read-only, with only my own entry (Principle I)."""
+    book = await catalog_service.get_book(db, book_id)  # 404 if missing
+    return render(
+        request,
+        "pages/book.html",
+        {
+            "book": book,
+            "entry": await service.entry_for_book(db, auth.account.id, book.id),
+            "stories": await catalog_service.book_stories(db, book.id),
+            "source_ref": await imports_service.source_ref(db, book.id),
+            "quick": await quick.notice(request, db, auth),
+            "message": message(request),
+            "today": today(request),
+        },
+        auth=auth,
+    )
+
+
 @router.post("/books/{book_id}/want-to-read")
 async def want_to_read(
     book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession

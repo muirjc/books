@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "macros.html" import release_label, series_line, status_badge, quick_add %}
+{% block title %}{{ book.title }}{% endblock %}
+{% block content %}
+{#- Spec 016: a catalog book, read-only. Only my own entry is used (Principle I). The id
+    is the spec 015 quick add's anchor. -#}
+<h1 id="book-{{ book.id }}">{{ book.title }}</h1>
+<p class="book-byline">By {% for a in book.authors %}<a href="/authors/{{ a.id }}">{{ a.name }}</a>{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}{{ ", " if not loop.last }}{% endfor %}</p>
+{% if book.series %}<p class="book-series"><a href="/series/{{ book.series.id }}">{{ series_line(book) }}</a></p>{% endif %}
+{% set release = release_label(book, today, entry) %}
+{% if is_upcoming(book.release_date, today) %}<p class="release">{{ release }}</p>
+{% elif book.release_date %}<p class="release">Released {{ book.release_date | nice_date }}{% if release | trim %} · {{ release }}{% endif %}</p>{% endif %}
+{% include "partials/source_ref.html" %}
+
+{% include "partials/quick_notice.html" %}
+<section aria-labelledby="my-reading-heading" class="book-mine">
+  <h2 id="my-reading-heading">My reading</h2>
+  {% if entry %}
+  <p class="row-status">{{ status_badge(entry, book.title) }}{% if entry.finished_on %} · {{ entry.finished_on | nice_date }}{% endif %}</p>
+  <p><a class="series-action" href="/entries/{{ entry.id }}">Open my entry</a></p>
+  {% else %}
+  <p class="row-status">Not on my list</p>
+  {{ quick_add(book.id, book.title, "/books/" ~ book.id, csrf_token, "/books/add?book=" ~ book.id) }}
+  {% endif %}
+</section>
+
+<section aria-labelledby="summary-heading">
+  <h2 id="summary-heading">Summary</h2>
+  {% if book.current_summary %}
+  <p>{{ book.current_summary.text }}</p>
+  <p class="muted">Written by {{ book.current_summary.created_by.display_name }} on {{ book.current_summary.created_at | nice_date }}</p>
+  {% else %}
+  <p class="muted">No summary yet.</p>
+  {% endif %}
+  <div class="form-actions">
+    <a href="/catalog/books/{{ book.id }}/summary">{% if book.current_summary %}Write a new summary{% else %}Write a summary{% endif %}</a>
+    <form method="post" action="/catalog/books/{{ book.id }}/summary/draft">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Draft with AI</button>
+    </form>
+  </div>
+</section>
+
+<section aria-labelledby="stories-heading">
+  <h2 id="stories-heading">Stories in this book</h2>
+  {% if stories %}
+  {% with editable=false, also_in=true %}{% include "partials/book_stories.html" %}{% endwith %}
+  {% else %}
+  <p class="muted">No stories recorded. If this book is an anthology or collection, add its stories.</p>
+  {% endif %}
+  <p><a href="/catalog/books/{{ book.id }}/stories/add?from=page">Add a story</a></p>
+</section>
+
+<section aria-labelledby="more-heading">
+  <h2 id="more-heading">More</h2>
+  <ul>
+    <li><a href="/catalog/books/{{ book.id }}/edit">Edit book</a></li>
+    {% for a in book.authors %}<li>All books by <a href="/authors/{{ a.id }}">{{ a.name }}</a></li>{% endfor %}
+    {% if book.series %}<li><a href="/series/{{ book.series.id }}">All of {{ book.series.name }}</a></li>{% endif %}
+  </ul>
+</section>
+{% endblock %}

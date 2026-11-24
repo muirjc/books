@@ -5,6 +5,7 @@ contracts/ui-stories.md."""
 from __future__ import annotations
 
 import uuid
+from typing import Final, Literal
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
@@ -41,7 +42,7 @@ def _page(
     author_conflicts: dict[int, ConflictError] | None = None,
     series_conflict: ConflictError | None = None,
     status_code: int = 200,
-    entry_id: uuid.UUID | None = None,
+    entry_id: Origin = None,
     added_label: str | None = None,
     back: tuple[str, str] | None = None,
     back_from: str = "",
@@ -52,7 +53,7 @@ def _page(
         request,
         name,
         {
-            "origin": f"entry:{entry_id}" if entry_id else "",
+            "origin": _origin_value(entry_id),
             "back_url": _back(book, entry_id) if book is not None else None,
             "added_label": added_label,
             "already": already,
@@ -79,11 +80,18 @@ def _field_errors(form: AddBookForm, exc: ValidationFailed) -> None:
     )
 
 
-async def _origin(
-    db: DbSession, auth: Authenticated, book: domain.Book, raw: str
-) -> uuid.UUID | None:
+# Where Add a story came from: my entry for the book (spec 014 R1), the book page (spec 016
+# R3), or Edit book (None).
+PAGE: Final = "page"
+Origin = uuid.UUID | Literal["page"] | None
+
+
+async def _origin(db: DbSession, auth: Authenticated, book: domain.Book, raw: str) -> Origin:
     """``from=entry:<id>`` (spec 014 R1): my own entry for this book, or None. Only an id
-    is taken from it, so it can never send the member elsewhere."""
+    is taken from it, so it can never send the member elsewhere. ``from=page`` (spec 016):
+    this book's page; it carries no address at all."""
+    if raw == PAGE:
+        return PAGE
     kind, _, value = raw.partition(":")
     if kind != "entry":
         return None
@@ -94,21 +102,33 @@ async def _origin(
     return entry.id if entry.book.id == book.id else None
 
 
-def _back(book: domain.Book, entry_id: uuid.UUID | None) -> str:
-    return f"/entries/{entry_id}" if entry_id else f"/catalog/books/{book.id}/edit#stories"
+def _origin_value(origin: Origin) -> str:
+    """The ``from`` value that carries ``origin`` to the next request."""
+    if origin == PAGE:
+        return PAGE
+    return f"entry:{origin}" if origin else ""
+
+
+def _back(book: domain.Book, origin: Origin) -> str:
+    if origin == PAGE:
+        return f"/books/{book.id}"
+    return f"/entries/{origin}" if origin else f"/catalog/books/{book.id}/edit#stories"
 
 
 def _after_add(
-    book: domain.Book, story_id: uuid.UUID, msg: str, entry_id: uuid.UUID | None, another: bool
+    book: domain.Book, story_id: uuid.UUID, msg: str, origin: Origin, another: bool
 ) -> Response:
-    """Spec 014 AC-03, AC-04: a fresh form, my entry page, or Edit book as before."""
+    """Spec 014 AC-03, AC-04: a fresh form, my entry page, or Edit book as before; spec 016
+    AC-12: or the book page."""
     if another:
         already = "&already=1" if msg == "story_already" else ""
-        origin = f"&from=entry:{entry_id}" if entry_id else ""
-        url = f"/catalog/books/{book.id}/stories/add?added={story_id}{already}{origin}"
+        carried = f"&from={_origin_value(origin)}" if origin else ""
+        url = f"/catalog/books/{book.id}/stories/add?added={story_id}{already}{carried}"
         return RedirectResponse(url, status_code=303)
-    if entry_id is not None:
-        return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
+    if origin == PAGE:
+        return RedirectResponse(f"/books/{book.id}?msg={msg}#stories-heading", status_code=303)
+    if origin is not None:
+        return RedirectResponse(f"/entries/{origin}?msg={msg}", status_code=303)
     return _to_book(book.id, msg, story_id)
 
 

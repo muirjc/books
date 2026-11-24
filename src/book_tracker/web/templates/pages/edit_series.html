@@ -22,7 +22,7 @@
   {% for book in books %}
   <li>
     <span class="badge">{% if book.series_number is not none %}#{{ book.series_number | series_number }}{% else %}No number{% endif %}</span>
-    <a class="book-title" href="/catalog/books/{{ book.id }}/edit">{{ book.title }}</a>
+    <a class="book-title" href="/books/{{ book.id }}">{{ book.title }}</a>
   </li>
   {% endfor %}
 </ol>

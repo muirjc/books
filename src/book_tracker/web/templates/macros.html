@@ -80,7 +80,7 @@
     (authors · series · release), my status, then the actions. -#}
 {% macro book_row(book, entry, today, here, csrf_token) -%}
 <li class="catalog-row" id="book-{{ book.id }}">
-  <a class="book-title" href="{{ '/entries/' ~ entry.id if entry else '/catalog/books/' ~ book.id ~ '/edit' }}">{{ book.title }}</a>
+  <a class="book-title" href="/books/{{ book.id }}">{{ book.title }}</a>
   <span class="catalog-detail"><span class="book-meta">{{ author_links(book) }}{% if book.series %} · <a href="/series/{{ book.series.id }}">{{ series_line(book) }}</a>{% endif %}</span>
     {%- set release = release_label(book, today, entry) %}{% if release | trim %} · {{ release }}{% endif %}</span>
   <span class="row-status">{% if entry %}{{ status_badge(entry, book.title) }}{% else %}Not on my list{% endif %}</span>

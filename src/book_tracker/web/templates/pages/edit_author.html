@@ -40,7 +40,7 @@
   {% if books or stories %}
   {% if books %}
   <ul class="link-list">
-    {% for book in books %}<li><a href="/catalog/books/{{ book.id }}/edit">{{ book.title }}</a></li>{% endfor %}
+    {% for book in books %}<li><a href="/books/{{ book.id }}">{{ book.title }}</a></li>{% endfor %}
   </ul>
   {% endif %}
   {% if stories %}

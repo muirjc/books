@@ -88,7 +88,7 @@ ACTIVE_TABS = {
         for page in (
             "edit_book", "edit_series", "edit_author", "edit_story", "add_story", "summary",
             "use_series", "unused_authors", "confirm_delete_author", "confirm_remove_story",
-            "series", "author",
+            "series", "author", "book",
         )
     },
     **{

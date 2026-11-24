@@ -169,10 +169,12 @@ async def test_history_says_how_each_summary_was_written(
     page = (await world.member.get(f"/catalog/books/{world.book}/summary")).text
     history = page.split("<h2>History</h2>", 1)[1]
     lines = re.findall(r'<p class="muted">(Written by [^<]*)</p>', history)
-    assert lines == [
-        "Written by Alice on 23 Nov 2026 (AI draft, edited)",
-        "Written by Alice on 23 Nov 2026 (AI draft)",
-        "Written by Alice on 23 Nov 2026",
+    # The date is the database's clock (created_at), not the pinned app clock, so any day.
+    dated = [re.sub(r"on \d{1,2} \w{3} \d{4}", "on <date>", line) for line in lines]
+    assert dated == [
+        "Written by Alice on <date> (AI draft, edited)",
+        "Written by Alice on <date> (AI draft)",
+        "Written by Alice on <date>",
     ]
     assert history.count(f'href="{WIKI}"') == 2  # each AI summary lists its sources
 

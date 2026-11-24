@@ -132,8 +132,8 @@ async def test_author_with_books_lists_them(
     member: httpx.AsyncClient, authors: dict[str, uuid.UUID]
 ) -> None:
     edit = await member.get(f"/catalog/authors/{authors['robb']}/edit")
-    assert f'<a href="/catalog/books/{authors["glory"]}/edit">Glory in Death</a>' in edit.text
-    assert f'<a href="/catalog/books/{authors["naked"]}/edit">Naked in Death</a>' in edit.text
+    assert f'<a href="/books/{authors["glory"]}">Glory in Death</a>' in edit.text
+    assert f'<a href="/books/{authors["naked"]}">Naked in Death</a>' in edit.text
     assert edit.text.index("Glory in Death") < edit.text.index("Naked in Death")
     assert (
         "This author can't be deleted while books list them. Change those books' authors first."

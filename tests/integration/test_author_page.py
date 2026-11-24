@@ -16,8 +16,8 @@ import pytest
 
 from tests.conftest import Factory, TestUser, signed_in
 
-ROW = re.compile(  # spec 015: a title links to my entry when the book is on my list
-    r'class="book-title" href="(?:/catalog/books/([0-9a-f-]{36})/edit|/entries/[0-9a-f-]{36})">'
+ROW = re.compile(  # spec 016 AC-07: a title opens the book page
+    r'class="book-title" href="/books/([0-9a-f-]{36})">'
     r"([^<]+)</a>"
 )
 
@@ -205,8 +205,8 @@ async def test_stories_section(world: World) -> None:
     assert "<h2>Stories</h2>" in page
     section = page.split("<h2>Stories</h2>", 1)[1]
     assert "#1.5 The Dresden Files — Restoration of Faith" in section
-    assert f'<a href="/catalog/books/{world.books["brief"]}/edit">Brief Cases</a>' in section
-    assert f'<a href="/catalog/books/{world.books["side"]}/edit">Side Jobs</a>' in section
+    assert f'<a href="/books/{world.books["brief"]}">Brief Cases</a>' in section
+    assert f'<a href="/books/{world.books["side"]}">Side Jobs</a>' in section
     pen = (await world.member.get(f"/authors/{world.galbraith}")).text
     assert "<h2>Stories</h2>" not in pen
 

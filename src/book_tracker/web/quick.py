@@ -20,14 +20,15 @@ DROPPED_KEYS = (*NOTICE_KEYS, "added", "stories", "msg", "after")
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 _ANCHOR = re.compile(rf"(?:book|story)-{_UUID}")
 _BACK = re.compile(
-    rf"/(?:catalog|upcoming|authors/{_UUID}|series/{_UUID})(?:\?[A-Za-z0-9._~%&=+\-]*)?"
+    rf"/(?:catalog|upcoming|authors/{_UUID}|series/{_UUID}|books/{_UUID})"
+    r"(?:\?[A-Za-z0-9._~%&=+\-]*)?"
 )
 
 
 def after_quick_add(back: str, kind: str, book_id: uuid.UUID, anchor: str = "") -> str:
-    """Where the quick add returns to: ``back`` if it's one of the four pages (R2), else
-    the Catalog, with the notice and the row's anchor (``anchor`` when it's a row id: a
-    story row's, AC-04)."""
+    """Where the quick add returns to: ``back`` if it's one of the four pages (R2) or a book
+    page (spec 016 R3), else the Catalog, with the notice and the row's anchor (``anchor``
+    when it's a row id: a story row's, AC-04)."""
     if not _BACK.fullmatch(back) or "//" in back:
         back = "/catalog"
     path, _, query = back.partition("?")

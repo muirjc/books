@@ -103,8 +103,8 @@ async def test_the_spec_example(member: httpx.AsyncClient, dresden: dict[str, uu
         "#7 Not in the family catalog yet Add #7",  # spec 014 AC-12
         "No number Side Jobs Jim Butcher · Finished · 1 Sep 2025 · Contains #1.5, #2.5, #6.5",
     ]
-    # The containing book links to my entry.
-    assert f'<a href="/entries/{dresden["side_entry"]}">Side Jobs</a>' in page.text
+    # The containing book links to its book page (spec 016 AC-07).
+    assert f'<a href="/books/{dresden["side_jobs"]}">Side Jobs</a>' in page.text
 
 
 @pytest.mark.ac("009/AC-10")

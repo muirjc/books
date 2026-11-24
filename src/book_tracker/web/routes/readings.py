@@ -69,6 +69,8 @@ MESSAGES = {
     "story_added": "Story added.",  # spec 014 AC-04
     "story_already": "That story is already in this book.",  # as on Edit book
 }
+# Spec 016 R5: the book page shows only the notices that lead to it (PR #37 review).
+BOOK_PAGE_MESSAGES = {code: MESSAGES[code] for code in ("story_added", "story_already")}
 STATUSES = [
     (s.value, label)
     for s, label in (
@@ -918,6 +920,26 @@ async def update_entry(
     await service.update_entry(db, auth.account.id, entry_id, changes, today=today(request))
     msg = "merged" if details is not None and details.others_kept else "saved"
     return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
+
+
+@router.get("/books/{book_id}")
+async def book_page(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession) -> Response:
+    """Spec 016: a catalog book, read-only, with only my own entry (Principle I)."""
+    book = await catalog_service.get_book(db, book_id)  # 404 if missing
+    return render(
+        request,
+        "pages/book.html",
+        {
+            "book": book,
+            "entry": await service.entry_for_book(db, auth.account.id, book.id),
+            "stories": await catalog_service.book_stories(db, book.id),
+            "source_ref": await imports_service.source_ref(db, book.id),
+            "quick": await quick.notice(request, db, auth),
+            "message": BOOK_PAGE_MESSAGES.get(request.query_params.get("msg", "")),
+            "today": today(request),
+        },
+        auth=auth,
+    )
 
 
 @router.post("/books/{book_id}/want-to-read")

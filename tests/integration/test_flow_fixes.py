@@ -228,7 +228,8 @@ async def test_summary_back_link(
     mine = (await member.get(f"/catalog/books/{w['side']}/summary")).text
     assert link(mine, "Back to “Side Jobs”") == f"/entries/{w['entry']}"
     bobs = (await other.get(f"/catalog/books/{w['side']}/summary")).text
-    assert link(bobs, "Back to “Side Jobs”") == f"/catalog/books/{w['side']}/edit"
+    # PR #37 review: not on my list, the summary page goes back to the book page (spec 016).
+    assert link(bobs, "Back to “Side Jobs”") == f"/books/{w['side']}"
 
 
 @pytest.mark.ac("014/AC-08")

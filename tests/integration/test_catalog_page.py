@@ -18,8 +18,8 @@ from tests.conftest import Factory, TestUser, signed_in
 from tests.integration.test_password_change import page_sign_in
 
 TODAY = date(2026, 11, 22)
-ROW = re.compile(  # spec 015: a title links to my entry when the book is on my list
-    r'class="book-title" href="(?:/catalog/books/([0-9a-f-]{36})/edit|/entries/[0-9a-f-]{36})">'
+ROW = re.compile(  # spec 016 AC-07: a title opens the book page
+    r'class="book-title" href="/books/([0-9a-f-]{36})">'
     r"([^<]+)</a>"
 )
 
@@ -181,7 +181,7 @@ async def test_coming_date_only_while_not_out(world: World) -> None:
 async def test_title_and_series_links(world: World) -> None:
     page = (await world.member.get("/catalog")).text
     row = _row(page, world.books["fool"])
-    assert f'href="/catalog/books/{world.books["fool"]}/edit"' in row
+    assert f'href="/books/{world.books["fool"]}"' in row  # spec 016 AC-07
     assert f'href="/series/{world.series["dresden"]}"' in row
     assert "/series/" not in _row(page, world.books["side"])
 

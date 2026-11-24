@@ -1,9 +1,11 @@
 {#- A book's stories (spec 009), "#n Series — Title". Expects: stories, and editable (bool):
-    Edit book adds Edit and Remove for each. -#}
+    Edit book adds Edit and Remove for each. also_in (spec 016 R4, the book page): name the
+    other books that contain each story, linking to their book pages. -#}
 <ul class="story-list" role="list">
   {% for story in stories %}
   <li>
     <span class="story-place">#{{ story.series_number | series_number }} <a href="/series/{{ story.series.id }}">{{ story.series.name }}</a> — </span><span class="story-title">{{ story.title }}</span>
+    {%- if also_in %}{% set others = story.books | rejectattr("id", "equalto", book.id) | list %}{% if others %}<span class="story-also"> · Also in {% for other in others %}“<a href="/books/{{ other.id }}">{{ other.title }}</a>”{{ ", " if not loop.last }}{% endfor %}</span>{% endif %}{% endif %}
     {% if editable %}
     <span class="story-actions">
       <a href="/catalog/stories/{{ story.id }}/edit?from=book:{{ book.id }}">Edit<span class="visually-hidden"> “{{ story.title }}”</span></a>

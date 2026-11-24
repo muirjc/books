@@ -133,3 +133,15 @@ every title. US3 adds the collection detail. US4 hardens privacy, layout and spe
 - **Perf:** book page with 50 stories p95 30 ms (5,000 books).
 - **Gates:** 994 passed; a11y and perf 84; ruff and mypy clean; 8 critical modules at
   100%; pip-audit clean.
+
+## PR #37 review (4 findings, all fixed with failing tests first)
+
+1. The books named in an author page's Stories list and on Edit story ("In these books")
+   now open the book page.
+2. The summary page's back link goes to the book page when the book isn't on my list
+   (was Edit book). The spec 014 AC-07 test is updated for it.
+3. The quick-add notice now follows the My reading section, as the contract says.
+4. The book page shows only the `story_added` / `story_already` messages; other `msg`
+   codes show nothing.
+
+Gates after the fixes: 997 passed; book page and rows a11y pass; ruff and mypy clean.

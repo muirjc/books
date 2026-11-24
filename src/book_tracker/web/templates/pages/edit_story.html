@@ -16,7 +16,7 @@
 </form>
 <h2>In these books</h2>
 <ul class="link-list">
-  {% for ref in story.books %}<li><a href="/catalog/books/{{ ref.id }}/edit#stories">{{ ref.title }}</a></li>{% endfor %}
+  {% for ref in story.books %}<li><a href="/books/{{ ref.id }}">{{ ref.title }}</a></li>{% endfor %}
 </ul>
 <p><a href="/series/{{ story.series.id }}">All of {{ story.series.name }}</a></p>
 {% endblock %}

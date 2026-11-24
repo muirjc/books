@@ -205,8 +205,8 @@ async def test_stories_section(world: World) -> None:
     assert "<h2>Stories</h2>" in page
     section = page.split("<h2>Stories</h2>", 1)[1]
     assert "#1.5 The Dresden Files — Restoration of Faith" in section
-    assert f'<a href="/catalog/books/{world.books["brief"]}/edit">Brief Cases</a>' in section
-    assert f'<a href="/catalog/books/{world.books["side"]}/edit">Side Jobs</a>' in section
+    assert f'<a href="/books/{world.books["brief"]}">Brief Cases</a>' in section
+    assert f'<a href="/books/{world.books["side"]}">Side Jobs</a>' in section
     pen = (await world.member.get(f"/authors/{world.galbraith}")).text
     assert "<h2>Stories</h2>" not in pen
 

@@ -4,7 +4,7 @@
 
 | Method | Path | Result |
 |---|---|---|
-| GET | `/books/{book_id}` | 200, the book page. 404 for an unknown book; 422 for an invalid id; redirect to sign-in when signed out. Reads `wanted` / `already` (spec 015 notice) and `msg=story_added` / `story_already`. |
+| GET | `/books/{book_id}` | 200, the book page. 404 for an unknown book; 422 for an invalid id; redirect to sign-in when signed out. Reads `wanted` / `already` (spec 015 notice) and only `msg=story_added` / `story_already`; other codes show nothing. |
 
 ## The page, top to bottom
 
@@ -28,6 +28,8 @@
 | `book_row` (Catalog, author pages, Upcoming) | The title links to `/books/<id>` |
 | `/series/{id}` | Book titles and story rows' containing books link to `/books/<id>` |
 | `/catalog/authors/{id}/edit`, `/catalog/series/{id}/edit` | Book titles link to `/books/<id>` |
+| `/authors/{id}` Stories list, `/catalog/stories/{id}/edit` "In these books" | Book names link to `/books/<id>` (PR #37 review) |
+| `/catalog/books/{id}/summary` | Back link: my entry, or the book page when not on my list (was Edit book; PR #37 review) |
 | `/entries/{id}`, `/catalog/books/{id}/edit` | Gain a "View the book page" link |
 | `POST /books/{id}/want-to-read` | `back` may be `/books/<uuid>` |
 | `/catalog/books/{id}/stories/add` | `from=page` returns to the book page |

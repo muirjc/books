@@ -69,6 +69,8 @@ MESSAGES = {
     "story_added": "Story added.",  # spec 014 AC-04
     "story_already": "That story is already in this book.",  # as on Edit book
 }
+# Spec 016 R5: the book page shows only the notices that lead to it (PR #37 review).
+BOOK_PAGE_MESSAGES = {code: MESSAGES[code] for code in ("story_added", "story_already")}
 STATUSES = [
     (s.value, label)
     for s, label in (
@@ -933,7 +935,7 @@ async def book_page(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
             "stories": await catalog_service.book_stories(db, book.id),
             "source_ref": await imports_service.source_ref(db, book.id),
             "quick": await quick.notice(request, db, auth),
-            "message": message(request),
+            "message": BOOK_PAGE_MESSAGES.get(request.query_params.get("msg", "")),
             "today": today(request),
         },
         auth=auth,

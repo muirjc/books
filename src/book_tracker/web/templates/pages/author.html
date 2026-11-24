@@ -47,7 +47,7 @@
 <ul class="author-stories">
   {% for story in view.stories %}
   <li>#{{ story.series_number | series_number }} {{ story.series.name }} — {{ story.title }} · in
-    {% for b in story.books %}<a href="/catalog/books/{{ b.id }}/edit">{{ b.title }}</a>{{ ", " if not loop.last }}{% endfor %}</li>
+    {% for b in story.books %}<a href="/books/{{ b.id }}">{{ b.title }}</a>{{ ", " if not loop.last }}{% endfor %}</li>
   {% endfor %}
 </ul>
 {% endif %}

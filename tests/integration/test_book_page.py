@@ -308,3 +308,39 @@ async def test_only_my_own_entry_shows(
     await factory.entry(bob, w["mort"], status="reading", notes="Bob's other note")
     mine = text_of((await member.get(f"/books/{w['mort']}")).text)
     assert "Finished" in mine and "Bob" not in mine  # my own status (Finished), not Bob's
+
+
+# --- PR #37 review ---------------------------------------------------------------------
+
+
+@pytest.mark.ac("016/AC-07")
+async def test_author_page_story_books_open_the_book_page(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    """The books named in an author page's Stories list, and on Edit story."""
+    author = (await member.get(f"/authors/{w['terry']}")).text
+    stories = author[author.find("<h2>Stories</h2>") :]
+    assert f'<a href="/books/{w["tales"]}">Disc Tales</a>' in stories
+    assert "/edit" not in stories.split("</ul>")[0]
+    edit = (await member.get(f"/catalog/stories/{w['story']}/edit")).text
+    assert link(edit, "Disc Tales") == f"/books/{w['tales']}"
+
+
+@pytest.mark.ac("016/AC-04")
+async def test_quick_notice_follows_my_reading(
+    member: httpx.AsyncClient, w: dict[str, Any]
+) -> None:
+    """The contract's order: the notice comes after the My reading section."""
+    response = await quick_add(member, w["gods"], f"/books/{w['gods']}")
+    page = (await member.get(response.headers["location"])).text
+    assert -1 < page.find('id="my-reading-heading"') < page.find('id="quick-notice"')
+
+
+@pytest.mark.ac("016/AC-12")
+async def test_only_story_notices_show(member: httpx.AsyncClient, w: dict[str, Any]) -> None:
+    for code in ("removed", "added&stories=3", "saved", "reread"):
+        page = text_of((await member.get(f"/books/{w['gods']}?msg={code}")).text)
+        for wrong in ("Removed from your list", "Added to your list", "Saved.", "re-read"):
+            assert wrong not in page, code
+    page = text_of((await member.get(f"/books/{w['gods']}?msg=story_already")).text)
+    assert "That story is already in this book." in page

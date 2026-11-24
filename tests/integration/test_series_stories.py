@@ -73,8 +73,11 @@ async def dresden(factory: Factory, alice: TestUser) -> dict[str, uuid.UUID]:
 def rows(page: httpx.Response) -> list[str]:
     found = re.search(r'<ol class="book-list series-rows"[^>]*>(.*?)</ol>', page.text, re.S)
     assert found, page.text
+    hidden = r'<span class="visually-hidden">.*?</span>'  # visible text only (spec 015)
     return [
-        " ".join(html.unescape(re.sub(r"<[^>]+>", " ", item)).split())
+        " ".join(
+            html.unescape(re.sub(r"<[^>]+>", " ", re.sub(hidden, "", item, flags=re.S))).split()
+        )
         for item in re.findall(r"<li\b[^>]*>(.*?)</li>", found.group(1), re.S)
     ]
 
@@ -135,7 +138,8 @@ async def test_other_members_reading_never_shows(
     page = await other.get(f"/series/{dresden['series']}")
     found = rows(page)
     assert found[1] == (
-        "#1.5 Story Restoration of Faith In Side Jobs · Not on my list Add “Side Jobs” to my list"
+        "#1.5 Story Restoration of Faith In Side Jobs · Not on my list"
+        " Want to read “Side Jobs” Add “Side Jobs” with details…"
     )
     assert "Finished" not in page.text and "Reading" not in " ".join(found)
     assert "/entries/" not in page.text
@@ -158,8 +162,8 @@ async def test_containing_book_outside_the_series(
     )  # fmt: skip
     found = rows(await member.get(f"/series/{dresden['series']}"))
     assert (
-        "#7.5 Story Bombshells In Dangerous Women · Not on my list Add “Dangerous Women” to my list"
-        in found
+        "#7.5 Story Bombshells In Dangerous Women · Not on my list"
+        " Want to read “Dangerous Women” Add “Dangerous Women” with details…" in found
     )
     await factory.entry(alice, anthology, status="want_to_read")
     found = rows(await member.get(f"/series/{dresden['series']}"))

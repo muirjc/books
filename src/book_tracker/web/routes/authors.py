@@ -13,6 +13,7 @@ from book_tracker.auth.dependencies import UiUser
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import FavoriteForm
 from book_tracker.services import authors as service
+from book_tracker.web import quick
 from book_tracker.web.rendering import render, render_error
 
 router = APIRouter(prefix="/authors", include_in_schema=False)
@@ -38,7 +39,11 @@ async def author_page(
     return render(
         request,
         "pages/author.html",
-        {"view": view, "message": MESSAGES.get(request.query_params.get("msg", ""))},
+        {
+            "view": view,
+            "message": MESSAGES.get(request.query_params.get("msg", "")),
+            "quick": await quick.notice(request, db, auth),  # spec 015
+        },
         auth=auth,
     )
 

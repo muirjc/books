@@ -40,7 +40,7 @@ async def author(seeded: Seeded, factory: Factory) -> Seeded:
 
 async def _targets(ui: UI, where: str) -> None:
     for found in await ui.page.eval_on_selector_all(
-        ".catalog-list .book-title, .catalog-list .series-action, .catalog-mine, "
+        ".catalog-list .book-title, .catalog-list .series-action, .status-link, .quick-add button, "
         ".favorite-form button, .link-list a",
         "els => els.map(e => { const r = e.getBoundingClientRect();"
         " return {name: e.textContent.trim(), w: r.width, h: r.height}; })",

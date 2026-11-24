@@ -40,7 +40,8 @@ async def catalog(seeded: Seeded, factory: Factory) -> Seeded:
 
 async def _targets(ui: UI, where: str) -> None:
     for found in await ui.page.eval_on_selector_all(
-        ".catalog-list .book-title, .catalog-list .series-action, .catalog-mine, .pagination a",
+        ".catalog-list .book-title, .catalog-list .series-action, .status-link, "
+        ".quick-add button, .pagination a",  # spec 015 rows
         "els => els.map(e => { const r = e.getBoundingClientRect();"
         " return {name: e.textContent.trim(), w: r.width, h: r.height}; })",
     ):
@@ -101,7 +102,7 @@ async def test_keyboard_journey(ui: UI, catalog: Seeded) -> None:
     await ui.page.keyboard.press("Enter")
     await ui.page.wait_for_url(re.compile(r"page=2"))
     await expect(ui.page.locator(".pagination span")).to_have_text("Page 2 of 2")
-    add = ui.page.get_by_role("link", name="Add “Filler 08” to my list")
+    add = ui.page.get_by_role("link", name="Add “Filler 08” with details…")
     await add.focus()
     await ui.page.keyboard.press("Enter")
     await ui.page.wait_for_url(re.compile(r"/books/add\?book="))
@@ -120,13 +121,13 @@ async def test_catalog_without_js(catalog: Seeded, pw_browser: Browser, live_ser
     await view.page.fill("#q", "mort")
     await view.page.click(".filters .actions button[type=submit]")
     await view.page.wait_for_load_state()
-    assert "On my list" in await view.page.locator(".catalog-row", has_text="Mort").inner_text()
+    assert "Finished" in await view.page.locator(".catalog-row", has_text="Mort").inner_text()
     await view.page.fill("#q", "pratchett")
     await view.page.check("#not_mine")
     await view.page.click(".filters .actions button[type=submit]")
     await view.page.wait_for_load_state()
     assert "not_mine=1" in view.page.url and "q=pratchett" in view.page.url
     assert await view.page.locator("#list-count").inner_text() == "60 books match"
-    assert await view.page.locator(".catalog-mine").count() == 0
+    assert await view.page.locator(".status-link").count() == 0  # spec 015: none of mine
     await check(view.page, "catalog no-js")
     await context.close()

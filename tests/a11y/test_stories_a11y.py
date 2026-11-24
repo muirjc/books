@@ -73,7 +73,7 @@ async def test_story_row_reading_order(ui: UI, seeded: Seeded, collection: dict[
     ]
     assert items[1] == (
         "#1.5 Story Troll Bridge In A Blink of the Screen · Not on my list "
-        "Add “A Blink of the Screen” to my list"
+        "Want to read “A Blink of the Screen” Add “A Blink of the Screen” with details…"
     )
     story = ui.page.locator(".series-rows > li.series-story").first
     assert await story.locator(".story-label").inner_text() == "Story"

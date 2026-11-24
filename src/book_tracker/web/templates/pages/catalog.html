@@ -6,6 +6,7 @@
   <h1>Catalog</h1>
   <p><a class="button button-primary" href="/books/add">Add a book</a></p>
 </div>
+<div id="quick-notice-area">{% include "partials/quick_notice.html" %}</div>
 
 <form method="get" action="/catalog" role="search" aria-label="Search the catalog" class="filters catalog-filters"
       data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/catalog" hx-target="#catalog-list" hx-push-url="true"

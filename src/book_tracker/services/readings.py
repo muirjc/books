@@ -185,6 +185,7 @@ class SeriesRow:
     story_books: tuple[tuple[BookRef, ReadingEntry | None], ...] = ()
     story_status: ReadingStatus | None = None
     story_finished_on: date | None = None
+    story_entry: ReadingEntry | None = None  # the entry story_status comes from (spec 015)
 
     @property
     def number(self) -> Decimal | None:
@@ -236,9 +237,13 @@ def _story_row(story: Story, mine: dict[uuid.UUID, ReadingEntry]) -> SeriesRow:
     status = min((e.status for e in held), key=STATUS_RANK.__getitem__, default=None)
     dates = [e.finished_on for e in held if e.status is status and e.finished_on is not None]
     finished_on = max(dates) if status is ReadingStatus.FINISHED and dates else None
+    # The entry the status came from: the badge links to it (PR #35 review).
+    chosen = [e for e in held if e.status is status]
+    entry = max(chosen, key=lambda e: e.finished_on or date.min) if chosen else None
     return SeriesRow(
-        story=story, story_books=books, story_status=status, story_finished_on=finished_on
-    )
+        story=story, story_books=books, story_status=status, story_finished_on=finished_on,
+        story_entry=entry,
+    )  # fmt: skip
 
 
 def series_rows(

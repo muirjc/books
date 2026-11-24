@@ -47,7 +47,7 @@ async def test_series_page_layout(ui: UI, discworld: Seeded) -> None:
         if wh in (PHONE, IPAD, LAPTOP):
             await assert_no_axe_violations(ui.page, f"series {wh}")
     # Add a book, started from a row: the chosen book's details (PR #22 review).
-    await ui.page.get_by_role("link", name="Add “The Light Fantastic” to my list").click()
+    await ui.page.get_by_role("link", name="Add “The Light Fantastic” with details…").click()
     await ui.page.wait_for_load_state()
     for wh in (SMALL, PHONE, LAPTOP):
         await size(ui.page, wh)
@@ -64,15 +64,16 @@ async def test_row_reading_order(ui: UI, discworld: Seeded) -> None:
         " ".join(text.split())
         for text in await ui.page.locator(".series-rows > li").all_inner_texts()
     ]
-    assert items[0] == "#1 The Colour of Magic Terry Pratchett · Reading"
+    # Spec 015: the status badge and the buttons are named for the book (visually hidden).
+    assert items[0] == "#1 The Colour of Magic Terry Pratchett · Reading : “The Colour of Magic”"
     assert items[1] == (
         "#2 The Light Fantastic Terry Pratchett · Not on my list "
-        "Add “The Light Fantastic” to my list"  # the title is visually hidden
+        "Want to read “The Light Fantastic” Add “The Light Fantastic” with details…"
     )
     assert items[2] == "#3 Not in the family catalog yet Add #3"
     assert items[3].startswith("#4 Mort Terry Pratchett · Finished")
     # The visible "Add to my list" is named for its book (WCAG 2.4.4).
-    add = ui.page.get_by_role("link", name="Add “The Light Fantastic” to my list")
+    add = ui.page.get_by_role("link", name="Add “The Light Fantastic” with details…")
     assert await add.count() == 1
 
 
@@ -83,7 +84,7 @@ async def test_flow_without_js(discworld: Seeded, pw_browser: Browser, live_serv
     view = UI(await context.new_page(), live_server)
     await view.sign_in(discworld.alice)
     await view.go(f"/series/{discworld.series_id}")
-    await view.page.get_by_role("link", name="Add “The Light Fantastic” to my list").click()
+    await view.page.get_by_role("link", name="Add “The Light Fantastic” with details…").click()
     await view.page.wait_for_load_state()
     chosen = " ".join((await view.page.inner_text(".chosen-book")).split())
     assert "The Light Fantastic · Terry Pratchett · Discworld #2" in chosen

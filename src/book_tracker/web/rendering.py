@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlencode
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
@@ -67,6 +68,7 @@ def render(
     }
     ctx.update(context or {})
     ctx.setdefault("active", ACTIVE_TABS.get(name))  # spec 014 AC-10
+    ctx.setdefault("here", here(request))  # spec 015: rows' return address
     if status_code >= 400:
         # The request failed: get_db rolls back instead of committing partial writes.
         request.state.db_rollback = True
@@ -94,6 +96,16 @@ ACTIVE_TABS = {
         for page in ("import_search", "import_authors", "import_works", "import_summary")
     },
 }  # fmt: skip
+
+
+def here(request: Request) -> str:
+    """This page's path and query, without an earlier quick-add notice (spec 015)."""
+    query = [
+        (k, v)
+        for k, v in request.query_params.multi_items()
+        if k not in ("wanted", "already", "added", "stories", "msg", "after")
+    ]
+    return request.url.path + (f"?{urlencode(query)}" if query else "")
 
 
 def render_error(request: Request, status_code: int, title: str) -> Response:

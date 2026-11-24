@@ -18,7 +18,10 @@ from tests.conftest import Factory, TestUser, signed_in
 from tests.integration.test_password_change import page_sign_in
 
 TODAY = date(2026, 11, 22)
-ROW = re.compile(r'class="book-title" href="/catalog/books/([0-9a-f-]{36})/edit">([^<]+)</a>')
+ROW = re.compile(  # spec 015: a title links to my entry when the book is on my list
+    r'class="book-title" href="(?:/catalog/books/([0-9a-f-]{36})/edit|/entries/[0-9a-f-]{36})">'
+    r"([^<]+)</a>"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -227,9 +230,10 @@ async def test_empty_catalog(
 async def test_on_my_list_links_to_my_entry(world: World) -> None:
     page = (await world.member.get("/catalog")).text
     row = _row(page, world.books["storm"])
-    mine = f'<a class="catalog-mine" href="/entries/{world.entries["storm"]}">On my list'
-    assert mine + '<span class="visually-hidden">: “Storm Front”</span></a>' in row
-    assert "/books/add?book=" not in row
+    # Spec 015 AC-08: my status as a badge linking to my entry, not "On my list".
+    mine = f'<a class="badge status-link" href="/entries/{world.entries["storm"]}">'
+    assert mine in row and '<span class="visually-hidden">: “Storm Front”</span></a>' in row
+    assert "/books/add?book=" not in row and "want-to-read" not in row
 
 
 @pytest.mark.ac("010/AC-09")
@@ -237,8 +241,9 @@ async def test_add_to_my_list_starts_from_the_book(world: World) -> None:
     page = (await world.member.get("/catalog")).text
     row = _row(page, world.books["fool"])
     assert f'href="/books/add?book={world.books["fool"]}"' in row
-    assert '<span class="visually-hidden"> “Fool Moon”</span> to my list' in row
-    assert "On my list" not in row
+    # Spec 015 AC-01: "Add with details…" beside the one-tap Want to read.
+    assert '<span class="visually-hidden"> “Fool Moon”</span> with details…' in row
+    assert "Not on my list" in row and f'action="/books/{world.books["fool"]}/want-to-read"' in row
     started = await world.member.get(f"/books/add?book={world.books['fool']}")
     assert started.status_code == 200 and "Fool Moon" in started.text
 
@@ -246,7 +251,8 @@ async def test_add_to_my_list_starts_from_the_book(world: World) -> None:
 @pytest.mark.ac("010/AC-10")
 async def test_other_members_entries_leave_no_trace(world: World, factory: Factory) -> None:
     page = (await world.member.get("/catalog")).text
-    for leak in ("Ben", "secret", "Finished", "2 Apr 2025", "badge"):
+    # My own statuses show since spec 015; Ben's never do (the row check below).
+    for leak in ("Ben", "secret", "2 Apr 2025"):
         assert leak not in page, leak
     # Ben finished Fool Moon, with a note: its row is the same as when nobody has it.
     with_bens = _row(page, world.books["fool"])
@@ -407,7 +413,7 @@ async def test_htmx_gets_just_the_list(world: World) -> None:
 def _row(body: str, book_id: uuid.UUID) -> str:
     not_end = "(?:(?!</li>).)*"
     found = re.search(
-        rf'<li class="catalog-row">{not_end}?/catalog/books/{book_id}/edit{not_end}</li>',
+        rf'<li class="catalog-row" id="book-{book_id}">{not_end}</li>',  # spec 015 rows
         body,
         re.S,
     )

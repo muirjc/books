@@ -38,6 +38,7 @@ from book_tracker.services import summaries
 from book_tracker.services.errors import ConflictError, ValidationFailed
 from book_tracker.sources.dependencies import BookSourceDep
 from book_tracker.sources.summary_generator import SummaryGeneratorDep
+from book_tracker.web import quick
 from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import AddBookForm, parse_add_book, text
 from book_tracker.web.rendering import is_htmx, render
@@ -110,6 +111,7 @@ async def catalog_page(request: Request, auth: UiUser, db: DbSession) -> Respons
         "filtered": bool(query.q or query.not_mine),
         "filters_open": any(kept.values()),
         "htmx": is_htmx(request),
+        "quick": await quick.notice(request, db, auth),  # spec 015
     }
     template = "partials/catalog_list.html" if context["htmx"] else "pages/catalog.html"
     return render(request, template, context, auth=auth)

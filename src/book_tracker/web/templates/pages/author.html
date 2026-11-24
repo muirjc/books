@@ -1,11 +1,12 @@
 {% extends "base.html" %}
-{% from "macros.html" import release_label %}
+{% from "macros.html" import book_row %}
 {% block title %}{{ view.author.name }}{% endblock %}
 {% block content %}
 {#- Spec 011: one author's catalog books by series, with my own statuses only (Principle I),
     their stories, and my favorite. -#}
 {% set author = view.author %}
 <h1>{{ author.name }}</h1>
+{% include "partials/quick_notice.html" %}
 {% if author.is_pen_name %}<p class="muted">Pen name{% if author.real_name %} of {{ author.real_name }}{% endif %}</p>{% endif %}
 
 <form method="post" action="/authors/{{ author.id }}/favorite" class="favorite-form">
@@ -33,18 +34,7 @@
 {% endif %}
 <ul class="book-list catalog-list" role="list">
   {% for row in group.rows %}
-  <li class="catalog-row">
-    <a class="book-title" href="/catalog/books/{{ row.book.id }}/edit">{{ row.book.title }}</a>
-    <span class="catalog-detail">
-      {%- if group.series and row.book.series_number is not none %}#{{ row.book.series_number | series_number }}{% endif %}
-      {%- set release = release_label(row.book, today) %}{% if release | trim %}{% if group.series and row.book.series_number is not none %} · {% endif %}{{ release }}{% endif %}</span>
-    {% if row.entry %}
-    <span class="badge">{{ STATUS_LABELS[row.entry.status] }}</span>
-    <a class="catalog-mine" href="/entries/{{ row.entry.id }}">On my list<span class="visually-hidden">: “{{ row.book.title }}”</span></a>
-    {% else %}
-    <a class="series-action" href="/books/add?book={{ row.book.id }}"><span>Add<span class="visually-hidden"> “{{ row.book.title }}”</span> to my list</span></a>
-    {% endif %}
-  </li>
+  {{ book_row(row.book, row.entry, today, here, csrf_token) }}
   {% endfor %}
 </ul>
 {% endfor %}

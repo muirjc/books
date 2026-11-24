@@ -53,3 +53,37 @@
 {%- if coming and pre %} · {% endif -%}
 {%- if pre %}<span class="pre-ordered">Pre-ordered</span>{% endif -%}
 {%- endmacro %}
+
+{#- Spec 015: my status as a badge linking to my entry (Principle I: only my own). -#}
+{% macro status_badge(entry, title) -%}
+<a class="badge status-link" href="/entries/{{ entry.id }}">{{ STATUS_LABELS[entry.status] }}<span class="visually-hidden">: “{{ title }}”</span></a>
+{%- endmacro %}
+
+{#- Spec 015 AC-01: add a book to my list as Want to read in one tap, returning to
+    ``here`` (allow-listed by the route), or open the full form for details. -#}
+{#- ``named``: show the book's title on the buttons too, where the row is about something
+    else (a story row's containing books, AC-04). -#}
+{% macro quick_add(book_id, title, here, csrf_token, details_url, named=false, anchor="") -%}
+{%- set name -%}{% if named %} “{{ title }}”{% else %}<span class="visually-hidden"> “{{ title }}”</span>{% endif %}{%- endset -%}
+<span class="row-actions">
+  <form method="post" action="/books/{{ book_id }}/want-to-read" class="inline-form quick-add">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="back" value="{{ here }}">
+    {% if anchor %}<input type="hidden" name="anchor" value="{{ anchor }}">{% endif %}
+    <button type="submit">Want to read{{ name }}</button>
+  </form>
+  <a class="series-action" href="{{ details_url }}"><span>Add{{ name }} with details…</span></a>
+</span>
+{%- endmacro %}
+
+{#- Spec 015 AC-07: one row for the Catalog, author pages and Upcoming: title, details
+    (authors · series · release), my status, then the actions. -#}
+{% macro book_row(book, entry, today, here, csrf_token) -%}
+<li class="catalog-row" id="book-{{ book.id }}">
+  <a class="book-title" href="{{ '/entries/' ~ entry.id if entry else '/catalog/books/' ~ book.id ~ '/edit' }}">{{ book.title }}</a>
+  <span class="catalog-detail"><span class="book-meta">{{ author_links(book) }}{% if book.series %} · <a href="/series/{{ book.series.id }}">{{ series_line(book) }}</a>{% endif %}</span>
+    {%- set release = release_label(book, today, entry) %}{% if release | trim %} · {{ release }}{% endif %}</span>
+  <span class="row-status">{% if entry %}{{ status_badge(entry, book.title) }}{% else %}Not on my list{% endif %}</span>
+  {% if not entry %}{{ quick_add(book.id, book.title, here, csrf_token, "/books/add?book=" ~ book.id) }}{% endif %}
+</li>
+{%- endmacro %}

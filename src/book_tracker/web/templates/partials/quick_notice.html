@@ -1,0 +1,8 @@
+{#- Spec 015 AC-02, AC-03: after a one-tap Want to read. Expects: quick ((kind, entry) or none). -#}
+{% if quick %}
+{% set kind, entry = quick %}
+<p class="notice" role="status" id="quick-notice">
+  {%- if kind == "wanted" %}Added “<a href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>” to your list as Want to read.
+  {%- else %}“<a href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>” is already on your list.{% endif -%}
+</p>
+{% endif %}

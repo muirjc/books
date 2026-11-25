@@ -503,8 +503,8 @@ async def test_series_and_summary_lists_keep_their_layout(
 # The search box, dropdowns and Apply, each with the box of the grid cell that holds it.
 # Upcoming only is left out: a checkbox, label and hint have no edge to share with a
 # dropdown (its own layout is books-02q). Clear is on the line below (books-g39).
-FILTER_CONTROLS = """() => [...document.querySelectorAll(
-    '#q, #sort, #status, #author_id, #series_id, .filters button[type=submit]')].map(e => {
+MY_BOOKS_CONTROLS = "#q, #sort, #status, #author_id, #series_id, .filters button[type=submit]"
+FILTER_CONTROLS = """sel => [...document.querySelectorAll(sel)].map(e => {
   const r = e.getBoundingClientRect(), f = e.parentElement.getBoundingClientRect();
   return {id: e.id || e.type, top: r.top, bottom: r.bottom,
           visible: r.width > 0 && r.height > 0,
@@ -527,7 +527,7 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
         if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
             assert not (await box(ui.page, link))["visible"], wh  # phone: folded until opened
             await toggle.click()
-        controls = await ui.page.evaluate(FILTER_CONTROLS)
+        controls = await ui.page.evaluate(FILTER_CONTROLS, MY_BOOKS_CONTROLS)
         assert len(controls) == 6 and all(c["visible"] for c in controls), (wh, path, controls)
         for c in controls:
             for d in controls:
@@ -619,3 +619,33 @@ async def test_clear_filters_appears_as_you_filter(ui: UI, seeded: Seeded) -> No
     await clear.wait_for(state="visible")
     await ui.page.select_option("#status", "")
     await clear.wait_for(state="hidden")
+
+
+CATALOG_CONTROLS = (
+    ".catalog-filters #q, .catalog-filters #sort, .catalog-filters button[type=submit]"
+)
+
+
+@pytest.mark.ac("003/AC-03")
+async def test_catalog_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
+    """books-dae: on the Catalog, the search box, Sort and Apply on one row share their
+    top and bottom edges at every width; the search hint no longer sits under the box."""
+    await ui.sign_in(seeded.alice)
+    for wh, path in ((wh, path) for wh in WIDTHS for path in ("/catalog", "/catalog?q=a")):
+        await size(ui.page, wh)
+        await ui.go(path)  # filtered: Clear shows beside Apply (PR #41 review)
+        toggle = ui.page.locator(".filters-toggle")
+        if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
+            await toggle.click()
+        controls = await ui.page.evaluate(FILTER_CONTROLS, CATALOG_CONTROLS)
+        assert len(controls) == 3 and all(c["visible"] for c in controls), (wh, path, controls)
+        for c in controls:
+            for d in controls:
+                if same_line([c["field"], d["field"]]):
+                    edge = "bottom" if "submit" in (c["id"], d["id"]) else "top"
+                    assert abs(c[edge] - d[edge]) <= 1, (wh, path, edge, c, d)
+        label = await box(ui.page, '.catalog-filters label[for="q"]')
+        hint, search = await box(ui.page, "#q-hint"), await box(ui.page, ".catalog-filters #q")
+        # label, hint, box: close together, as in any field (0.25rem gaps, PR #41 review)
+        assert 0 <= hint["top"] - label["bottom"] <= 5, (wh, label, hint)
+        assert 0 <= search["top"] - hint["bottom"] <= 5, (wh, hint, search)

@@ -13,8 +13,9 @@
       hx-trigger="submit, change from:#sort, change from:#not_mine, input changed delay:300ms from:#q">
   <div class="field">
     <label for="q">Search the catalog</label>
-    <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off" aria-describedby="q-hint">
+    {#- books-dae: the hint above the box, so the box lines up with Sort and Apply. -#}
     <p class="hint" id="q-hint">Title, author, series, story or ISBN</p>
+    <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off" aria-describedby="q-hint">
   </div>
   {# Spec 003: on a phone, app.js shows this and folds the rest; without JavaScript all show. #}
   <button type="button" class="filters-toggle" aria-controls="filter-extra"

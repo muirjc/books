@@ -619,3 +619,34 @@ async def test_clear_filters_appears_as_you_filter(ui: UI, seeded: Seeded) -> No
     await clear.wait_for(state="visible")
     await ui.page.select_option("#status", "")
     await clear.wait_for(state="hidden")
+
+
+CATALOG_CONTROLS = """() => [...document.querySelectorAll(
+    '.catalog-filters #q, .catalog-filters #sort, .catalog-filters button[type=submit]')].map(e => {
+  const r = e.getBoundingClientRect(), f = e.parentElement.getBoundingClientRect();
+  return {id: e.id || e.type, top: r.top, bottom: r.bottom,
+          visible: r.width > 0 && r.height > 0,
+          field: {top: f.top, bottom: f.bottom, visible: f.width > 0 && f.height > 0}};
+})"""
+
+
+@pytest.mark.ac("003/AC-03")
+async def test_catalog_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
+    """books-dae: on the Catalog, the search box, Sort and Apply on one row share their
+    top and bottom edges at every width; the search hint no longer sits under the box."""
+    await ui.sign_in(seeded.alice)
+    for wh in WIDTHS:
+        await size(ui.page, wh)
+        await ui.go("/catalog")
+        toggle = ui.page.locator(".filters-toggle")
+        if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
+            await toggle.click()
+        controls = await ui.page.evaluate(CATALOG_CONTROLS)
+        assert len(controls) == 3 and all(c["visible"] for c in controls), (wh, controls)
+        for c in controls:
+            for d in controls:
+                if same_line([c["field"], d["field"]]):
+                    edge = "bottom" if "submit" in (c["id"], d["id"]) else "top"
+                    assert abs(c[edge] - d[edge]) <= 1, (wh, edge, c, d)
+        hint, search = await box(ui.page, "#q-hint"), await box(ui.page, ".catalog-filters #q")
+        assert hint["bottom"] <= search["top"] + 1, (wh, hint, search)

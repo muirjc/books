@@ -292,11 +292,11 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .stories > button, .story-row > button { align-self: flex-start; }
 .chosen-story { margin: 0; overflow-wrap: anywhere; }
 
-/* Spec 014: back links, "Jump to" lists, and the favorites link by the Author filter. */
+/* Spec 014: back links, "Jump to" lists, and the favorites link with the My books filters. */
 .back-link { margin: 0 0 0.25rem; }
 .jump-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; }
 .jump-links ul { display: flex; flex-wrap: wrap; gap: 0 1rem; list-style: none; margin: 0; padding: 0; }
-.filter-link { margin: 0; }
+.filter-link { margin: 0; grid-column: 1 / -1; }
 .account-actions .button-link { display: inline-flex; align-items: center; min-height: var(--target); }
 
 /* Spec 015: my status as a badge link, and the row actions (Want to read, Add with details). */

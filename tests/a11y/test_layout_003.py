@@ -498,3 +498,36 @@ async def test_series_and_summary_lists_keep_their_layout(
             long_text[:20],
         )
         assert text["lines"] > 1 and not text["cut"], (wh, text)
+
+
+# The search box, dropdowns and Apply, each with the box of the grid cell that holds it.
+FILTER_CONTROLS = """() => [...document.querySelectorAll(
+    '#q, #sort, #status, #author_id, #series_id, .filters button[type=submit]')].map(e => {
+  const r = e.getBoundingClientRect(), f = e.parentElement.getBoundingClientRect();
+  return {id: e.id || e.type, top: r.top, bottom: r.bottom, visible: r.width > 0,
+          field: {top: f.top, bottom: f.bottom, visible: true}};
+})"""
+
+
+@pytest.mark.ac("003/AC-01")
+@pytest.mark.ac("003/AC-03")
+@pytest.mark.ac("014/AC-18")
+async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
+    """books-349: the search box and dropdowns on one line share a top edge, and Apply
+    lines up with their bottom, at every width; the favorites link stays in the filters."""
+    await ui.sign_in(seeded.alice)
+    for wh in WIDTHS:
+        await size(ui.page, wh)
+        await ui.go("/")
+        toggle = ui.page.locator(".filters-toggle")
+        if await toggle.is_visible():
+            await toggle.click()
+        controls = await ui.page.evaluate(FILTER_CONTROLS)
+        assert len(controls) == 6 and all(c["visible"] for c in controls), (wh, controls)
+        for c in controls:
+            for d in controls:
+                if same_line([c["field"], d["field"]]):  # one row of the filter grid
+                    edge = "bottom" if "submit" in (c["id"], d["id"]) else "top"
+                    assert abs(c[edge] - d[edge]) <= 1, (wh, edge, c, d)
+        link = await box(ui.page, '.filters a[href="/authors/favorites"]')
+        assert link["visible"] and link["height"] >= 44, (wh, link)

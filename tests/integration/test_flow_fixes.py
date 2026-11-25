@@ -359,11 +359,12 @@ async def test_favorites_link_beside_the_author_filter(member: httpx.AsyncClient
     extra = re.search(r'<div id="filter-extra".*?</form>', page, re.S)
     assert extra
     block = extra.group(0)
-    author, favorites, series = (
-        block.find('id="author_id"'), block.find('href="/authors/favorites"'),
-        block.find('id="series_id"'),
+    # books-349: after Apply, on its own line, so the Author dropdown lines up with the rest.
+    series, apply, favorites = (
+        block.find('id="series_id"'), block.find('<button type="submit">Apply</button>'),
+        block.find('<p class="filter-link"><a href="/authors/favorites">'),
     )  # fmt: skip
-    assert -1 < author < favorites < series
+    assert -1 < series < apply < favorites
 
 
 @pytest.mark.ac("014/AC-19")

@@ -53,8 +53,6 @@
       <option value="{{ id }}"{% if id | string == filters.author_id %} selected{% endif %}>{{ name }}</option>
       {% endfor %}
     </select>
-    {#- Spec 014 AC-18: by the Author filter, so phones needn't scroll past the list. -#}
-    <p class="filter-link"><a href="/authors/favorites">My favorite authors</a></p>
   </div>
   <div class="field">
     <label for="series_id">Series</label>
@@ -74,6 +72,9 @@
     <button type="submit">Apply</button>
     {% if filtered %}<a href="/">Clear</a>{% endif %}
   </div>
+  {#- Spec 014 AC-18, books-349: with the filters, so phones needn't scroll past the list,
+      on a line of its own so the dropdowns stay level. -#}
+  <p class="filter-link"><a href="/authors/favorites">My favorite authors</a></p>
   </div>
 </form>
 

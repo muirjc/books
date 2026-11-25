@@ -519,20 +519,55 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
     """books-349: the search box and dropdowns on one line share a top edge, and Apply
     lines up with their bottom, at every width; the favorites link stays in the filters."""
     await ui.sign_in(seeded.alice)
-    for wh in WIDTHS:
+    for wh, path in ((wh, path) for wh in WIDTHS for path in ("/", "/?status=reading")):
         await size(ui.page, wh)
-        await ui.go("/")
+        await ui.go(path)  # filtered: Clear shows beside Apply (PR #39 review)
         toggle = ui.page.locator(".filters-toggle")
         link = '.filters a[href="/authors/favorites"]'
-        if await toggle.is_visible():  # phone: folded with the filters until opened
-            assert not (await box(ui.page, link))["visible"], wh
+        if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
+            assert not (await box(ui.page, link))["visible"], wh  # phone: folded until opened
             await toggle.click()
         controls = await ui.page.evaluate(FILTER_CONTROLS)
-        assert len(controls) == 6 and all(c["visible"] for c in controls), (wh, controls)
+        assert len(controls) == 6 and all(c["visible"] for c in controls), (wh, path, controls)
         for c in controls:
             for d in controls:
                 if same_line([c["field"], d["field"]]):  # one row of the filter grid
                     edge = "bottom" if "submit" in (c["id"], d["id"]) else "top"
-                    assert abs(c[edge] - d[edge]) <= 1, (wh, edge, c, d)
+                    assert abs(c[edge] - d[edge]) <= 1, (wh, path, edge, c, d)
         shown = await box(ui.page, link)
         assert shown["visible"] and shown["height"] >= 44, (wh, shown)
+
+
+@pytest.mark.ac("003/AC-03")
+async def test_upcoming_only_checkbox_beside_its_label(ui: UI, seeded: Seeded) -> None:
+    """books-02q: at every width the Upcoming only checkbox and its label share a line,
+    with the hint under them, and the field is no taller than the Series field."""
+    await ui.sign_in(seeded.alice)
+    for wh in WIDTHS:
+        await size(ui.page, wh)
+        await ui.go("/")
+        toggle = ui.page.locator(".filters-toggle")
+        if await toggle.is_visible():
+            await toggle.click()
+        check, label = await box(ui.page, "#upcoming"), await box(ui.page, 'label[for="upcoming"]')
+        hint = await box(ui.page, "#upcoming-hint")
+        assert same_line([check, label]), (wh, check, label)
+        assert hint["top"] >= max(check["bottom"], label["bottom"]) - 1, (wh, hint)
+        field = await box(ui.page, ".checkbox-field")
+        series = await box(ui.page, ".field:has(> #series_id)")
+        assert field["height"] <= series["height"] + 1, (wh, field, series)
+
+
+@pytest.mark.ac("003/AC-03")
+async def test_catalog_filters_on_one_row_from_tablet(ui: UI, seeded: Seeded) -> None:
+    """PR #39 review: the Catalog's search, Sort, Not on my list and Apply stay on one
+    row from tablet width up, with Not on my list beside its checkbox."""
+    await ui.sign_in(seeded.alice)
+    for wh in (IPAD_MINI, IPAD, LAPTOP_MIN, LAPTOP):
+        await size(ui.page, wh)
+        await ui.go("/catalog")
+        cells = await boxes(ui.page, ".catalog-filters .field, .catalog-filters .actions")
+        assert len(cells) == 4 and same_line(cells), (wh, cells)
+        check = await box(ui.page, ".catalog-filters input[type=checkbox]")
+        label = await box(ui.page, ".catalog-filters .checkbox-field label")
+        assert same_line([check, label]), (wh, check, label)

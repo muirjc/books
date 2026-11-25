@@ -362,9 +362,50 @@ async def test_favorites_link_after_the_filters(member: httpx.AsyncClient) -> No
     # books-349: after Apply, on its own line, so the Author dropdown lines up with the rest.
     series, apply, favorites = (
         block.find('id="series_id"'), block.find('<button type="submit">Apply</button>'),
-        block.find('<p class="filter-link"><a href="/authors/favorites">'),
+        block.find('<a href="/authors/favorites">My favorite authors</a></p>'),
     )  # fmt: skip
     assert -1 < series < apply < favorites
+    assert re.search(r'<span id="list-clear"[^>]* hidden>', block)  # nothing filtered
+
+
+CLEAR = re.compile(r'<span id="list-clear"([^>]*)>(.*?)</span></span>', re.S)
+
+
+@pytest.mark.ac("014/AC-18")
+@pytest.mark.ac("003/AC-02")
+async def test_clear_filters_on_the_line_below(member: httpx.AsyncClient) -> None:
+    """books-g39: Clear leaves the Apply cell, so the laptop dropdowns have room; it leads
+    the favorites line, after Apply, with the separator hidden from screen readers."""
+    block = (await member.get("/?status=reading")).text
+    actions = re.search(r'<div class="actions">.*?</div>', block, re.S)
+    assert actions and "Clear" not in actions.group(0)
+    line = re.search(r'<p class="filter-link">(.*?)</p>', block, re.S)
+    assert line
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', line.group(1)) == [
+        ("/", "Clear filters"), ("/authors/favorites", "My favorite authors"),
+    ]  # fmt: skip
+    assert '<span aria-hidden="true"> · </span>' in line.group(1)
+    assert block.find(">Apply</button>") < line.start()
+    clear = CLEAR.search(line.group(1))
+    assert clear and "hidden" not in clear.group(1)
+    unfiltered = CLEAR.search((await member.get("/")).text)
+    assert unfiltered and "hidden" in unfiltered.group(1)
+
+
+@pytest.mark.ac("014/AC-18")
+async def test_clear_filters_follows_htmx_filtering(member: httpx.AsyncClient) -> None:
+    """PR #40 review: filtering with JavaScript swaps only the list, so the list response
+    also updates Clear filters (out of band), shown when filtered and hidden when not."""
+    hx = {"HX-Request": "true"}
+    filtered = CLEAR.search((await member.get("/?status=reading", headers=hx)).text)
+    assert filtered and 'hx-swap-oob="true"' in filtered.group(1)
+    assert "hidden" not in filtered.group(1)
+    cleared = CLEAR.search((await member.get("/?sort=title", headers=hx)).text)
+    assert cleared and 'hx-swap-oob="true"' in cleared.group(1)
+    assert "hidden" in cleared.group(1)
+    full = (await member.get("/?status=reading")).text
+    match = CLEAR.search(full)
+    assert full.count('id="list-clear"') == 1 and match and "hx-swap-oob" not in match.group(1)
 
 
 @pytest.mark.ac("014/AC-19")

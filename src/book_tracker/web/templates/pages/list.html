@@ -16,7 +16,7 @@
 </div>
 {% endif %}
 
-<form method="get" action="/" role="search" aria-label="Search and filter my books" class="filters"
+<form method="get" action="/" role="search" aria-label="Search and filter my books" class="filters list-filters"
       data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/" hx-target="#reading-list" hx-push-url="true"
       hx-trigger="submit, change, input changed delay:300ms from:#q">
   <div class="field">
@@ -70,11 +70,11 @@
   </div>
   <div class="actions">
     <button type="submit">Apply</button>
-    {% if filtered %}<a href="/">Clear</a>{% endif %}
   </div>
   {#- Spec 014 AC-18, books-349: with the filters, so phones needn't scroll past the list,
-      on a line of its own so the dropdowns stay level. -#}
-  <p class="filter-link"><a href="/authors/favorites">My favorite authors</a></p>
+      on a line of its own so the dropdowns stay level. books-g39: Clear leads it, leaving
+      the laptop row room for the dropdowns. -#}
+  <p class="filter-link">{% include "partials/list_clear.html" %}<a href="/authors/favorites">My favorite authors</a></p>
   </div>
 </form>
 

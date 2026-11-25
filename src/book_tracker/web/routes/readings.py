@@ -166,8 +166,9 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         "query_without_page": f"{query}&" if query else "",
         "filtered": any(v for k, v in kept.items() if k != "sort"),
         "filters_open": any(kept.values()),  # spec 003 FR-007: phone fold starts open
+        "htmx": is_htmx(request),
     }
-    if is_htmx(request):
+    if context["htmx"]:
         return render(request, "partials/reading_list.html", context, auth=auth)
     authors, series = await service.filter_options(db, auth.account.id)
     context.update(

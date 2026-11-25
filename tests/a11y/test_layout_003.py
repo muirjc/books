@@ -502,7 +502,7 @@ async def test_series_and_summary_lists_keep_their_layout(
 
 # The search box, dropdowns and Apply, each with the box of the grid cell that holds it.
 # Upcoming only is left out: a checkbox, label and hint have no edge to share with a
-# dropdown (its own layout is books-02q). Clear sits beside Apply in the same cell.
+# dropdown (its own layout is books-02q). Clear is on the line below (books-g39).
 FILTER_CONTROLS = """() => [...document.querySelectorAll(
     '#q, #sort, #status, #author_id, #series_id, .filters button[type=submit]')].map(e => {
   const r = e.getBoundingClientRect(), f = e.parentElement.getBoundingClientRect();
@@ -521,7 +521,7 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
     await ui.sign_in(seeded.alice)
     for wh, path in ((wh, path) for wh in WIDTHS for path in ("/", "/?status=reading")):
         await size(ui.page, wh)
-        await ui.go(path)  # filtered: Clear shows beside Apply (PR #39 review)
+        await ui.go(path)  # filtered: Clear filters shows (PR #39 review)
         toggle = ui.page.locator(".filters-toggle")
         link = '.filters a[href="/authors/favorites"]'
         if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
@@ -571,3 +571,51 @@ async def test_catalog_filters_on_one_row_from_tablet(ui: UI, seeded: Seeded) ->
         check = await box(ui.page, ".catalog-filters input[type=checkbox]")
         label = await box(ui.page, ".catalog-filters .checkbox-field label")
         assert same_line([check, label]), (wh, check, label)
+
+
+# Each dropdown's selected text, measured in its own font, against the room inside it
+# (padding either side plus about 20px for the arrow).
+SELECT_FIT = """sel => [...document.querySelectorAll(sel)].map(e => {
+  const s = getComputedStyle(e), c = document.createElement('canvas').getContext('2d');
+  c.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+  const text = e.options[e.selectedIndex].text;
+  const need = c.measureText(text).width + parseFloat(s.paddingLeft)
+    + parseFloat(s.paddingRight) + 20;
+  return {id: e.id, text, need: Math.ceil(need), has: e.clientWidth};
+})"""
+
+
+@pytest.mark.ac("003/AC-02")
+@pytest.mark.ac("003/AC-03")
+async def test_my_books_dropdowns_show_their_text(ui: UI, seeded: Seeded) -> None:
+    """books-g39: at every width, each My books dropdown shows its whole default choice
+    (at 1024px they read "Any st", "Any a"); on a laptop search stays the widest."""
+    await ui.sign_in(seeded.alice)
+    for wh, path in ((wh, path) for wh in WIDTHS for path in ("/", "/?status=reading")):
+        await size(ui.page, wh)
+        await ui.go(path)
+        toggle = ui.page.locator(".filters-toggle")
+        if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
+            await toggle.click()
+        fits = await ui.page.evaluate(SELECT_FIT, "#sort, #status, #author_id, #series_id")
+        assert len(fits) == 4, fits
+        for f in fits:
+            assert f["need"] <= f["has"], (wh, path, f)
+        if wh[0] >= 1024:  # laptop: one row (FR-008), search still the widest
+            search = await box(ui.page, "#q")
+            assert search["width"] >= max(f["has"] for f in fits), (wh, path, search)
+
+
+@pytest.mark.ac("014/AC-18")
+async def test_clear_filters_appears_as_you_filter(ui: UI, seeded: Seeded) -> None:
+    """PR #40 review: with JavaScript, changing a filter swaps only the list; Clear filters
+    still shows once a filter is on and goes when it is off."""
+    await size(ui.page, LAPTOP)
+    await ui.sign_in(seeded.alice)
+    await ui.go("/")
+    clear = ui.page.locator("#list-clear")
+    assert not await clear.is_visible()
+    await ui.page.select_option("#status", "reading")
+    await clear.wait_for(state="visible")
+    await ui.page.select_option("#status", "")
+    await clear.wait_for(state="hidden")

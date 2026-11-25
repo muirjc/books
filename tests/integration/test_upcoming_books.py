@@ -422,7 +422,7 @@ async def test_upcoming_filter_kept(
     assert (
         'href="/?upcoming=1&amp;page=2"' in page.text or 'href="/?upcoming=1&page=2"' in page.text
     )
-    assert '<a href="/">Clear</a>' in page.text
+    assert '<a href="/">Clear filters</a>' in page.text  # books-g39: on the line below
     partial = await member.get("/?upcoming=1", headers={"HX-Request": "true"})
     assert "Storm Front" not in partial.text and "Twelve Months" in partial.text
     assert "<html" not in partial.text

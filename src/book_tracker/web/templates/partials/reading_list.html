@@ -1,4 +1,5 @@
 {% from "macros.html" import author_links, series_line, release_label %}
+{% if htmx %}{% with oob=true %}{% include "partials/list_clear.html" %}{% endwith %}{% endif %}
 {% if page.total == 0 %}
 {% if filtered %}
 <p>No books on your list match. <a href="/">Show all my books</a>.</p>

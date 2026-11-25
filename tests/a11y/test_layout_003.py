@@ -604,3 +604,18 @@ async def test_my_books_dropdowns_show_their_text(ui: UI, seeded: Seeded) -> Non
         if wh[0] >= 1024:  # laptop: one row (FR-008), search still the widest
             search = await box(ui.page, "#q")
             assert search["width"] >= max(f["has"] for f in fits), (wh, path, search)
+
+
+@pytest.mark.ac("014/AC-18")
+async def test_clear_filters_appears_as_you_filter(ui: UI, seeded: Seeded) -> None:
+    """PR #40 review: with JavaScript, changing a filter swaps only the list; Clear filters
+    still shows once a filter is on and goes when it is off."""
+    await size(ui.page, LAPTOP)
+    await ui.sign_in(seeded.alice)
+    await ui.go("/")
+    clear = ui.page.locator("#list-clear")
+    assert not await clear.is_visible()
+    await ui.page.select_option("#status", "reading")
+    await clear.wait_for(state="visible")
+    await ui.page.select_option("#status", "")
+    await clear.wait_for(state="hidden")

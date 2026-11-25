@@ -16,7 +16,8 @@ Small template and route fixes from the 2026-11-23 UI review:
 - a Catalog link after an import;
 - a Change password link on every page;
 - admin confirmation pages for Deactivate, Make Admin and Reset password;
-- the favorites link moves next to the Author filter;
+- the favorites link moves next to the Author filter (books-349: then to its own line
+  after Apply);
 - jump links on the entry page and Edit book.
 
 Nothing new is stored. Details are in [research.md](research.md).

@@ -180,8 +180,9 @@ actions are easy to hit by mistake on a phone.
 **Acceptance Criteria**:
 
 - **AC-18**: **Given** My books, **When** it shows, **Then** the **My favorite authors**
-  link sits right after the Author filter, not below the list. Without JavaScript it is
-  still reachable. On a phone it shows when "Sort and filter" is open.
+  link sits with the filters, on its own line after Apply (books-349: inside the Author
+  field it pushed that dropdown out of line), not below the list. Without JavaScript it
+  is still reachable. On a phone it shows when "Sort and filter" is open.
 - **AC-19**: **Given** an entry page, **When** it opens, **Then** a "Jump to" list near the
   top links to Book details, My reading and Stories in this book.
 
@@ -233,8 +234,8 @@ actions are easy to hit by mistake on a phone.
 - **FR-007**: Every page MUST show Change password for the signed-in member.
 - **FR-008**: Deactivate, Make Admin and Reset password MUST ask for confirmation first.
   Without it nothing changes.
-- **FR-009**: My books MUST show the favorite-authors link beside the Author filter. Entry
-  pages and Edit book MUST have jump links.
+- **FR-009**: My books MUST show the favorite-authors link with the filters, after Apply
+  (books-349). Entry pages and Edit book MUST have jump links.
 - **FR-010**: Every change MUST work without JavaScript, keep CSRF protection on posts, and
   meet WCAG 2.2 AA and the spec 003 layouts.
 

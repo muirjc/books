@@ -93,5 +93,7 @@ account area already wraps (spec 003); checked by the layout tests.
 
 **Decision**:
 - Move the favorites link into `#filter-extra`, right after the Author field, so the
-  phone fold shows it with the filters.
+  phone fold shows it with the filters. Amended for books-349: inside the Author field
+  it made that field taller and pushed its dropdown out of line, so it is now the last
+  item in `#filter-extra`, on a line of its own after Apply.
 - Entry page and Edit book get a `nav.jump-links` with `aria-label="On this page"`.

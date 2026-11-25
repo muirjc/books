@@ -16,7 +16,8 @@ from book_tracker.services import readings as readings_service
 
 NOTICE_KEYS = ("wanted", "already")
 # One-time notices a page shows from its address; never carried back (PR #35 review).
-DROPPED_KEYS = (*NOTICE_KEYS, "added", "stories", "msg", "after")
+DROPPED_KEYS = (*NOTICE_KEYS, "added", "stories", "msg", "after",
+                "finished", "favorited", "unfavorited")  # spec 017  # fmt: skip
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 _ANCHOR = re.compile(rf"(?:book|story)-{_UUID}")
 _BACK = re.compile(

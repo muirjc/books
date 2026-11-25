@@ -6,6 +6,7 @@ import pytest
 from playwright.async_api import Page
 
 from tests.a11y.conftest import UI, Seeded
+from tests.conftest import without_finished
 
 pytestmark = pytest.mark.a11y
 
@@ -83,7 +84,7 @@ async def test_add_book_choosing_author_from_suggestions(ui: UI, seeded: Seeded)
     assert await ui.page.input_value("#author_name_0") == "Terry Pratchett"
     assert await ui.page.input_value("#author_id_0") == seeded.author_id
     await press_button(ui.page, "Add to my list")
-    assert ui.page.url.endswith("/?msg=added")
+    assert without_finished(ui.page.url).endswith("/?msg=added")
     assert "Small Gods" in await ui.page.inner_text("#reading-list")
 
 

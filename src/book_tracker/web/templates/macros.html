@@ -76,6 +76,18 @@
 </span>
 {%- endmacro %}
 
+{#- Spec 017 AC-01–AC-04: one-tap add or remove an author as my favorite, returning to
+    ``back`` (allow-listed by the route). The star is decorative; the hidden text names
+    the action and the author. -#}
+{% macro star_button(author_id, name, is_favorite, back, csrf_token) -%}
+<form method="post" action="/authors/{{ author_id }}/favorite" class="inline-form star-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="favorite" value="{{ 'no' if is_favorite else 'yes' }}">
+<input type="hidden" name="back" value="{{ back }}">
+<button type="submit" class="star-button"><span aria-hidden="true">{{ "★" if is_favorite else "☆" }}</span><span class="visually-hidden">{% if is_favorite %}Remove {{ name }} from{% else %}Add {{ name }} to{% endif %} my favorite authors</span></button>
+</form>
+{%- endmacro %}
+
 {#- Spec 015 AC-07: one row for the Catalog, author pages and Upcoming: title, details
     (authors · series · release), my status, then the actions. -#}
 {% macro book_row(book, entry, today, here, csrf_token) -%}

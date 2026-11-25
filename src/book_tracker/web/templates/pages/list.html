@@ -5,6 +5,7 @@
   <h1>My books</h1>
   <p><a class="button button-primary" href="/books/add">Add a book</a></p>
 </div>
+{% include "partials/favorite_offer.html" %}
 
 {% if now_out %}
 {#- Spec 007 R6: books on my list I still want to read, out in the last 30 days. -#}

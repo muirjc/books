@@ -13,7 +13,8 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from book_tracker.domain.models import Author, Book, ReadingEntry, SeriesRef, Story
+from book_tracker.domain.enums import ReadingStatus
+from book_tracker.domain.models import Author, Book, BookAuthor, ReadingEntry, SeriesRef, Story
 from book_tracker.persistence import catalog
 from book_tracker.persistence.favorites import FavoriteAuthorRepository
 from book_tracker.persistence.readings import ReadingEntryRepository
@@ -103,3 +104,31 @@ async def remove_favorite(db: AsyncSession, user_id: uuid.UUID, author_id: uuid.
 
 async def is_favorite(db: AsyncSession, user_id: uuid.UUID, author_id: uuid.UUID) -> bool:
     return await FavoriteAuthorRepository(db, user_id).has(author_id)
+
+
+async def favorite_ids(
+    db: AsyncSession, user_id: uuid.UUID, author_ids: list[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Which of these authors are my favorites (spec 017 stars)."""
+    return await FavoriteAuthorRepository(db, user_id).among(author_ids)
+
+
+OFFER_MIN_FINISHED = 2  # spec 017: a second finished book by the author
+
+
+async def finish_offers(
+    db: AsyncSession, user_id: uuid.UUID, book_id: uuid.UUID
+) -> list[tuple[BookAuthor, int]]:
+    """Spec 017 R4: when my entry for this book is Finished, each of its authors who isn't
+    my favorite and whose books I've finished at least twice, with that count."""
+    entry = await ReadingEntryRepository(db, user_id).get_by_book(book_id)
+    if entry is None or entry.status != ReadingStatus.FINISHED:
+        return []
+    ids = [author.id for author in entry.book.authors]
+    favorites = await FavoriteAuthorRepository(db, user_id).among(ids)
+    counts = await ReadingEntryRepository(db, user_id).finished_counts(ids)
+    return [
+        (author, counts[author.id])
+        for author in entry.book.authors
+        if author.id not in favorites and counts.get(author.id, 0) >= OFFER_MIN_FINISHED
+    ]

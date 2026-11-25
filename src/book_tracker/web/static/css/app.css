@@ -325,3 +325,13 @@ a.badge.status-link {
 @media (min-width: 40em) {
   .series-rows .row-actions, .series-rows .story-adds { margin-left: auto; }
 }
+
+/* Spec 017 R6: a star straight after each author's name, never wrapping apart from it;
+   the offer after finishing a second book by an author. */
+.book-byline { margin: 1em 0; }  /* was a p */
+.author-pair { white-space: nowrap; }
+.star-form { display: inline-flex; vertical-align: middle; }
+.star-button { border-color: transparent; padding: 0 0.5rem; font-size: 1.25rem; line-height: 1; }
+.star-button:hover { border-color: var(--primary); }
+.favorite-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.favorite-offer .offer-form { margin: 0; }

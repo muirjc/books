@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlencode
@@ -20,6 +21,7 @@ from book_tracker.domain.values import format_series_number, normalize_name, sim
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import BookCreate, SearchQuery, SummaryForm, parse_page
 from book_tracker.schemas.readings import ReadingEntryCreate
+from book_tracker.services import authors as authors_service
 from book_tracker.services import catalog as catalog_service
 from book_tracker.services import imports as imports_service
 from book_tracker.services import readings as service
@@ -33,7 +35,7 @@ from book_tracker.services.errors import (
 from book_tracker.sources.base import BookSource
 from book_tracker.sources.dependencies import BookSourceDep
 from book_tracker.sources.summary_generator import SummaryGenerator, SummaryGeneratorDep
-from book_tracker.web import anthology, quick
+from book_tracker.web import anthology, favorites, quick
 from book_tracker.web.drafting import draft_for_page
 from book_tracker.web.forms import (
     AddBookForm,
@@ -180,6 +182,7 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
             "statuses": STATUSES,
             "author_options": authors,
             "series_options": series,
+            **await _favorite_context(request, db, auth),  # spec 017: the offer
         }
     )
     return render(request, "pages/list.html", context, auth=auth)
@@ -223,9 +226,27 @@ async def series_page(
             "added": added,
             "stories_added": stories_added(request) if added else 0,
             "quick": await quick.notice(request, db, auth),  # spec 015
+            **await _favorite_context(request, db, auth),  # spec 017: the offer
         },
         auth=auth,
     )
+
+
+async def _favorite_context(
+    request: Request, db: DbSession, auth: Authenticated, authors: Sequence[Any] = ()
+) -> dict[str, Any]:
+    """Spec 017: the favorite notice, my favorites among the page's authors (the stars),
+    and the offer after a finishing save. ``notice_top``: show the notice where the offer
+    is, as the offer led here."""
+    ids = [author.id for author in authors]
+    return {
+        "favorite_notice": await favorites.notice(request, db),
+        "favorite_ids": await authors_service.favorite_ids(db, auth.account.id, ids)
+        if ids
+        else set(),
+        "offer": await favorites.offer(request, db, auth),
+        "notice_top": "finished" in request.query_params,
+    }
 
 
 async def _existing_series(db: DbSession, series_id: uuid.UUID | None) -> domain.Series | None:
@@ -274,6 +295,7 @@ def _add_form(
     drafts_left: int | None = None,
     taken_rows: dict[int, domain.Story] | None = None,
     story_focus: str | None = None,
+    favorite: dict[str, Any] | None = None,
 ) -> Response:
     form = form or AddBookForm()
     if chosen is None:
@@ -296,6 +318,7 @@ def _add_form(
             "summary_draft": summary_draft,
             "draft_error": draft_error,
             "drafts_left": drafts_left,
+            **(favorite or {}),  # spec 017: the offer on Add another
         },
         auth=auth,
         status_code=status_code,
@@ -319,7 +342,8 @@ async def add_book_form(
         except NotFoundError:
             added = None
     if added is not None:
-        return _add_form(request, auth, carry_over_form(added), added=added)
+        favorite = await _favorite_context(request, db, auth)  # spec 017
+        return _add_form(request, auth, carry_over_form(added), added=added, favorite=favorite)
     # Spec 006: start from a catalog book, or from a series and number, and return to a
     # series page. Unknown or malformed values are ignored (R3).
     form = AddBookForm()
@@ -518,16 +542,19 @@ async def add_book(
     except NotFoundError:
         form.errors["title"] = "That book is no longer in the catalog. Enter its details."
         return _add_form(request, auth, form, status_code=422)
+    # Spec 017 R4: a book added as Finished may lead to the favorite offer.
+    fin = f"&finished={entry.book.id}" if form.status == ReadingStatus.FINISHED else ""
     if form.book_id is not None and text(data, "dropped_stories") == "yes":  # spec 013 AC-20
-        return RedirectResponse(f"/entries/{entry.id}?msg=stories_not_added", status_code=303)
+        location = f"/entries/{entry.id}?msg=stories_not_added{fin}"
+        return RedirectResponse(location, status_code=303)
     if form.then == "another":
-        location = anthology.with_stories(f"/books/add?after={entry.id}", form)
+        location = anthology.with_stories(f"/books/add?after={entry.id}{fin}", form)
         return RedirectResponse(location, status_code=303)
     back = await _existing_series(db, form.from_series)
     if back is not None:  # spec 006: the path is built from a parsed, existing series id
-        location = anthology.with_stories(f"/series/{back.id}?added={entry.id}", form)
+        location = anthology.with_stories(f"/series/{back.id}?added={entry.id}{fin}", form)
         return RedirectResponse(location, status_code=303)
-    return RedirectResponse(anthology.with_stories("/?msg=added", form), status_code=303)
+    return RedirectResponse(anthology.with_stories(f"/?msg=added{fin}", form), status_code=303)
 
 
 NEW_NAME = "“{}” is not in the family catalog yet"
@@ -836,9 +863,10 @@ def _unchanged(book: domain.Book, changes: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------- entry
 
 
-def _entry_page(
+async def _entry_page(
     request: Request,
     auth: Authenticated,
+    db: DbSession,
     entry: Any,
     *,
     errors: dict[str, str] | None = None,
@@ -866,6 +894,7 @@ def _entry_page(
             "author_conflicts": problem.author_conflicts if problem else {},
             "series_conflict": problem.series_conflict if problem else None,
             "message": message(request),
+            **await _favorite_context(request, db, auth, entry.book.authors),  # spec 017
         },
         auth=auth,
         status_code=status_code,
@@ -879,7 +908,7 @@ async def entry_page(
     entry = await service.get_entry(db, auth.account.id, entry_id)
     source_ref = await imports_service.source_ref(db, entry.book.id)
     stories = await catalog_service.book_stories(db, entry.book.id)  # spec 009
-    return _entry_page(request, auth, entry, source_ref=source_ref, stories=stories)
+    return await _entry_page(request, auth, db, entry, source_ref=source_ref, stories=stories)
 
 
 @router.post("/entries/{entry_id}")
@@ -902,15 +931,15 @@ async def update_entry(
         keep_unedited(current.book, details)  # books-mbx, before any name checks
         await new_name_prompts(db, details)  # spec 005: shown with any field errors
     if update is None or (details is not None and details.field_errors):
-        return _entry_page(
-            request, auth, current, errors=errors, raw=raw, form=details, status_code=422,
+        return await _entry_page(
+            request, auth, db, current, errors=errors, raw=raw, form=details, status_code=422,
             stories=stories, source_ref=source_ref,
         )  # fmt: skip
     if details is not None:
         problem = await save_book_details(db, auth, current.book, details, only_if_changed=True)
         if problem is not None:
-            return _entry_page(
-                request, auth, current, raw=raw, form=details, problem=problem,
+            return await _entry_page(
+                request, auth, db, current, raw=raw, form=details, problem=problem,
                 status_code=problem.status_code, stories=stories, source_ref=source_ref,
             )  # fmt: skip
     changes = {name: getattr(update, name) for name in update.model_fields_set}
@@ -920,7 +949,10 @@ async def update_entry(
         del changes["times_read"]
     await service.update_entry(db, auth.account.id, entry_id, changes, today=today(request))
     msg = "merged" if details is not None and details.others_kept else "saved"
-    return RedirectResponse(f"/entries/{entry_id}?msg={msg}", status_code=303)
+    location = f"/entries/{entry_id}?msg={msg}"
+    if current.status != ReadingStatus.FINISHED and update.status == ReadingStatus.FINISHED:
+        location += f"&finished={current.book.id}"  # spec 017 R4: the offer
+    return RedirectResponse(location, status_code=303)
 
 
 @router.get("/books/{book_id}")
@@ -938,6 +970,7 @@ async def book_page(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
             "quick": await quick.notice(request, db, auth),
             "message": BOOK_PAGE_MESSAGES.get(request.query_params.get("msg", "")),
             "today": today(request),
+            **await _favorite_context(request, db, auth, book.authors),  # spec 017: stars
         },
         auth=auth,
     )

@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 import pytest
 
-from tests.conftest import Factory, TestUser, signed_in
+from tests.conftest import Factory, TestUser, signed_in, without_finished
 
 
 @pytest.fixture
@@ -56,7 +56,9 @@ async def entries(factory: Factory) -> int:
 
 
 def after_id(response: httpx.Response) -> str:
-    match = re.fullmatch(r"/books/add\?after=([0-9a-f-]{36})", response.headers["location"])
+    # spec 017: a book added as Finished also carries finished=<book> (the favorite offer)
+    location = response.headers["location"]
+    match = re.fullmatch(r"/books/add\?after=([0-9a-f-]{36})(?:&finished=[0-9a-f-]{36})?", location)
     assert match, response.headers.get("location")
     return match.group(1)
 
@@ -157,7 +159,7 @@ async def test_add_to_my_list_unchanged(
             data["then"] = then
         response = await member.post("/books/add", data=data)
         assert response.status_code == 303
-        assert response.headers["location"] == "/?msg=added"
+        assert without_finished(response.headers["location"]) == "/?msg=added"
 
 
 @pytest.mark.ac("004/AC-05")
@@ -409,4 +411,4 @@ async def test_conflict_choice_keeps_add_another(
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )  # fmt: skip
     assert response.status_code == 303
-    assert response.headers["location"] == "/?msg=added"
+    assert without_finished(response.headers["location"]) == "/?msg=added"

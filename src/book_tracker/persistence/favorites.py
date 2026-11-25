@@ -8,6 +8,7 @@ id from its caller.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 
 from sqlalchemy import ColumnElement, delete, exists, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -42,6 +43,17 @@ class FavoriteAuthorRepository:
             select(exists().where(self._mine(), models.FavoriteAuthor.author_id == author_id))
         )
         return bool(found)
+
+    async def among(self, author_ids: Collection[uuid.UUID]) -> set[uuid.UUID]:
+        """Which of these authors are my favorites (spec 017: stars and offers)."""
+        if not author_ids:
+            return set()
+        rows = await self._db.scalars(
+            select(models.FavoriteAuthor.author_id).where(
+                self._mine(), models.FavoriteAuthor.author_id.in_(list(author_ids))
+            )
+        )
+        return set(rows)
 
     async def add(self, author_id: uuid.UUID) -> bool:
         """Add a favorite; already one is fine. False when the author doesn't exist (it may

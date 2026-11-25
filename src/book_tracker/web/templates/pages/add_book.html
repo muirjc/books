@@ -6,6 +6,7 @@
 <p class="muted">Adding several books by one author? <a href="/import">Import them from Open Library</a>.</p>
 {% if added %}
 <p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list{% if stories_added %}, with {{ stories_added }} stor{{ "y" if stories_added == 1 else "ies" }}{% endif %}.</p>
+{% include "partials/favorite_offer.html" %}
 {% endif %}
 {{ error_summary(form.errors) }}
 

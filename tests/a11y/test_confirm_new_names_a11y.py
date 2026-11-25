@@ -8,6 +8,7 @@ from playwright.async_api import Browser
 from tests.a11y.conftest import UI, Seeded, assert_no_axe_violations
 from tests.a11y.test_layout_003 import IPAD, LAPTOP, LAPTOP_MIN, PHONE, SMALL, box, size
 from tests.a11y.test_responsive import check
+from tests.conftest import without_finished
 
 pytestmark = pytest.mark.a11y
 
@@ -38,12 +39,12 @@ async def test_confirm_flow_without_js(
     assert (await use.first.inner_text()).strip() == "Use “Terry Pratchett”"
     await use.first.click()
     await view.page.wait_for_load_state()
-    assert view.page.url.endswith("/?msg=added"), view.page.url
+    assert without_finished(view.page.url).endswith("/?msg=added"), view.page.url
     await _type_book(view, "Ancillary Justice", "Ann Leckie")
     assert await view.page.locator(USE).count() == 0
     await view.page.click(CONFIRM)
     await view.page.wait_for_load_state()
-    assert view.page.url.endswith("/?msg=added"), view.page.url
+    assert without_finished(view.page.url).endswith("/?msg=added"), view.page.url
     await context.close()
 
 

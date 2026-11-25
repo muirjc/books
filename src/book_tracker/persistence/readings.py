@@ -267,6 +267,24 @@ class ReadingEntryRepository:
         )
         return set(rows)
 
+    async def finished_counts(self, author_ids: Collection[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """How many books by each author are Finished on the bound user's list (spec 017
+        R3). One entry per (user, book), so a re-read counts once; story authors don't
+        count. Authors with none are left out."""
+        if not author_ids:
+            return {}
+        rows = await self._db.execute(
+            select(models.BookAuthor.author_id, func.count())
+            .join(models.ReadingEntry, models.ReadingEntry.book_id == models.BookAuthor.book_id)
+            .where(
+                models.ReadingEntry.user_id == self._user_id,
+                models.ReadingEntry.status == ReadingStatus.FINISHED.value,
+                models.BookAuthor.author_id.in_(list(author_ids)),
+            )
+            .group_by(models.BookAuthor.author_id)
+        )
+        return {author_id: int(count) for author_id, count in rows.all()}
+
     async def add(
         self,
         *,

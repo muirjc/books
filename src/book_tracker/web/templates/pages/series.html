@@ -7,6 +7,7 @@
 {% if added %}
 <p class="notice" role="status" id="added-notice">Added “<a href="/entries/{{ added.id }}">{{ added.book.title }}</a>” to your list{% if stories_added %}, with {{ stories_added }} stor{{ "y" if stories_added == 1 else "ies" }}{% endif %}.</p>
 {% endif %}
+{% include "partials/favorite_offer.html" %}
 {% if view.rows %}
 <p>You've finished {{ view.finished }} of {{ view.total }} book{{ "" if view.total == 1 else "s" }}
 {%- if view.stories_total %} and {{ view.stories_finished }} of {{ view.stories_total }} stor{{ "y" if view.stories_total == 1 else "ies" }}{% endif %} in this series.</p>

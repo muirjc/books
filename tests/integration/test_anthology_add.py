@@ -14,7 +14,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from tests.conftest import Factory, TestUser, signed_in
+from tests.conftest import Factory, TestUser, signed_in, without_finished
 from tests.fakes import DRAFT_TEXT, FakeSummaryGenerator, good_draft
 
 CHECKBOX = "This book is an anthology or collection"
@@ -117,7 +117,7 @@ async def test_save_with_three_stories(
 ) -> None:
     response = await member.post("/books/add", data=side_jobs(dresden, **THREE))
     assert response.status_code == 303, response.text
-    assert response.headers["location"] == "/?msg=added&stories=3"
+    assert without_finished(response.headers["location"]) == "/?msg=added&stories=3"
     assert await stories_of(factory, "Side Jobs") == [
         ("Restoration of Faith", "The Dresden Files", Decimal("1.5"), "Jim Butcher"),
         ("Publicity and Advertising", "The Dresden Files", Decimal("2.5"), "Jim Butcher"),
@@ -149,14 +149,16 @@ async def test_add_another_and_from_series_carry_the_count(
     one = {"story_title_0": "A", "story_number_0": "1.5"}
     response = await member.post("/books/add", data=side_jobs(dresden, then="another", **one))
     location = response.headers["location"]
-    assert re.fullmatch(r"/books/add\?after=[0-9a-f-]+&stories=1", location)
+    assert re.fullmatch(r"/books/add\?after=[0-9a-f-]+&stories=1", without_finished(location))
     page = (await member.get(location)).text
     assert "with 1 story" in text_of(page)
     data = side_jobs(dresden, title="Brief Cases", from_series=str(dresden["series"]),
                      story_title_0="B", story_number_0="7.5")  # fmt: skip
     response = await member.post("/books/add", data=data)
     location = response.headers["location"]
-    assert re.fullmatch(rf"/series/{dresden['series']}\?added=[0-9a-f-]+&stories=1", location)
+    assert re.fullmatch(
+        rf"/series/{dresden['series']}\?added=[0-9a-f-]+&stories=1", without_finished(location)
+    )
     assert "with 1 story" in text_of((await member.get(location)).text)
 
 
@@ -224,10 +226,10 @@ async def test_blank_rows_are_ignored(
     data = side_jobs(dresden, story_title_0="", story_number_0="", story_title_1="A",
                      story_number_1="1.5", story_title_2="")  # fmt: skip
     response = await member.post("/books/add", data=data)
-    assert response.headers["location"] == "/?msg=added&stories=1"
+    assert without_finished(response.headers["location"]) == "/?msg=added&stories=1"
     assert [s[0] for s in await stories_of(factory, "Side Jobs")] == ["A"]
     response = await member.post("/books/add", data=side_jobs(dresden, title="Empty"))
-    assert response.headers["location"] == "/?msg=added"  # every row empty: no stories
+    assert without_finished(response.headers["location"]) == "/?msg=added"  # every row empty
 
 
 @pytest.mark.ac("013/AC-09")
@@ -287,7 +289,7 @@ async def test_choosing_the_existing_book_drops_the_stories(
     })  # fmt: skip
     assert response.status_code == 303
     location = response.headers["location"]
-    assert re.fullmatch(r"/entries/[0-9a-f-]+\?msg=stories_not_added", location)
+    assert re.fullmatch(r"/entries/[0-9a-f-]+\?msg=stories_not_added", without_finished(location))
     assert await factory.scalar("SELECT count(*) FROM story") == 0
     entry = text_of((await member.get(location)).text)
     assert "The stories you typed were not added. Add them with Add a story below." in entry

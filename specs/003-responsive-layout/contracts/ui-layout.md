@@ -44,7 +44,8 @@ the row layout; the series page (`.series-list`) and the summary history keep si
 Filters:
 
 - The form keeps role `search`. Search (`#q`) is always shown.
-- Sort, status, author, series, Apply and Clear sit inside `#filter-extra.filter-extra`.
+- Sort, status, author, series, Apply and Clear sit inside `#filter-extra.filter-extra`
+  (books-g39: Clear, as "Clear filters", leads the favorites line after Apply).
 - The form carries `data-fold="open"` when the request has a non-default sort or any filter
   (`q`, `status`, `author_id`, `series_id`); otherwise `data-fold="closed"`.
 - A `button.filters-toggle` (`type="button"`, `aria-controls="filter-extra"`,

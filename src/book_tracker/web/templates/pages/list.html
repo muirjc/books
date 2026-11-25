@@ -70,11 +70,11 @@
   </div>
   <div class="actions">
     <button type="submit">Apply</button>
-    {% if filtered %}<a href="/">Clear</a>{% endif %}
   </div>
   {#- Spec 014 AC-18, books-349: with the filters, so phones needn't scroll past the list,
-      on a line of its own so the dropdowns stay level. -#}
-  <p class="filter-link"><a href="/authors/favorites">My favorite authors</a></p>
+      on a line of its own so the dropdowns stay level. books-g39: Clear leads it, leaving
+      the laptop row room for the dropdowns. -#}
+  <p class="filter-link">{% if filtered %}<a href="/">Clear filters</a> · {% endif %}<a href="/authors/favorites">My favorite authors</a></p>
   </div>
 </form>
 

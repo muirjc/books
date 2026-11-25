@@ -219,7 +219,11 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .nav-list { gap: 0 0.5rem; }
   .account-actions { flex-wrap: nowrap; gap: 0 0.5rem; white-space: nowrap; }
   .signed-in-label { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .filters { grid-template-columns: 2fr repeat(4, minmax(0, 1fr)) auto auto; } /* + Upcoming only (spec 007) */
+  /* + Upcoming only (spec 007). books-g39: at 1024px every dropdown shows its whole
+     default choice; the Upcoming hint wraps under the box rather than widening its column. */
+  .filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(8rem, 1fr)) auto auto; column-gap: 0.5rem; }
+  .filters select { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .upcoming-field .hint { contain: inline-size; }
   .upcoming-field { grid-column: auto; }
   .reading-list > li {
     grid-template-columns: minmax(0, 1fr) minmax(0, 26%) 7rem 11.5rem 6.5rem;

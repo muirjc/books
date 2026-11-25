@@ -362,9 +362,24 @@ async def test_favorites_link_after_the_filters(member: httpx.AsyncClient) -> No
     # books-349: after Apply, on its own line, so the Author dropdown lines up with the rest.
     series, apply, favorites = (
         block.find('id="series_id"'), block.find('<button type="submit">Apply</button>'),
-        block.find('<p class="filter-link"><a href="/authors/favorites">'),
+        block.find('<a href="/authors/favorites">My favorite authors</a></p>'),
     )  # fmt: skip
     assert -1 < series < apply < favorites
+    assert "Clear filters" not in block
+
+
+async def test_clear_filters_on_the_line_below(member: httpx.AsyncClient) -> None:
+    """books-g39: Clear leaves the Apply cell, so the laptop dropdowns have room; it leads
+    the favorites line, after Apply."""
+    block = (await member.get("/?status=reading")).text
+    actions = re.search(r'<div class="actions">.*?</div>', block, re.S)
+    assert actions and "Clear" not in actions.group(0)
+    line = re.search(r'<p class="filter-link">(.*?)</p>', block, re.S)
+    assert line
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', line.group(1)) == [
+        ("/", "Clear filters"), ("/authors/favorites", "My favorite authors"),
+    ]  # fmt: skip
+    assert block.find(">Apply</button>") < line.start()
 
 
 @pytest.mark.ac("014/AC-19")

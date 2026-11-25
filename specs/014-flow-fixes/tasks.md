@@ -82,7 +82,8 @@
 ## Phase 7: User Story 5 – Long pages (P3)
 
 - [X] T011 [US5] Write failing tests for:
-  - AC-18: the favorites link right after the Author field, inside `#filter-extra`;
+  - AC-18: the favorites link right after the Author field, inside `#filter-extra`
+    (books-349 moved it after Apply);
   - AC-19: the entry page's jump links.
 
   Implement them in `list.html` and `entry.html`, with `.jump-links` styles.
@@ -117,7 +118,9 @@
   - an entry page always has a Stories section;
   - admin Deactivate, Make Admin and Reset password now post `confirm=yes`.
 - **Layout:** the favorites link sits inside the Author field. As its own item, it wrapped
-  the laptop filter row (spec 003 AC test).
+  the laptop filter row (spec 003 AC test). Amended by books-349: inside the field it pushed the
+  Author dropdown out of line, so it is now its own full-width line after Apply
+  (`grid-column: 1 / -1`), below the laptop filter row rather than wrapping it.
 - **Accounts:** `services/accounts.get_account` was added for the confirmation page, and is
   covered to 100%.
 - **Gates:** 943 passed; a11y and perf 78; ruff and mypy clean; 8 critical modules at 100%;

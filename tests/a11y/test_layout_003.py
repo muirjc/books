@@ -501,11 +501,14 @@ async def test_series_and_summary_lists_keep_their_layout(
 
 
 # The search box, dropdowns and Apply, each with the box of the grid cell that holds it.
+# Upcoming only is left out: a checkbox, label and hint have no edge to share with a
+# dropdown (its own layout is books-02q). Clear sits beside Apply in the same cell.
 FILTER_CONTROLS = """() => [...document.querySelectorAll(
     '#q, #sort, #status, #author_id, #series_id, .filters button[type=submit]')].map(e => {
   const r = e.getBoundingClientRect(), f = e.parentElement.getBoundingClientRect();
-  return {id: e.id || e.type, top: r.top, bottom: r.bottom, visible: r.width > 0,
-          field: {top: f.top, bottom: f.bottom, visible: true}};
+  return {id: e.id || e.type, top: r.top, bottom: r.bottom,
+          visible: r.width > 0 && r.height > 0,
+          field: {top: f.top, bottom: f.bottom, visible: f.width > 0 && f.height > 0}};
 })"""
 
 
@@ -520,7 +523,9 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
         await size(ui.page, wh)
         await ui.go("/")
         toggle = ui.page.locator(".filters-toggle")
-        if await toggle.is_visible():
+        link = '.filters a[href="/authors/favorites"]'
+        if await toggle.is_visible():  # phone: folded with the filters until opened
+            assert not (await box(ui.page, link))["visible"], wh
             await toggle.click()
         controls = await ui.page.evaluate(FILTER_CONTROLS)
         assert len(controls) == 6 and all(c["visible"] for c in controls), (wh, controls)
@@ -529,5 +534,5 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
                 if same_line([c["field"], d["field"]]):  # one row of the filter grid
                     edge = "bottom" if "submit" in (c["id"], d["id"]) else "top"
                     assert abs(c[edge] - d[edge]) <= 1, (wh, edge, c, d)
-        link = await box(ui.page, '.filters a[href="/authors/favorites"]')
-        assert link["visible"] and link["height"] >= 44, (wh, link)
+        shown = await box(ui.page, link)
+        assert shown["visible"] and shown["height"] >= 44, (wh, shown)

@@ -354,7 +354,7 @@ async def test_add_a_book_by_this_author(member: httpx.AsyncClient, w: dict[str,
 
 
 @pytest.mark.ac("014/AC-18")
-async def test_favorites_link_beside_the_author_filter(member: httpx.AsyncClient) -> None:
+async def test_favorites_link_after_the_filters(member: httpx.AsyncClient) -> None:
     page = (await member.get("/")).text
     extra = re.search(r'<div id="filter-extra".*?</form>', page, re.S)
     assert extra

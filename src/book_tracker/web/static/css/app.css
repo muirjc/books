@@ -191,6 +191,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .nav-list { flex-wrap: nowrap; }
   .filters { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); align-items: end; }
   .filters .field { min-width: 0; }
+  .filters .checkbox-field { grid-column: span 2; } /* box and label on one line (books-02q) */
   .filter-extra { display: contents; }
   .filters-toggle { display: none; }
   .reading-list > li {
@@ -218,6 +219,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .account-actions { flex-wrap: nowrap; gap: 0 0.5rem; white-space: nowrap; }
   .signed-in-label { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .filters { grid-template-columns: 2fr repeat(4, minmax(0, 1fr)) auto auto; } /* + Upcoming only (spec 007) */
+  .filters .checkbox-field { grid-column: auto; }
   .reading-list > li {
     grid-template-columns: minmax(0, 1fr) minmax(0, 26%) 7rem 11.5rem 6.5rem;
     grid-template-areas: "title meta status finished times";

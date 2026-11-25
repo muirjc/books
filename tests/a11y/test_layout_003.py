@@ -536,3 +536,22 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
                     assert abs(c[edge] - d[edge]) <= 1, (wh, edge, c, d)
         shown = await box(ui.page, link)
         assert shown["visible"] and shown["height"] >= 44, (wh, shown)
+
+
+@pytest.mark.ac("003/AC-03")
+async def test_upcoming_only_checkbox_beside_its_label(ui: UI, seeded: Seeded) -> None:
+    """books-02q: at every width the Upcoming only checkbox and its label share a line,
+    with the hint under them, and the field is no taller than a dropdown field."""
+    await ui.sign_in(seeded.alice)
+    for wh in WIDTHS:
+        await size(ui.page, wh)
+        await ui.go("/")
+        toggle = ui.page.locator(".filters-toggle")
+        if await toggle.is_visible():
+            await toggle.click()
+        check, label = await box(ui.page, "#upcoming"), await box(ui.page, 'label[for="upcoming"]')
+        hint = await box(ui.page, "#upcoming-hint")
+        assert same_line([check, label]), (wh, check, label)
+        assert hint["top"] >= max(check["bottom"], label["bottom"]) - 1, (wh, hint)
+        field, series = await box(ui.page, ".checkbox-field"), await box(ui.page, "#series_id")
+        assert field["height"] <= series["height"] + 40, (wh, field, series)

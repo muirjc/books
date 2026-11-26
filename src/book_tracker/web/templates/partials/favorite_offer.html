@@ -1,0 +1,18 @@
+{#- Spec 017 AC-07–AC-12: after a finishing save, the notice from accepting the offer,
+    then the offer for each author I've now finished at least twice. Expects: offer
+    (Offer or none), favorite_notice, notice_top, csrf_token; stars_below (the entry
+    page, whose notice is otherwise by its stars). -#}
+{% if notice_top or not stars_below %}{% include "partials/favorite_notice.html" %}{% endif %}
+{% if offer %}
+<div class="notice favorite-offer" role="status">
+  {% for author, count in offer.authors %}
+  <span class="offer-line">You've finished {{ count }} books by {{ author.name }}.</span>
+  <form method="post" action="/authors/{{ author.id }}/favorite" class="offer-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="favorite" value="yes">
+    <input type="hidden" name="back" value="{{ offer.back }}">
+    <button type="submit">Add {{ author.name }} to my favorite authors</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}

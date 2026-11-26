@@ -13,7 +13,7 @@ from book_tracker.auth.dependencies import UiUser
 from book_tracker.persistence.db import DbSession
 from book_tracker.schemas.catalog import FavoriteForm
 from book_tracker.services import authors as service
-from book_tracker.web import quick
+from book_tracker.web import favorites, quick
 from book_tracker.web.rendering import render, render_error
 
 router = APIRouter(prefix="/authors", include_in_schema=False)
@@ -52,15 +52,21 @@ async def author_page(
 async def set_favorite(
     author_id: uuid.UUID, request: Request, auth: UiUser, db: DbSession
 ) -> Response:
-    """Add (favorite=yes) or remove (no), then back to the page (research R5)."""
+    """Add (favorite=yes) or remove (no), then back to the page (research R5), or to an
+    accepted ``back`` page (spec 017 R2)."""
+    data = await request.form()
     try:
-        form = FavoriteForm.model_validate({"favorite": (await request.form()).get("favorite")})
+        form = FavoriteForm.model_validate(
+            {"favorite": data.get("favorite"), "back": data.get("back")}
+        )
     except ValidationError:
         return render_error(request, 422, "Choose whether to add or remove the favorite")
+    kind: favorites.Kind
     if form.favorite == "yes":
         await service.add_favorite(db, auth.account.id, author_id)
-        msg = "favorited"
+        kind = "favorited"
     else:
         await service.remove_favorite(db, auth.account.id, author_id)
-        msg = "unfavorited"
-    return RedirectResponse(f"/authors/{author_id}?msg={msg}", status_code=303)
+        kind = "unfavorited"
+    location = await favorites.after_favorite(db, auth, author_id, form.back, kind)
+    return RedirectResponse(location, status_code=303)

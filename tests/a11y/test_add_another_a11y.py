@@ -8,6 +8,7 @@ from playwright.async_api import Browser, Page
 from tests.a11y.conftest import UI, Seeded, assert_no_axe_violations
 from tests.a11y.test_layout_003 import IPAD, LAPTOP, LAPTOP_MIN, PHONE, SMALL, box, size
 from tests.a11y.test_responsive import check
+from tests.conftest import without_finished
 
 pytestmark = pytest.mark.a11y
 
@@ -55,7 +56,7 @@ async def test_add_another_flow_with_and_without_js(
     await view.page.fill("#title", "Neverwhere")
     await view.page.press("#title", "Enter")
     await view.page.wait_for_load_state()
-    assert view.page.url.endswith("/?msg=added"), view.page.url
+    assert without_finished(view.page.url).endswith("/?msg=added"), view.page.url
     await context.close()
 
 

@@ -9,6 +9,9 @@
 </ul>
 <p><a href="/?author_id=favorites">My books by these authors</a></p>
 {% else %}
-<p>You haven't chosen any favorite authors yet. Open an author's page and choose Add to my favorite authors.</p>
+{#- Spec 017 AC-06: a way forward. -#}
+<p>You haven't chosen any favorite authors yet.</p>
+<p>Choose the star next to an author's name on a book page, or Add to my favorite authors on an author's page.</p>
+<p><a href="/catalog">Browse the Catalog</a></p>
 {% endif %}
 {% endblock %}

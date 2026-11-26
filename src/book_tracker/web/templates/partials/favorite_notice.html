@@ -1,0 +1,8 @@
+{#- Spec 017 AC-03, AC-10: after a star or the offer. Expects: favorite_notice ((kind, author) or none). -#}
+{% if favorite_notice %}
+{% set kind, author = favorite_notice %}
+<p class="notice" role="status" id="favorite-notice">
+  {%- if kind == "favorited" %}Added {{ author.name }} to your favorite authors.
+  {%- else %}Removed {{ author.name }} from your favorite authors.{% endif -%}
+</p>
+{% endif %}

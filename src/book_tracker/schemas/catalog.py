@@ -434,3 +434,32 @@ class FavoriteForm(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     favorite: Literal["yes", "no"]
+    back: str | None = None  # spec 017: the page to return to, checked by web.favorites
+
+    @field_validator("back", mode="before")
+    @classmethod
+    def _back(cls, value: object) -> str | None:
+        """Too long or not text: no return address (the author page), never an error."""
+        return value if isinstance(value, str) and 0 < len(value) <= BACK_MAX else None
+
+
+BACK_MAX = 2000
+
+
+class FavoriteNoticeQuery(BaseModel):
+    """Spec 017's address keys: ``finished`` (the offer) and ``favorited`` /
+    ``unfavorited`` (the notice). An invalid value is None, never an error (R2)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    finished: uuid.UUID | None = None
+    favorited: uuid.UUID | None = None
+    unfavorited: uuid.UUID | None = None
+
+    @field_validator("finished", "favorited", "unfavorited", mode="before")
+    @classmethod
+    def _uuid(cls, value: object) -> uuid.UUID | None:
+        try:
+            return uuid.UUID(str(value)) if value is not None else None
+        except ValueError:
+            return None

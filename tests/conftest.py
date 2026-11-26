@@ -289,6 +289,12 @@ async def ui_csrf(client: httpx.AsyncClient) -> str:
     return str(response.json()["csrf_token"])
 
 
+def without_finished(location: str) -> str:
+    """A redirect without spec 017's ``finished=<book>`` key (the favorite offer), for
+    tests about the rest of the address."""
+    return re.sub(r"&finished=[0-9a-f-]{36}", "", location)
+
+
 # --------------------------------------------------------------------------- factories
 
 

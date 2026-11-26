@@ -35,7 +35,7 @@ header) get an HTML fragment back; other requests get a full page or a redirect
 | GET | `/upcoming` | My books not out yet, then other upcoming catalog books with Add to my list ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)) | spec 007 |
 | GET | `/series/{id}` | Every catalog book in this series, in order, with my own status, gaps and Add links ([spec 006](../../006-series-viewer/contracts/ui-series-viewer.md)); Coming and Pre-ordered labels ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)); stories at their numbers, with the books they're in and my status from my own entries ([spec 009](../../009-collection-stories/contracts/ui-stories.md)); an Add #next row and Add a collection with stories in this series ([spec 014](../../014-flow-fixes/contracts/ui-flow-fixes.md)) | FR-022 |
 | GET | `/authors/{id}` | An author's catalog books by series, with my own status or Add to my list, and their stories; Add to / Remove from my favorite authors ([spec 011](../../011-author-page/contracts/ui-authors.md)); Add a book by this author ([spec 014](../../014-flow-fixes/contracts/ui-flow-fixes.md)) | spec 011 |
-| POST | `/authors/{id}/favorite` | `favorite=yes` or `no`; back to the Author page ([spec 011](../../011-author-page/contracts/ui-authors.md)) | spec 011 |
+| POST | `/authors/{id}/favorite` | `favorite=yes` or `no`; back to the Author page ([spec 011](../../011-author-page/contracts/ui-authors.md)), or to an allow-listed `back` page with `favorited` / `unfavorited` ([spec 017](../../017-favorite-author-shortcuts/contracts/ui-favorites.md)) | spec 011, 017 |
 | GET | `/authors/favorites` | My favorite authors, by sort name ([spec 011](../../011-author-page/contracts/ui-authors.md)) | spec 011 |
 | GET | `/catalog` | Every catalog book, 50 per page. Searched by title, author, real name, series, story or ISBN; sorted; filtered to books not on my list. Each book shows On my list (my entry) or Add to my list. Linked from the main navigation as **Catalog** ([spec 010](../../010-catalog-page/contracts/ui-catalog.md)) | spec 010 |
 | GET, POST | `/catalog/books/{id}/edit` | Edit a catalog book, including its release date ([spec 007](../../007-upcoming-books/contracts/ui-upcoming.md)). New author and series names are confirmed first ([spec 005](../../005-confirm-new-names/contracts/ui-new-names.md)). Book fields left as the page first showed them keep the book's current values, so a page opened before another member's edit never writes old values back (books-mbx). Lists the book's stories, with Add, Edit and Remove ([spec 009](../../009-collection-stories/contracts/ui-stories.md)). | FR-009 |
@@ -63,3 +63,9 @@ Route rules:
   `/sign-out` redirects to `/account/password`.
 - `/admin/*` returns 403 for non-Admins. No admin route shows reading entries (AC-14).
 - There is no route for creating an account without signing in (AC-12).
+
+Spec 017 ([contract](../../017-favorite-author-shortcuts/contracts/ui-favorites.md)): the book
+page and my entry page show a favorite star after each author. A save that makes a book
+Finished (`POST /books/add`, `POST /entries/{id}`) adds `finished=<book_id>` to its
+redirect, and the page it leads to (My books, a series page, Add another, my entry) may
+offer the book's authors as favorites.

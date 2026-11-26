@@ -19,6 +19,7 @@ CRITICAL_MODULES = (
     "src/book_tracker/persistence/favorites.py",  # spec 011: personal favorites
     "src/book_tracker/persistence/draft_usage.py",  # spec 012: each member's AI allowance
     "src/book_tracker/services/accounts.py",
+    "src/book_tracker/web/favorites.py",  # spec 017: return addresses, my own entry only
     "src/book_tracker/services/imports.py",  # spec 002: whose list receives imported books
 )
 

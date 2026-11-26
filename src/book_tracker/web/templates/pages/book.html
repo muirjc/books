@@ -1,11 +1,15 @@
 {% extends "base.html" %}
-{% from "macros.html" import release_label, series_line, status_badge, quick_add %}
+{% from "macros.html" import release_label, series_line, status_badge, quick_add, star_button %}
 {% block title %}{{ book.title }}{% endblock %}
 {% block content %}
 {#- Spec 016: a catalog book, read-only. Only my own entry is used (Principle I). The id
     is the spec 015 quick add's anchor. -#}
 <h1 id="book-{{ book.id }}">{{ book.title }}</h1>
-<p class="book-byline">By {% for a in book.authors %}<a href="/authors/{{ a.id }}">{{ a.name }}</a>{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}{{ ", " if not loop.last }}{% endfor %}</p>
+{#- Spec 017: a star straight after each author's name, kept with it on a phone (R6). A
+    div, not a p: a form can't sit inside a paragraph. -#}
+<div class="book-byline">By {% for a in book.authors %}<span class="author-pair"><a href="/authors/{{ a.id }}">{{ a.name }}</a>
+{{- star_button(a.id, a.name, a.id in favorite_ids, favorite_back, csrf_token) }}</span>{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}{{ ", " if not loop.last }}{% endfor %}</div>
+{% include "partials/favorite_notice.html" %}
 {% if book.series %}<p class="book-series"><a href="/series/{{ book.series.id }}">{{ series_line(book) }}</a></p>{% endif %}
 {% set release = release_label(book, today, entry) %}
 {% if is_upcoming(book.release_date, today) %}<p class="release">{{ release }}</p>

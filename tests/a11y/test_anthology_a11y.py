@@ -10,7 +10,7 @@ from playwright.async_api import Browser, expect
 from tests.a11y.conftest import UI, Seeded, assert_no_axe_violations
 from tests.a11y.test_layout_003 import IPAD, LAPTOP, LAPTOP_MIN, PHONE, SMALL, size
 from tests.a11y.test_responsive import check
-from tests.conftest import Factory
+from tests.conftest import Factory, without_finished
 
 pytestmark = pytest.mark.a11y
 
@@ -125,7 +125,7 @@ async def test_keyboard_journey_without_javascript(
     await confirm.focus()
     async with page.expect_navigation():
         await page.keyboard.press("Enter")
-    assert page.url.endswith("/?msg=added&stories=2"), page.url
+    assert without_finished(page.url).endswith("/?msg=added&stories=2"), page.url
     await expect(page.get_by_text("Added to your list, with 2 stories.")).to_be_visible()
     assert await factory.scalar("SELECT count(*) FROM story") == 2
     await context.close()

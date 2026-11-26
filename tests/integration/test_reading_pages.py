@@ -9,7 +9,7 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from tests.conftest import Factory, TestUser, signed_in
+from tests.conftest import Factory, TestUser, signed_in, without_finished
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ async def test_add_book_with_new_author_and_series(
         },
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/?msg=added"
+    assert without_finished(response.headers["location"]) == "/?msg=added"
     listed = await member.get("/?msg=added")
     assert "Guards! Guards!" in listed.text
     assert "Added to your list." in listed.text
@@ -167,7 +167,7 @@ async def test_edit_entry(member: httpx.AsyncClient, factory: Factory, alice: Te
         },
     )
     assert saved.status_code == 303
-    assert saved.headers["location"] == f"/entries/{entry}?msg=saved"
+    assert without_finished(saved.headers["location"]) == f"/entries/{entry}?msg=saved"
     shown = await member.get(saved.headers["location"])
     assert "Spice must flow" in shown.text
     assert 'value="3"' in shown.text

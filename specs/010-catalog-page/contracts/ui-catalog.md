@@ -11,3 +11,5 @@ and amends the main navigation. The JSON API doesn't change.
 
 Unknown or invalid parameters fall back to the defaults: `sort=title`, page 1, and the
 filter off. A page past the end shows the last page.
+
+*Amended 2026-11-26 by [spec 018](../../018-navigation-model/contracts/ui-navigation.md): a Books | Series switch sits under the heading; `GET /catalog/series` is the Series view.*

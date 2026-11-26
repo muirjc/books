@@ -98,7 +98,7 @@ async def test_stars_on_the_book_and_entry_pages(
 @pytest.mark.ac("017/AC-14")
 async def test_empty_favorites_page(ui: UI, seeded: Seeded) -> None:
     await ui.sign_in(seeded.alice)
-    await ui.go("/authors/favorites")
+    await ui.go("/authors?favorites=1")  # spec 018
     await expect(ui.page.get_by_role("link", name="Browse the Catalog")).to_have_count(1)
     await _every_width(ui, "empty favorites")
 

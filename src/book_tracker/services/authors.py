@@ -132,3 +132,56 @@ async def finish_offers(
         for author in entry.book.authors
         if author.id not in favorites and counts.get(author.id, 0) >= OFFER_MIN_FINISHED
     ]
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorIndexRow:
+    """An Authors page row (spec 018): the author, how many catalog books list them, how
+    many of those I've finished, and whether they're my favorite (mine only)."""
+
+    author: Author
+    books: int
+    read: int
+    favorite: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorsIndex:
+    rows: tuple[AuthorIndexRow, ...]
+    page: int  # clamped to the last page
+    page_size: int
+    total: int
+
+
+async def authors_index(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    page: int,
+    page_size: int,
+    q: str = "",
+    only_favorites: bool = False,
+) -> AuthorsIndex:
+    """Every catalog author, my favorites first (spec 018 R2): one query for the page, then
+    my favorites and my Finished counts for its authors, all user-bound (Principle I)."""
+    mine = FavoriteAuthorRepository(db, user_id)
+    found, total, page = await catalog.browse_authors(
+        db,
+        page=page,
+        page_size=page_size,
+        favorite=mine.author_condition(),
+        only_favorites=only_favorites,
+        q=q.strip(),
+    )
+    ids = [author.id for author, _ in found]
+    favorites = await mine.among(ids)
+    read = await ReadingEntryRepository(db, user_id).finished_counts(ids)
+    return AuthorsIndex(
+        rows=tuple(
+            AuthorIndexRow(author, books, read.get(author.id, 0), author.id in favorites)
+            for author, books in found
+        ),
+        page=page,
+        page_size=page_size,
+        total=total,
+    )

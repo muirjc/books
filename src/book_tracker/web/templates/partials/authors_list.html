@@ -1,0 +1,38 @@
+{% from "macros.html" import star_button %}
+{#- Spec 018 R2: author rows. The star, the order and "read" use my own data only
+    (Principle I). Expects: index, filters, query_without_page, clear_search, favorite_back. -#}
+{% if htmx %}
+{#- A search or filter change clears an earlier favorite notice. -#}
+<div hx-swap-oob="innerHTML:#favorite-notice-area"></div>
+{% endif %}
+{% if index.total == 0 %}
+{% if filters.q %}
+<p>No authors match “{{ filters.q }}”.</p>
+<p><a href="{{ clear_search }}">Clear search</a></p>
+{% elif filters.favorites %}
+{% include "partials/no_favorites.html" %}
+{% else %}
+<p>No authors in the catalog yet. <a href="/books/add">Add a book</a></p>
+{% endif %}
+{% else %}
+<ul class="index-list" role="list">
+  {% for row in index.rows %}
+  <li class="author-row">
+    <span class="author-pair"><a class="row-name" href="/authors/{{ row.author.id }}">{{ row.author.name }}</a>
+    {{- star_button(row.author.id, row.author.name, row.favorite, favorite_back, csrf_token) }}</span>
+    <span class="index-detail">{% if row.author.is_pen_name and row.author.real_name %}pen name of {{ row.author.real_name }} · {% endif %}{{ row.books }} book{{ "" if row.books == 1 else "s" }} · {{ row.read }} read</span>
+  </li>
+  {% endfor %}
+</ul>
+{% if filters.favorites %}
+<p><a href="/?author_id=favorites">My books by these authors</a></p>
+{% endif %}
+{% set last_page = ((index.total - 1) // index.page_size) + 1 %}
+{% if last_page > 1 %}
+<nav class="pagination" aria-label="Pages">
+  {% if index.page > 1 %}<a href="/authors?{{ query_without_page }}page={{ index.page - 1 }}">Previous</a>{% endif %}
+  <span>Page {{ index.page }} of {{ last_page }}</span>
+  {% if index.page < last_page %}<a href="/authors?{{ query_without_page }}page={{ index.page + 1 }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}

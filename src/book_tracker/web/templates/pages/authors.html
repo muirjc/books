@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Authors{% endblock %}
+{% block content %}
+{#- Spec 018: every catalog author, my favorites first. -#}
+<h1>Authors</h1>
+
+<form method="get" action="/authors" role="search" aria-label="Search authors" class="filters index-filters"
+      hx-get="/authors" hx-target="#authors-list" hx-push-url="true"
+      hx-trigger="submit, change from:#favorites, input changed delay:300ms from:#q">
+  <div class="field">
+    <label for="q">Search authors</label>
+    <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off">
+  </div>
+  <div class="field checkbox-field">
+    <input type="checkbox" id="favorites" name="favorites" value="1"{% if filters.favorites %} checked{% endif %}>
+    <label for="favorites">Favorites only</label>
+  </div>
+  <div class="actions">
+    <button type="submit">Apply</button>
+  </div>
+</form>
+
+<div id="favorite-notice-area">{% include "partials/favorite_notice.html" %}</div>
+<div id="authors-list" aria-live="polite">
+  {% include "partials/authors_list.html" %}
+</div>
+
+{% if unused_authors %}
+{#- Spec 008: tidy the catalog (moved here from My books by spec 018). -#}
+<p class="tidy-link"><a href="/catalog/authors/unused">Authors with no books ({{ unused_authors }})</a></p>
+{% endif %}
+{% endblock %}

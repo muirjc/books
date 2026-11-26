@@ -366,14 +366,14 @@ async def test_star_after_author_left_the_book_still_works(
 async def test_empty_favorites_page_leads_to_the_catalog(
     factory: Factory, member: httpx.AsyncClient, alice: TestUser
 ) -> None:
-    page = (await member.get("/authors/favorites")).text
+    page = (await member.get("/authors?favorites=1")).text
     text = words(page)
     assert "You haven't chosen any favorite authors yet." in text
     assert "star next to an author's name on a book page" in text
     assert re.search(r'<a href="/catalog">Browse the Catalog</a>', page)
     author = await factory.author("Terry Pratchett", alice)
     await factory.favorite(alice, author)
-    page = (await member.get("/authors/favorites")).text
+    page = (await member.get("/authors?favorites=1")).text
     assert "Browse the Catalog" not in page and "Terry Pratchett" in page
 
 

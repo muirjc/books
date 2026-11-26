@@ -148,7 +148,7 @@ async def test_my_books_laptop(ui: UI, many_books: Seeded) -> None:
     assert times, "times read shown on laptop"
     assert (await box(ui.page, ".book-list"))["width"] > 1200
     filters = await boxes(ui.page, ".filters .field, .filters button[type=submit]")
-    assert len(filters) == 7 and same_line(filters), filters  # + Upcoming only (spec 007)
+    assert len(filters) == 6 and same_line(filters), filters  # spec 018: no Upcoming only
     visible = await ui.page.evaluate(VISIBLE_ROWS)
     assert visible >= 12, f"SC-001: {visible} books visible"
 
@@ -209,15 +209,25 @@ async def test_page_width(ui: UI, seeded: Seeded) -> None:
 
 @pytest.mark.ac("003/AC-08")
 @pytest.mark.ac("003/AC-09")
+@pytest.mark.ac("018/AC-18")
 async def test_header_rows(seeded: Seeded, pw_browser: Browser, live_server: str) -> None:
+    """Spec 018 amended AC-08: one row when it fits. At 1024 px the site name and the
+    seven menu items fill the row, so the account actions wrap to a second row of their
+    own; nothing is squeezed (the site name used to break over three lines)."""
     for user in (seeded.alice, seeded.admin):
         view = await _session(pw_browser, live_server, user)
         page = view.page
         for wh in (LAPTOP_MIN, LAPTOP):
             await size(page, wh)
             await view.go("/")
-            parts = await boxes(page, ".brand, .nav-list a, .account-actions button")
-            assert same_line(parts), (user.login, wh, parts)
+            menu = await boxes(page, ".brand, .nav-list a")
+            account = await boxes(page, ".account-actions button")
+            assert same_line(menu) and same_line(account), (user.login, wh, menu, account)
+            assert all(b["height"] <= 44 for b in menu), (user.login, wh, menu)  # one line each
+            if wh == LAPTOP:
+                assert same_line(menu + account), (user.login, wh, menu, account)
+            else:
+                assert account[0]["top"] >= menu[0]["bottom"] - 1, (user.login, wh, account)
         for wh in (IPAD_MINI, IPAD):
             await size(page, wh)
             await view.go("/")
@@ -517,13 +527,14 @@ FILTER_CONTROLS = """sel => [...document.querySelectorAll(sel)].map(e => {
 @pytest.mark.ac("014/AC-18")
 async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
     """books-349: the search box and dropdowns on one line share a top edge, and Apply
-    lines up with their bottom, at every width; the favorites link stays in the filters."""
+    lines up with their bottom, at every width; Clear filters stays in the filters (spec
+    018 moved the favorites link to the Authors page)."""
     await ui.sign_in(seeded.alice)
     for wh, path in ((wh, path) for wh in WIDTHS for path in ("/", "/?status=reading")):
         await size(ui.page, wh)
         await ui.go(path)  # filtered: Clear filters shows (PR #39 review)
         toggle = ui.page.locator(".filters-toggle")
-        link = '.filters a[href="/authors/favorites"]'
+        link = ".filters #list-clear a"
         if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
             assert not (await box(ui.page, link))["visible"], wh  # phone: folded until opened
             await toggle.click()
@@ -534,28 +545,9 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
                 if same_line([c["field"], d["field"]]):  # one row of the filter grid
                     edge = "bottom" if "submit" in (c["id"], d["id"]) else "top"
                     assert abs(c[edge] - d[edge]) <= 1, (wh, path, edge, c, d)
-        shown = await box(ui.page, link)
-        assert shown["visible"] and shown["height"] >= 44, (wh, shown)
-
-
-@pytest.mark.ac("003/AC-03")
-async def test_upcoming_only_checkbox_beside_its_label(ui: UI, seeded: Seeded) -> None:
-    """books-02q: at every width the Upcoming only checkbox and its label share a line,
-    with the hint under them, and the field is no taller than the Series field."""
-    await ui.sign_in(seeded.alice)
-    for wh in WIDTHS:
-        await size(ui.page, wh)
-        await ui.go("/")
-        toggle = ui.page.locator(".filters-toggle")
-        if await toggle.is_visible():
-            await toggle.click()
-        check, label = await box(ui.page, "#upcoming"), await box(ui.page, 'label[for="upcoming"]')
-        hint = await box(ui.page, "#upcoming-hint")
-        assert same_line([check, label]), (wh, check, label)
-        assert hint["top"] >= max(check["bottom"], label["bottom"]) - 1, (wh, hint)
-        field = await box(ui.page, ".checkbox-field")
-        series = await box(ui.page, ".field:has(> #series_id)")
-        assert field["height"] <= series["height"] + 1, (wh, field, series)
+        if path != "/":
+            shown = await box(ui.page, link)
+            assert shown["visible"] and shown["height"] >= 44, (wh, shown)
 
 
 @pytest.mark.ac("003/AC-03")

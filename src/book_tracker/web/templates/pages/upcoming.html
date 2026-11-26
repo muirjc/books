@@ -2,7 +2,7 @@
 {% from "macros.html" import book_row %}
 {% block title %}Upcoming{% endblock %}
 {% block content %}
-{#- Spec 007 R5: my books not out yet, then the family catalog's other books not out yet.
+{#- Spec 007 R5 and spec 018: my books just out, my books not out yet, then the family catalog's other books not out yet.
     Only my own entries are shown; the second list is catalog data. -#}
 <div class="page-head">
   <h1>Upcoming</h1>
@@ -10,6 +10,16 @@
 </div>
 
 {% include "partials/quick_notice.html" %}
+{% if now_out %}
+{#- Spec 007 R6, moved here by spec 018: books on my list I still want to read, out in the
+    last 30 days. -#}
+<section id="now-out" aria-labelledby="now-out-heading">
+<h2 id="now-out-heading">Now out</h2>
+<ul class="link-list">
+  {% for entry in now_out %}<li><a href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>{% if entry.pre_ordered %} (pre-ordered){% endif %}</li>{% endfor %}
+</ul>
+</section>
+{% endif %}
 <h2>On my list</h2>
 {% if view.mine %}
 <ul class="book-list upcoming-list" role="list">

@@ -129,9 +129,12 @@ turn on the Upcoming filter and open the Upcoming page, and check the books and 
   list shows only their books whose release date is after today, soonest first (ties by
   title), and the count reflects it. Search and the author, series and status filters
   still apply on top.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) (AC-09, AC-10): My books no longer has this filter, and
+  `upcoming=1` redirects to the Upcoming page. The JSON API's upcoming filter still holds.*
 - **AC-11**: **Given** the Upcoming filter is on, **When** the member pages, searches or
   changes another filter, **Then** it stays on (like other filters today), and **Clear**
   turns it off.
+  *Replaced 2026-11-26 by [spec 018](../018-navigation-model/spec.md): the My books filter is gone.*
 - **AC-12**: **Given** the Upcoming page, **When** the member opens it from the main
   navigation, **Then** it shows **On my list**: their entries whose book is upcoming,
   soonest first, each with title, authors, series, Coming date, status and Pre-ordered;
@@ -162,6 +165,9 @@ appears on release day and goes after 30 days.
   **Then** a notice near the top says "Now out: <title>", linking to their entry, with
   "(pre-ordered)" when the entry is Pre-ordered. Several such books are listed in one
   notice, most recent release first.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) (AC-11, AC-12): the notice is the first section of the
+  Upcoming page. My books shows one line linking to it. AC-14 to AC-18's rules still hold
+  there.*
 - **AC-15**: **Given** the release date is 30 or more days before today, or after today,
   **When** they open My books, **Then** that book is not in the notice.
 - **AC-16**: **Given** the book's entry is Reading or Finished, **When** they open My books,
@@ -181,12 +187,16 @@ appears on release day and goes after 30 days.
   the forms with the new fields, **When** they are checked at phone, tablet and laptop
   widths (spec 003), **Then** there is no sideways scroll, every link and control is at
   least 44 × 44 CSS px, and axe reports no WCAG 2.2 AA violations.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) (AC-18): the checked pages are Upcoming with Now out and
+  My books with the Now out line.*
 - **AC-20**: **Given** JavaScript is off, **When** the member records a release date, ticks
   Pre-ordered, uses the Upcoming filter and opens the Upcoming page, **Then** everything
   works as with JavaScript on.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md): there's no Upcoming filter on My books.*
 - **AC-21**: **Given** a screen reader user, **When** My books loads with a notice, **Then**
   the notice is announced as a status message, and the Coming, Released and Pre-ordered
   labels are text, not colour or icon alone.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) AC-12: the notice is now the one-line Now out pointer, still announced as a status message.*
 
 ### Edge Cases
 
@@ -216,6 +226,7 @@ appears on release day and goes after 30 days.
 - **FR-004**: My books MUST offer an Upcoming only filter showing only the member's books
   with a future release date, soonest first, combinable with the existing search and
   filters, kept across pages and cleared by Clear.
+  *Replaced 2026-11-26 by [spec 018](../018-navigation-model/spec.md) FR-003: Upcoming is the only place for upcoming books.*
 - **FR-005**: There MUST be an Upcoming page in the main navigation with the member's
   upcoming books, then other upcoming catalog books not on their list with Add to my list,
   each section soonest first.
@@ -275,6 +286,8 @@ appears on release day and goes after 30 days.
 - **SC-002**: My books (with the notice, and with Upcoming only on) and the Upcoming page
   load in under 1 s at p95 with 5,000 books in the catalog, 5,000 entries for the viewer
   and 200 upcoming books.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) AC-19: Upcoming with Now out; My books with the Now out
+  line.*
 - **SC-003**: No test or page view shows another member's reading data on the Upcoming
   page, in the notice, or anywhere a release date or Pre-ordered appears.
 

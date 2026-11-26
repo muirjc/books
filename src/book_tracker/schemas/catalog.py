@@ -428,6 +428,51 @@ class CatalogQuery(BaseModel):
         return parse_page(value)
 
 
+class AuthorsQuery(BaseModel):
+    """The Authors page's query string (spec 018). Bad values fall back to the defaults,
+    as on the Catalog."""
+
+    model_config = ConfigDict(frozen=True)
+
+    q: str = ""
+    favorites: bool = False
+    page: int = Field(default=1, ge=1)
+
+    @field_validator("q", mode="before")
+    @classmethod
+    def _q(cls, value: object) -> str:
+        return search_text(value)
+
+    @field_validator("favorites", mode="before")
+    @classmethod
+    def _favorites(cls, value: object) -> bool:
+        return value is True or value == "1"
+
+    @field_validator("page", mode="before")
+    @classmethod
+    def _page(cls, value: object) -> int:
+        return parse_page(value)
+
+
+class SeriesQuery(BaseModel):
+    """The Catalog's Series view query string (spec 018)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    q: str = ""
+    page: int = Field(default=1, ge=1)
+
+    @field_validator("q", mode="before")
+    @classmethod
+    def _q(cls, value: object) -> str:
+        return search_text(value)
+
+    @field_validator("page", mode="before")
+    @classmethod
+    def _page(cls, value: object) -> int:
+        return parse_page(value)
+
+
 class FavoriteForm(BaseModel):
     """The Author page's favorite button (spec 011): add (yes) or remove (no)."""
 

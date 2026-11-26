@@ -1,3 +1,4 @@
-{#- books-g39: Clear filters leads the favorites line. Hidden, not left out, when nothing is
+{#- books-g39: Clear filters under the filters (spec 018: the favorites link moved to the
+    Authors page). Hidden, not left out, when nothing is
     filtered, so the list response can swap it in or out (oob, PR #40 review). -#}
-<span id="list-clear"{% if oob %} hx-swap-oob="true"{% endif %}{% if not filtered %} hidden{% endif %}><a href="/">Clear filters</a><span aria-hidden="true"> · </span></span>
+<span id="list-clear"{% if oob %} hx-swap-oob="true"{% endif %}{% if not filtered %} hidden{% endif %}><a href="/">Clear filters</a></span>

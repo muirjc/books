@@ -47,9 +47,13 @@ a:hover { color: var(--primary-dark); }
 .site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
 .header-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding-top: 0.5rem; padding-bottom: 0.5rem; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; min-height: var(--target); display: inline-flex; align-items: center; }
-.nav-list { display: flex; flex-wrap: wrap; gap: 0 0.75rem; margin: 0; padding: 0; list-style: none; }
-.nav-list a { display: inline-flex; align-items: center; min-height: var(--target); padding: 0 0.25rem; }
+.nav-list { display: flex; flex-wrap: wrap; gap: 0 0.5rem; margin: 0; padding: 0; list-style: none; }
+.nav-list a { display: inline-flex; align-items: center; min-height: var(--target); padding: 0; } /* spec 018: the four places fit one row at 360 px */
 .nav-list a[aria-current="page"] { font-weight: 700; }
+/* Spec 018 R1: places, then the actions as their own group. On a phone the actions take
+   a row of their own; from 40em they sit after a thin rule on the same row. */
+.site-header nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; }
+.nav-actions { flex-basis: 100%; }
 .account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; margin-left: auto; }
 .signed-in-as { color: var(--muted); }
 .inline-form { display: inline; margin: 0; }
@@ -188,11 +192,14 @@ main p, main .hint, main .notice { max-width: 75ch; }
 @media (min-width: 40em) {
   .header-inner { flex-wrap: wrap; }
   .site-header nav { order: 3; flex-basis: 100%; }
-  .nav-list { flex-wrap: nowrap; }
+  .nav-list { flex-wrap: nowrap; gap: 0 0.75rem; }
+  .nav-list a { padding: 0 0.25rem; }
+  .site-header nav { flex-wrap: nowrap; }
+  .nav-actions { flex-basis: auto; margin-left: auto; padding-left: 0.75rem; border-left: 1px solid var(--border); }
   .filters { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); align-items: end; }
   .filters .field { min-width: 0; }
-  .upcoming-field { grid-column: span 2; } /* My books: box and label on one line (books-02q) */
   .filters.catalog-filters { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; } /* Catalog: one row, tablet up */
+  .filters.index-filters { grid-template-columns: minmax(0, 28rem) auto auto; } /* Authors, Series: one row (spec 018) */
   .filter-extra { display: contents; }
   .filters-toggle { display: none; }
   .reading-list > li {
@@ -214,18 +221,22 @@ main p, main .hint, main .notice { max-width: 75ch; }
 /* ------------------------------------------------------------------ laptop: 64em (1024px) */
 @media (min-width: 64em) {
   .container { max-width: 82.5rem; padding: 0 1.5rem; }
-  .header-inner { flex-wrap: nowrap; gap: 0.5rem 1rem; }
+  /* Spec 018: one row when it fits. When it doesn't (an Admin at 1024 px, or a long
+     display name), the account actions wrap to a row of their own, still on the right.
+     The links lose their side padding; the gaps alone space them. */
+  .header-inner { flex-wrap: wrap; gap: 0 1rem; }
+  .brand { white-space: nowrap; }
   .site-header nav { order: 0; flex-basis: auto; }
   .nav-list { gap: 0 0.5rem; }
+  .nav-list a { padding: 0; }
+  .site-header nav { gap: 0 0.5rem; }
+  .nav-actions { margin-left: 0; padding-left: 0.5rem; }
   .account-actions { flex-wrap: nowrap; gap: 0 0.5rem; white-space: nowrap; }
   .signed-in-label { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  /* + Upcoming only (spec 007). books-g39: at 1024px every dropdown shows its whole
-     default choice; the Upcoming hint wraps under the box rather than widening its column. */
+  /* books-g39: at 1024px every dropdown shows its whole default choice. */
   .filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) auto auto; }
-  .list-filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(8rem, 1fr)) auto auto; column-gap: 0.5rem; }
+  .list-filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(8rem, 1fr)) auto; column-gap: 0.5rem; }
   .list-filters select { padding-left: 0.5rem; padding-right: 0.5rem; }
-  .upcoming-field .hint { contain: inline-size; }
-  .upcoming-field { grid-column: auto; }
   .reading-list > li {
     grid-template-columns: minmax(0, 1fr) minmax(0, 26%) 7rem 11.5rem 6.5rem;
     grid-template-areas: "title meta status finished times";
@@ -337,3 +348,13 @@ a.badge.status-link {
 .star-button:hover { border-color: var(--primary); }
 .favorite-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
 .favorite-offer .offer-form { margin: 0; }
+
+/* Spec 018: the Authors page and the Catalog's Series view, the Books | Series switch, and
+   My books' Now out line. Every link and button is a 44 px target. */
+.catalog-switch { display: flex; flex-wrap: wrap; gap: 0 1rem; margin: 0 0 1rem; }
+.catalog-switch a, .now-out-pointer a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
+.catalog-switch a[aria-current="page"] { font-weight: 700; }
+.index-list { list-style: none; margin: 0 0 1rem; padding: 0; }
+.index-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; min-height: var(--target); border-bottom: 1px solid var(--surface); }
+.index-list .row-name { display: inline-flex; align-items: center; min-height: var(--target); min-width: 0; overflow-wrap: anywhere; }
+.index-detail { color: var(--muted); }

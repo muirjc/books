@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Series · Catalog{% endblock %}
+{% block content %}
+{#- Spec 018 US3: every series in the family catalog. -#}
+<div class="page-head">
+  <h1>Catalog</h1>
+  <p><a class="button button-primary" href="/books/add">Add a book</a></p>
+</div>
+{% with catalog_view = "series" %}{% include "partials/catalog_switch.html" %}{% endwith %}
+
+<form method="get" action="/catalog/series" role="search" aria-label="Search series" class="filters index-filters"
+      hx-get="/catalog/series" hx-target="#series-list" hx-push-url="true"
+      hx-trigger="submit, input changed delay:300ms from:#q">
+  <div class="field">
+    <label for="q">Search series</label>
+    <input id="q" name="q" type="search" maxlength="200" value="{{ filters.q }}" autocomplete="off">
+  </div>
+  <div class="actions">
+    <button type="submit">Apply</button>
+  </div>
+</form>
+
+<div id="series-list" aria-live="polite">
+  {% include "partials/series_list.html" %}
+</div>
+{% endblock %}

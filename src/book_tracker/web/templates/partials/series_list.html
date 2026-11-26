@@ -1,0 +1,27 @@
+{#- Spec 018 R4: series rows. "read" is my own count only (Principle I).
+    Expects: index, filters, query_without_page. -#}
+{% if index.total == 0 %}
+{% if filters.q %}
+<p>No series match “{{ filters.q }}”.</p>
+<p><a href="/catalog/series">Clear search</a></p>
+{% else %}
+<p>No series in the catalog yet. <a href="/books/add">Add a book</a></p>
+{% endif %}
+{% else %}
+<ul class="index-list" role="list">
+  {% for row in index.rows %}
+  <li class="series-row">
+    <a class="row-name" href="/series/{{ row.series.id }}">{{ row.series.name }}</a>
+    <span class="index-detail">{{ row.books }} book{{ "" if row.books == 1 else "s" }} · {{ row.read }} read</span>
+  </li>
+  {% endfor %}
+</ul>
+{% set last_page = ((index.total - 1) // index.page_size) + 1 %}
+{% if last_page > 1 %}
+<nav class="pagination" aria-label="Pages">
+  {% if index.page > 1 %}<a href="/catalog/series?{{ query_without_page }}page={{ index.page - 1 }}">Previous</a>{% endif %}
+  <span>Page {{ index.page }} of {{ last_page }}</span>
+  {% if index.page < last_page %}<a href="/catalog/series?{{ query_without_page }}page={{ index.page + 1 }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}

@@ -24,6 +24,7 @@ from book_tracker.schemas.catalog import (
     AuthorUpdate,
     CatalogQuery,
     DraftForm,
+    SeriesQuery,
     SeriesSuggestion,
     SeriesWrite,
     SummaryCreate,
@@ -114,6 +115,28 @@ async def catalog_page(request: Request, auth: UiUser, db: DbSession) -> Respons
         "quick": await quick.notice(request, db, auth),  # spec 015
     }
     template = "partials/catalog_list.html" if context["htmx"] else "pages/catalog.html"
+    return render(request, template, context, auth=auth)
+
+
+@router.get("/series")
+async def series_index_page(request: Request, auth: UiUser, db: DbSession) -> Response:
+    """The Catalog's Series view: every series, searched and paged; HTMX gets just the list
+    (spec 018 R4). Bad query values fall back to the defaults (``SeriesQuery``)."""
+    params = request.query_params
+    query = SeriesQuery.model_validate(
+        {name: params[name] for name in SeriesQuery.model_fields if name in params}
+    )
+    index = await readings_service.series_index(
+        db, auth.account.id, page=query.page, page_size=PAGE_SIZE, q=query.q
+    )
+    encoded = urlencode({"q": query.q} if query.q else {})
+    context: dict[str, Any] = {
+        "index": index,
+        "filters": {"q": query.q},
+        "query_without_page": f"{encoded}&" if encoded else "",
+        "htmx": is_htmx(request),
+    }
+    template = "partials/series_list.html" if context["htmx"] else "pages/catalog_series.html"
     return render(request, template, context, auth=auth)
 
 

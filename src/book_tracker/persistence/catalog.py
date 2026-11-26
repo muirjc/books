@@ -470,6 +470,67 @@ async def browse_books(
     return [to_book(row) for row in rows], total, page
 
 
+def _book_count(key: Any, column: Any) -> Any:
+    """How many catalog books list this author or are in this series (spec 018 rows)."""
+    return select(func.count()).select_from(key).where(column).correlate_except(key)
+
+
+async def browse_authors(
+    db: AsyncSession,
+    *,
+    page: int,
+    page_size: int,
+    favorite: ColumnElement[bool],
+    only_favorites: bool = False,
+    q: str = "",
+) -> tuple[list[tuple[domain.Author, int]], int, int]:
+    """The Authors page (spec 018 R2): ((author, catalog book count) rows, total, page),
+    the page clamped to the last one. ``favorite`` is a condition on ``Author`` from the
+    user-bound favorites repository: favorites first, or only them."""
+    filtered = select(models.Author)
+    if q:
+        contains = like_patterns(q)[0]
+        filtered = filtered.where(
+            or_(
+                models.Author.name.ilike(contains, escape="\\"),
+                models.Author.sort_name.ilike(contains, escape="\\"),
+                models.Author.real_name.ilike(contains, escape="\\"),
+            )
+        )
+    if only_favorites:
+        filtered = filtered.where(favorite)
+    total = int(await db.scalar(select(func.count()).select_from(filtered.subquery())) or 0)
+    page = max(1, min(page, (total + page_size - 1) // page_size))
+    books = _book_count(models.BookAuthor, models.BookAuthor.author_id == models.Author.id)
+    result = await db.execute(
+        filtered.add_columns(books.scalar_subquery())
+        .order_by(favorite.desc(), func.lower(models.Author.sort_name), models.Author.id)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
+    return [(to_author(row), int(count)) for row, count in result.all()], total, page
+
+
+async def browse_series(
+    db: AsyncSession, *, page: int, page_size: int, q: str = ""
+) -> tuple[list[tuple[domain.Series, int]], int, int]:
+    """The Catalog's Series view (spec 018 R4): ((series, catalog book count) rows, total,
+    page), by name, the page clamped to the last one."""
+    filtered = select(models.Series)
+    if q:
+        filtered = filtered.where(models.Series.name.ilike(like_patterns(q)[0], escape="\\"))
+    total = int(await db.scalar(select(func.count()).select_from(filtered.subquery())) or 0)
+    page = max(1, min(page, (total + page_size - 1) // page_size))
+    books = _book_count(models.Book, models.Book.series_id == models.Series.id)
+    result = await db.execute(
+        filtered.add_columns(books.scalar_subquery())
+        .order_by(func.lower(models.Series.name), models.Series.id)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
+    return [(to_series(row), int(count)) for row, count in result.all()], total, page
+
+
 async def search_authors(db: AsyncSession, q: str, limit: int) -> list[domain.Author]:
     contains, prefix = like_patterns(q)
     rows = (

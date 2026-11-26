@@ -285,6 +285,26 @@ class ReadingEntryRepository:
         )
         return {author_id: int(count) for author_id, count in rows.all()}
 
+    async def finished_counts_by_series(
+        self, series_ids: Collection[uuid.UUID]
+    ) -> dict[uuid.UUID, int]:
+        """How many books in each series are Finished on the bound user's list (spec 018:
+        the Series view). Series with none are left out."""
+        if not series_ids:
+            return {}
+        rows = await self._db.execute(
+            select(models.Book.series_id, func.count())
+            .join(models.ReadingEntry, models.ReadingEntry.book_id == models.Book.id)
+            .where(
+                models.ReadingEntry.user_id == self._user_id,
+                models.ReadingEntry.status == ReadingStatus.FINISHED.value,
+                models.Book.series_id.in_(list(series_ids)),
+            )
+            .group_by(models.Book.series_id)
+        )
+        # The ``in_`` filter means no row has a null series.
+        return {series_id: int(count) for series_id, count in rows.all() if series_id}
+
     async def add(
         self,
         *,

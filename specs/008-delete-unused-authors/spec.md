@@ -46,6 +46,7 @@ type-ahead.
 - **AC-01**: **Given** at least one catalog author has no books, **When** a member opens My
   books, **Then** the page shows a link "Authors with no books (N)"; with none, the link is
   not shown.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) AC-08: the link is on the Authors page, not My books.*
 - **AC-02**: **Given** the Authors with no books page, **When** it is opened, **Then** it
   lists every author with no linked book, by sort name, each linking to Edit author; with
   none it says "Every author in the family catalog has at least one book."

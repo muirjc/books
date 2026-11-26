@@ -62,7 +62,7 @@ async def test_delete_without_js(
     context = await pw_browser.new_context(java_script_enabled=False)
     view = UI(await context.new_page(), live_server)
     await view.sign_in(seeded.alice)
-    await view.go("/")
+    await view.go("/authors")  # spec 018: the link moved from My books
     await view.page.get_by_role("link", name="Authors with no books (1)").click()
     await view.page.wait_for_load_state()
     await view.page.get_by_role("link", name="J DM Robb").click()

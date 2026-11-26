@@ -51,7 +51,7 @@ async def _targets(ui: UI, where: str) -> None:
 @pytest.mark.ac("011/AC-18")
 async def test_author_pages_layout(ui: UI, author: Seeded, factory: Factory) -> None:
     await ui.sign_in(author.alice)
-    pages = {"author": f"/authors/{author.author_id}", "favorites (none)": "/authors/favorites"}
+    pages = {"author": f"/authors/{author.author_id}", "favorites (none)": "/authors?favorites=1"}
     for name, path in pages.items():
         await ui.go(path)
         for wh in (SMALL, PHONE, IPAD, LAPTOP_MIN, LAPTOP):
@@ -61,7 +61,7 @@ async def test_author_pages_layout(ui: UI, author: Seeded, factory: Factory) -> 
             if wh in (PHONE, IPAD, LAPTOP):
                 await assert_no_axe_violations(ui.page, f"{name} {wh}")
     await factory.favorite(author.alice, uuid.UUID(author.author_id))
-    for path in (f"/authors/{author.author_id}?msg=favorited", "/authors/favorites"):
+    for path in (f"/authors/{author.author_id}?msg=favorited", "/authors?favorites=1"):
         await ui.go(path)
         for wh in (SMALL, LAPTOP):
             await size(ui.page, wh)
@@ -84,8 +84,8 @@ async def test_favorite_by_keyboard(ui: UI, author: Seeded) -> None:
     await expect(ui.page.get_by_text("One of your favorite authors")).to_be_visible()
     await ui.page.get_by_role("link", name="My favorite authors").focus()
     await ui.page.keyboard.press("Enter")
-    await ui.page.wait_for_url("**/authors/favorites")
-    await expect(ui.page.locator("main .link-list a")).to_have_text(["Terry Pratchett"])
+    await ui.page.wait_for_url("**/authors?favorites=1")  # spec 018: Favorites only
+    await expect(ui.page.locator("main .author-row .row-name")).to_have_text(["Terry Pratchett"])
 
 
 @pytest.mark.ac("011/AC-18")

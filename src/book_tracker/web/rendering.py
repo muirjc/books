@@ -80,7 +80,8 @@ def render(
 # Spec 014 AC-10: the main navigation tab each page belongs to, unless the route says.
 ACTIVE_TABS = {
     "pages/entry.html": "list",
-    "pages/favorite_authors.html": "list",
+    "pages/authors.html": "authors",  # spec 018
+    "pages/author.html": "authors",
     "pages/confirm_remove.html": "list",
     "pages/change_password.html": "password",
     **{
@@ -88,7 +89,7 @@ ACTIVE_TABS = {
         for page in (
             "edit_book", "edit_series", "edit_author", "edit_story", "add_story", "summary",
             "use_series", "unused_authors", "confirm_delete_author", "confirm_remove_story",
-            "series", "author", "book",
+            "series", "book", "catalog_series",
         )
     },
     **{

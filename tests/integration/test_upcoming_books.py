@@ -382,50 +382,20 @@ async def test_pre_ordered_is_private(
 # --------------------------------------------------------------------------- US3
 
 
-@pytest.mark.ac("007/AC-10")
-async def test_upcoming_filter(
-    member: httpx.AsyncClient, factory: Factory, alice: TestUser, shelf: dict[str, uuid.UUID]
+@pytest.mark.ac("018/AC-09")
+@pytest.mark.ac("018/AC-10")
+async def test_upcoming_filter_moved_to_the_upcoming_page(
+    member: httpx.AsyncClient, shelf: dict[str, uuid.UUID]
 ) -> None:
-    also_march = await factory.book("A March Book", alice, release_date=date(2027, 3, 3))
-    await factory.entry(alice, also_march, status="reading")
-    page = await member.get("/?upcoming=1&sort=-title")
-    candidates = ["A March Book", "Twelve Months", "Mirror Mirror", "The Olympian Affair",
-                  "Storm Front", "Wind and Truth"]  # fmt: skip
-    order = titles_in(" | ".join(list_rows(page)), candidates)
-    assert order == ["A March Book", "Twelve Months", "Mirror Mirror"]
-    assert "3 books" in text(page)
-    assert re.search(r'name="upcoming" value="1"[^>]*checked', page.text)
-    assert "Soonest first" in text(page)
-    narrowed = await member.get("/?upcoming=1&status=want_to_read&q=mirror")
-    two = ["Twelve Months", "Mirror Mirror"]
-    assert titles_in(" | ".join(list_rows(narrowed)), two) == ["Mirror Mirror"]
-    by_series = await member.get(f"/?upcoming=1&series_id={shelf['series']}")
-    assert titles_in(" | ".join(list_rows(by_series)), two) == ["Twelve Months"]
-    by_author = await member.get(f"/?upcoming=1&author_id={shelf['author']}")
-    assert titles_in(" | ".join(list_rows(by_author)), two) == [
-        "Twelve Months", "Mirror Mirror",
-    ]  # fmt: skip
-    # The sort is ignored under Upcoming only, so it isn't kept in links (PR #23 review).
-    assert "sort=-title" not in page.text
+    """Spec 018 replaced spec 007's My books "Upcoming only" filter (AC-10's page part and
+    AC-11) with the Upcoming page. The JSON API keeps its filter (test_upcoming_contract)."""
+    page = await member.get("/")
+    assert 'name="upcoming"' not in page.text and "Soonest first" not in text(page)
+    for address in ("/?upcoming=1&sort=-title", f"/?upcoming=1&series_id={shelf['series']}"):
+        moved = await member.get(address)
+        assert moved.status_code == 302 and moved.headers["location"] == "/upcoming"
     junk = await member.get("/?upcoming=yes")
     assert any("Storm Front" in row for row in list_rows(junk))  # anything but 1 is off
-
-
-@pytest.mark.ac("007/AC-11")
-async def test_upcoming_filter_kept(
-    member: httpx.AsyncClient, factory: Factory, alice: TestUser, shelf: dict[str, uuid.UUID]
-) -> None:
-    for n in range(60):
-        book = await factory.book(f"Future {n:02}", alice, release_date=date(2028, 1, 1))
-        await factory.entry(alice, book, status="want_to_read")
-    page = await member.get("/?upcoming=1")
-    assert (
-        'href="/?upcoming=1&amp;page=2"' in page.text or 'href="/?upcoming=1&page=2"' in page.text
-    )
-    assert '<a href="/">Clear filters</a>' in page.text  # books-g39: on the line below
-    partial = await member.get("/?upcoming=1", headers={"HX-Request": "true"})
-    assert "Storm Front" not in partial.text and "Twelve Months" in partial.text
-    assert "<html" not in partial.text
 
 
 @pytest.mark.ac("007/AC-12")
@@ -462,13 +432,13 @@ async def test_upcoming_page_empty(member: httpx.AsyncClient) -> None:
 
 
 def notice(page: httpx.Response) -> str | None:
-    match = re.search(
-        r'<div class="notice" role="status" id="now-out">(.*?)</div>', page.text, re.S
-    )
+    """Upcoming's Now out section (spec 018 moved it from My books)."""
+    match = re.search(r'<section id="now-out"[^>]*>(.*?)</section>', page.text, re.S)
     return match.group(1) if match else None
 
 
 @pytest.mark.ac("007/AC-14")
+@pytest.mark.ac("018/AC-11")
 async def test_now_out_notice(
     member: httpx.AsyncClient, factory: Factory, alice: TestUser, shelf: dict[str, uuid.UUID]
 ) -> None:
@@ -476,10 +446,10 @@ async def test_now_out_notice(
     today_entry = await factory.entry(alice, today_book, status="want_to_read")
     edge = await factory.book("Day Thirty", alice, release_date=TODAY - timedelta(days=29))
     await factory.entry(alice, edge, status="want_to_read")
-    page = await member.get("/")
+    page = await member.get("/upcoming")
     found = notice(page)
     assert found is not None
-    assert words(found).startswith("Now out:")
+    assert words(found).startswith("Now out")
     assert titles_in(found, ["Out Today", "The Olympian Affair", "Day Thirty"]) == [
         "Out Today", "The Olympian Affair", "Day Thirty",
     ]  # fmt: skip
@@ -487,8 +457,8 @@ async def test_now_out_notice(
     assert "Out Today (pre-ordered)" not in words(found)
     assert f'href="/entries/{today_entry}"' in found
     assert f'href="/entries/{shelf["e_olympian"]}"' in found
-    # Before the filters, on the full page only.
-    assert page.text.index('id="now-out"') < page.text.index('role="search"')
+    # First, before On my list.
+    assert page.text.index('id="now-out"') < page.text.index("<h2>On my list</h2>")
 
 
 @pytest.mark.ac("007/AC-15")
@@ -497,7 +467,7 @@ async def test_now_out_window(member: httpx.AsyncClient, factory: Factory, alice
     await factory.entry(alice, gone, status="want_to_read")
     soon = await factory.book("Tomorrow", alice, release_date=TODAY + timedelta(days=1))
     await factory.entry(alice, soon, status="want_to_read")
-    assert notice(await member.get("/")) is None
+    assert notice(await member.get("/upcoming")) is None
 
 
 @pytest.mark.ac("007/AC-16")
@@ -507,7 +477,7 @@ async def test_now_out_only_want_to_read(
     for title, status in (("Reading Now", "reading"), ("Done Already", "finished")):
         book = await factory.book(title, alice, release_date=TODAY - timedelta(days=3))
         await factory.entry(alice, book, status=status)
-    assert notice(await member.get("/")) is None
+    assert notice(await member.get("/upcoming")) is None
 
 
 @pytest.mark.ac("007/AC-17")
@@ -515,13 +485,14 @@ async def test_no_notice_when_none(
     member: httpx.AsyncClient, factory: Factory, alice: TestUser, shelf: dict[str, uuid.UUID]
 ) -> None:
     await factory.execute("UPDATE book SET release_date = NULL WHERE title = 'The Olympian Affair'")
-    page = await member.get("/")
+    page = await member.get("/upcoming")
     assert 'id="now-out"' not in page.text and "Now out" not in page.text
+    assert "now-out" not in (await member.get("/")).text
     await factory.execute(
         "UPDATE book SET release_date = :d WHERE title = 'The Olympian Affair'", d=TODAY
     )
     partial = await member.get("/", headers={"HX-Request": "true"})
-    assert 'id="now-out"' not in partial.text
+    assert "now-out" not in partial.text
 
 
 @pytest.mark.ac("007/AC-18")
@@ -530,8 +501,8 @@ async def test_now_out_is_private(
 ) -> None:
     yesterday = await factory.book("Ben's New Book", ben, release_date=TODAY - timedelta(days=1))
     await factory.entry(ben, yesterday, status="want_to_read", pre_ordered=True)
-    assert notice(await member.get("/")) is None
-    theirs = notice(await other.get("/"))
+    assert notice(await member.get("/upcoming")) is None
+    theirs = notice(await other.get("/upcoming"))
     assert theirs is not None and "Ben's New Book (pre-ordered)" in words(theirs)
 
 

@@ -8,11 +8,12 @@
 {% if index.total == 0 %}
 {% if filters.q %}
 <p>No authors match “{{ filters.q }}”.</p>
-<p><a href="{{ clear_search }}">Clear search</a></p>
+<p class="index-links"><a href="{{ clear_search }}">Clear search</a></p>
 {% elif filters.favorites %}
 {% include "partials/no_favorites.html" %}
 {% else %}
-<p>No authors in the catalog yet. <a href="/books/add">Add a book</a></p>
+<p>No authors in the catalog yet.</p>
+<p class="index-links"><a href="/books/add">Add a book</a></p>
 {% endif %}
 {% else %}
 <ul class="index-list" role="list">
@@ -25,7 +26,7 @@
   {% endfor %}
 </ul>
 {% if filters.favorites %}
-<p><a href="/?author_id=favorites">My books by these authors</a></p>
+<p class="index-links"><a href="/?author_id=favorites">My books by these authors</a></p>
 {% endif %}
 {% set last_page = ((index.total - 1) // index.page_size) + 1 %}
 {% if last_page > 1 %}

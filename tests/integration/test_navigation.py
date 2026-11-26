@@ -631,3 +631,56 @@ async def test_another_members_data_never_shows(
     assert "1 book · 0 read" in rows(series, "series-row")[0]
     assert "now-out" not in (await member.get("/")).text
     assert 'id="now-out"' not in (await member.get("/upcoming")).text
+
+
+# --------------------------------------------------------------------------- PR #43 review
+
+
+@pytest.mark.ac("018/AC-05")
+async def test_notice_links_to_the_author(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser
+) -> None:
+    """Starring moves the row (favorites first), so the notice links to the author."""
+    for i in range(55):
+        await factory.author(f"Writer {i:02}", alice)
+    page = await member.get("/authors?q=writer&page=2")
+    author, fields = next(iter(stars(page.text).items()))
+    saved = await member.post(f"/authors/{author}/favorite", data=fields)
+    landed = (await member.get(saved.headers["location"])).text
+    notice = section(landed, r'<p class="notice" role="status" id="favorite-notice">(.*?)</p>')
+    assert re.search(rf'Added <a href="/authors/{author}">Writer \d\d</a> to your favorite', notice)
+
+
+async def test_authors_page_reads_favorites_once(
+    app: Any, member: httpx.AsyncClient, factory: Factory, alice: TestUser
+) -> None:
+    """PR #43 review: the page query already knows each row's favorite; no ``among``."""
+    from sqlalchemy import event
+
+    for i in range(5):
+        await factory.favorite(alice, await factory.author(f"Writer {i}", alice))
+    statements: list[str] = []
+
+    def count(*args: Any) -> None:
+        statements.append(str(args[2]))
+
+    engine = app.state.db.engine.sync_engine
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        page = await member.get("/authors", headers={"HX-Request": "true"})
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+    assert {v["favorite"] for v in stars(page.text).values()} == {"no"}
+    alone = [s for s in statements if re.match(r"SELECT favorite_author\.author_id\s+FROM", s)]
+    assert alone == [], alone
+
+
+@pytest.mark.ac("018/AC-08")
+async def test_unused_authors_page_leads_back_to_authors(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser
+) -> None:
+    await factory.author("Nobody Atall", alice)
+    page = (await member.get("/catalog/authors/unused")).text
+    assert '<a href="/authors">Back to Authors</a>' in page
+    assert "Back to my books" not in page
+    assert current(page) == ["Authors"]

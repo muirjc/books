@@ -483,10 +483,10 @@ async def browse_authors(
     favorite: ColumnElement[bool],
     only_favorites: bool = False,
     q: str = "",
-) -> tuple[list[tuple[domain.Author, int]], int, int]:
-    """The Authors page (spec 018 R2): ((author, catalog book count) rows, total, page),
-    the page clamped to the last one. ``favorite`` is a condition on ``Author`` from the
-    user-bound favorites repository: favorites first, or only them."""
+) -> tuple[list[tuple[domain.Author, int, bool]], int, int]:
+    """The Authors page (spec 018 R2): ((author, catalog book count, favorite) rows,
+    total, page), the page clamped to the last one. ``favorite`` is a condition on
+    ``Author`` from the user-bound favorites repository: favorites first, or only them."""
     filtered = select(models.Author)
     if q:
         contains = like_patterns(q)[0]
@@ -503,12 +503,13 @@ async def browse_authors(
     page = max(1, min(page, (total + page_size - 1) // page_size))
     books = _book_count(models.BookAuthor, models.BookAuthor.author_id == models.Author.id)
     result = await db.execute(
-        filtered.add_columns(books.scalar_subquery())
+        filtered.add_columns(books.scalar_subquery(), favorite)
         .order_by(favorite.desc(), func.lower(models.Author.sort_name), models.Author.id)
         .limit(page_size)
         .offset((page - 1) * page_size)
     )
-    return [(to_author(row), int(count)) for row, count in result.all()], total, page
+    rows = [(to_author(row), int(count), bool(fav)) for row, count, fav in result.all()]
+    return rows, total, page
 
 
 async def browse_series(

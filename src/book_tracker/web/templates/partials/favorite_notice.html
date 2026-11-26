@@ -2,7 +2,9 @@
 {% if favorite_notice %}
 {% set kind, author = favorite_notice %}
 <p class="notice" role="status" id="favorite-notice">
-  {%- if kind == "favorited" %}Added {{ author.name }} to your favorite authors.
-  {%- else %}Removed {{ author.name }} from your favorite authors.{% endif -%}
+  {#- The name links to the author: a star can move the row (spec 018, PR #43 review). -#}
+  {%- set link %}<a href="/authors/{{ author.id }}">{{ author.name }}</a>{% endset %}
+  {%- if kind == "favorited" %}Added {{ link }} to your favorite authors.
+  {%- else %}Removed {{ link }} from your favorite authors.{% endif -%}
 </p>
 {% endif %}

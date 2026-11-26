@@ -142,3 +142,55 @@ async def test_any_author_in_three_steps_by_keyboard(ui: UI, seeded: Seeded) -> 
     await expect(ui.page.get_by_role("link", name="Authors", exact=True)).to_have_attribute(
         "aria-current", "page"
     )
+
+
+LINK_SIZES = """sel => [...document.querySelectorAll(sel)].map(a => {
+  const r = a.getBoundingClientRect();
+  return [a.textContent.trim(), Math.round(r.width), Math.round(r.height)];
+})"""
+
+
+@pytest.mark.ac("018/AC-18")
+async def test_every_new_link_is_a_target(
+    ui: UI, seeded: Seeded, factory: Factory, shelf: dict[str, uuid.UUID]
+) -> None:
+    """PR #43 review: the page's own links, and a row link for a short name, are 44 px."""
+    await factory.author("Al", seeded.ben)
+    await factory.series("Ix", seeded.ben)
+    await ui.sign_in(seeded.alice)
+    await size(ui.page, SMALL)
+    pages = ("/authors?q=zzz", "/authors?favorites=1", "/authors?q=al", "/catalog/series?q=zzz",
+             "/catalog/series?q=ix")  # fmt: skip
+    for path in pages:
+        await ui.go(path)
+        links = await ui.page.evaluate(LINK_SIZES, "main p > a, main .row-name")
+        assert links, path
+        small = [link for link in links if link[1] < 44 or link[2] < 44]
+        assert small == [], (path, small)
+
+
+@pytest.mark.ac("018/AC-09")
+async def test_no_empty_filter_line(ui: UI, seeded: Seeded) -> None:
+    """PR #43 review: with nothing filtered, Clear is hidden and so is its line, so the
+    filters don't end in an empty row."""
+    await ui.sign_in(seeded.alice)
+    await size(ui.page, LAPTOP)
+    display = "() => getComputedStyle(document.querySelector('.filter-link')).display"
+    await ui.go("/")
+    assert await ui.page.evaluate(display) == "none"
+    await ui.page.select_option("#status", "reading")  # with JavaScript: the list swaps
+    await expect(ui.page.locator("#list-clear")).to_be_visible()
+    assert await ui.page.evaluate(display) != "none"
+
+
+@pytest.mark.ac("018/AC-18")
+async def test_rows_have_visible_separators(
+    ui: UI, seeded: Seeded, shelf: dict[str, uuid.UUID]
+) -> None:
+    await ui.sign_in(seeded.alice)
+    for path in ("/authors", "/catalog/series"):
+        await ui.go(path)
+        color = await ui.page.evaluate(
+            "() => getComputedStyle(document.querySelector('.index-list > li')).borderBottomColor"
+        )
+        assert color == "rgb(213, 218, 225)", (path, color)  # as .book-list and .story-list

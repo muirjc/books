@@ -275,7 +275,7 @@ async def test_navigation_marks_the_related_tab(
         f"/catalog/stories/{story}/edit": "Catalog",
         f"/catalog/series/{w['dresden']}/edit": "Catalog",
         f"/catalog/authors/{w['jim']}/edit": "Catalog",
-        "/catalog/authors/unused": "Catalog",
+        "/catalog/authors/unused": "Authors",  # spec 018
         f"/series/{w['dresden']}": "Catalog",
         "/authors": "Authors",  # spec 018
         f"/authors/{w['jim']}": "Authors",

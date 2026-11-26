@@ -266,7 +266,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
 
 /* Spec 008: lists of links (an author's books, authors with no books), 44 px targets. */
 .link-list { padding-left: 1.25rem; margin: 0; }
-.link-list a, .tidy-link a, .filter-link a, .back-link a, .jump-links a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
+.link-list a, .tidy-link a, .filter-link a, .back-link a, .jump-links a, .index-links a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
 
 /* Spec 009: stories. On the series page a story row reads like a book row, with a "Story"
    tag before its title and its containing books as links (44 px targets). */
@@ -317,6 +317,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
 .jump-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; }
 .jump-links ul { display: flex; flex-wrap: wrap; gap: 0 1rem; list-style: none; margin: 0; padding: 0; }
 .filter-link { margin: 0; grid-column: 1 / -1; }
+.filter-link:has(> #list-clear[hidden]) { display: none; } /* nothing to clear: no empty row (PR #43 review) */
 .account-actions .button-link { display: inline-flex; align-items: center; min-height: var(--target); }
 
 /* Spec 015: my status as a badge link, and the row actions (Want to read, Add with details). */
@@ -355,6 +356,6 @@ a.badge.status-link {
 .catalog-switch a, .now-out-pointer a { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); }
 .catalog-switch a[aria-current="page"] { font-weight: 700; }
 .index-list { list-style: none; margin: 0 0 1rem; padding: 0; }
-.index-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; min-height: var(--target); border-bottom: 1px solid var(--surface); }
-.index-list .row-name { display: inline-flex; align-items: center; min-height: var(--target); min-width: 0; overflow-wrap: anywhere; }
+.index-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.75rem; min-height: var(--target); border-bottom: 1px solid #d5dae1; }
+.index-list .row-name { display: inline-flex; align-items: center; min-height: var(--target); min-width: var(--target); overflow-wrap: anywhere; }
 .index-detail { color: var(--muted); }

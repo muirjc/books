@@ -3,9 +3,10 @@
 {% if index.total == 0 %}
 {% if filters.q %}
 <p>No series match “{{ filters.q }}”.</p>
-<p><a href="/catalog/series">Clear search</a></p>
+<p class="index-links"><a href="/catalog/series">Clear search</a></p>
 {% else %}
-<p>No series in the catalog yet. <a href="/books/add">Add a book</a></p>
+<p>No series in the catalog yet.</p>
+<p class="index-links"><a href="/books/add">Add a book</a></p>
 {% endif %}
 {% else %}
 <ul class="index-list" role="list">

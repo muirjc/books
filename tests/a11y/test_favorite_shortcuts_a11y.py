@@ -17,8 +17,10 @@ from tests.conftest import Factory
 pytestmark = pytest.mark.a11y
 
 # For each author-and-star pair: the link's and the button's vertical centres.
+# The link's last line box, so a long name may wrap as long as the star stays with its end.
 PAIRS = """() => Array.from(document.querySelectorAll('.author-pair')).map(p => {
-  const a = p.querySelector('a').getBoundingClientRect();
+  const rects = p.querySelector('a').getClientRects();
+  const a = rects[rects.length - 1];
   const b = p.querySelector('button').getBoundingClientRect();
   return [p.textContent.trim(), a.top + a.height / 2, b.top + b.height / 2, b.left - a.right];
 })"""
@@ -45,10 +47,12 @@ async def _star_follows_link(page: Page, author: str) -> None:
 async def shelf(seeded: Seeded, factory: Factory) -> dict[str, uuid.UUID]:
     p = uuid.UUID(seeded.author_id)  # Terry Pratchett
     g = await factory.author("Neil Gaiman", seeded.ben)
+    # PR #42 review: a long name must wrap on a phone, not push the page sideways.
+    long = await factory.author("Douglas Preston and Lincoln Child and Friends", seeded.ben)
     pen = await factory.author("Robert Galbraith", seeded.ben, is_pen_name=True,
                                real_name="J. K. Rowling")  # fmt: skip
     omens = await factory.book("Good Omens: The Nice and Accurate Prophecies of Agnes Nutter",
-                               seeded.ben, author_ids=[p, g, pen])  # fmt: skip
+                               seeded.ben, author_ids=[p, g, pen, long])  # fmt: skip
     mort = await factory.book("Mort", seeded.ben, author_ids=[p])
     await factory.favorite(seeded.alice, g)
     return {

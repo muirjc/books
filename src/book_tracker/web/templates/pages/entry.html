@@ -3,7 +3,7 @@
 {% block title %}{{ entry.book.title }}{% endblock %}
 {% block content %}
 <h1>{{ entry.book.title }}</h1>
-{% include "partials/favorite_offer.html" %}
+{% with stars_below=true %}{% include "partials/favorite_offer.html" %}{% endwith %}
 {#- Spec 007: Coming (with Pre-ordered) while upcoming; once out, Released, plus
     Pre-ordered during the Now out period (PR #23 review). -#}
 {% set release = release_label(entry.book, today, entry) %}
@@ -86,10 +86,11 @@
 <section aria-labelledby="more-heading">
   <h2 id="more-heading">More</h2>
   {% if not notice_top %}{% include "partials/favorite_notice.html" %}{% endif %}
-  <ul>
+  {#- link-list: 44px links, now that the lines also hold stars (PR #42 review). -#}
+  <ul class="link-list">
     <li><a href="/books/{{ entry.book.id }}">View the book page</a></li>
     {% for a in entry.book.authors %}<li>All books by <span class="author-pair"><a href="/authors/{{ a.id }}">{{ a.name }}</a>
-      {{ star_button(a.id, a.name, a.id in favorite_ids, "/entries/" ~ entry.id, csrf_token) }}</span></li>{% endfor %}
+      {{- star_button(a.id, a.name, a.id in favorite_ids, favorite_back, csrf_token) }}</span></li>{% endfor %}
     {% for a in entry.book.authors %}<li><a href="/catalog/authors/{{ a.id }}/edit">Edit author “{{ a.name }}”</a>{% if a.real_name %} (pen name of {{ a.real_name }}){% endif %}</li>{% endfor %}
     {% if entry.book.series %}<li><a href="/series/{{ entry.book.series.id }}">All of {{ entry.book.series.name }}</a></li>
     <li><a href="/catalog/series/{{ entry.book.series.id }}/edit">Edit series “{{ entry.book.series.name }}”</a></li>{% endif %}

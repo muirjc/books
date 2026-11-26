@@ -32,7 +32,8 @@
 - **Decision**: a new module, `web/favorites.py`, holds the return-address rules, as
   `web/quick.py` does for spec 015.
   - **Accepted `back` paths** (a full match of a fixed pattern, with no `//`):
-    - `/books/<uuid>` and `/authors/<uuid>`;
+    - `/books/<uuid>` (an author page gets the spec 011 `?msg=` address instead, whose
+      notice it shows; PR #42 review);
     - `/entries/<uuid>`, only when that entry is the viewer's own. This is checked
       through `ReadingEntryRepository(db, session user).get`, so another member's entry
       is refused exactly like an unknown one (AC-05, Principle I);

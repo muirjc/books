@@ -74,9 +74,18 @@ def query(location: str) -> dict[str, list[str]]:
     return parse_qs(urlsplit(location).query, keep_blank_values=True)
 
 
-def offer_text(page: str) -> str:
+def offer_html(page: str) -> str:
     match = re.search(r'<div[^>]*class="[^"]*favorite-offer[^"]*"[^>]*>(.*?)</div>', page, re.S)
-    return words(match.group(1)) if match else ""
+    return match.group(1) if match else ""
+
+
+def offer_text(page: str) -> str:
+    return words(offer_html(page))
+
+
+def offer_forms(page: str) -> list[dict[str, str]]:
+    """The offer's own buttons, not the stars (which also keep ``finished``)."""
+    return forms(offer_html(page))
 
 
 async def favorites_of(app: Any, user: TestUser) -> set[uuid.UUID]:
@@ -279,7 +288,6 @@ async def test_accepted_back_keeps_its_query_without_one_time_keys(
         f"/?status=finished&msg=added&finished={book}&wanted={book}": "/",
         f"/series/{series}?added={omens['entry']}&finished={book}": f"/series/{series}",
         f"/books/add?after={omens['entry']}&finished={book}": "/books/add",
-        f"/authors/{p}?msg=favorited": f"/authors/{p}",
         f"/books/{book}?unfavorited={p}&already={book}": f"/books/{book}",
     }
     for back, path in cases.items():
@@ -395,7 +403,7 @@ async def test_finishing_a_second_book_offers_the_author(
     assert query(location)["finished"] == [str(discworld["small"])]
     page = (await member.get(location)).text
     assert offer_text(page).startswith("You've finished 2 books by Terry Pratchett.")
-    (offer,) = [f for f in forms(page) if f["back"].startswith(f"/entries/{discworld['e_small']}?")]
+    (offer,) = offer_forms(page)
     assert offer["author"] == str(discworld["p"]) and offer["favorite"] == "yes"
     assert offer["label"] == "Add Terry Pratchett to my favorite authors"
     assert query(offer["back"])["finished"] == [str(discworld["small"])]
@@ -418,7 +426,7 @@ async def test_each_qualifying_author_gets_a_button(
     assert "You've finished 2 books by Terry Pratchett." in text
     assert "You've finished 2 books by Neil Gaiman." in text
     assert "Someone Else" not in text
-    offered = [f["author"] for f in forms(page) if "finished=" in f["back"]]
+    offered = [f["author"] for f in offer_forms(page)]
     assert offered == [str(p), str(g)]
 
 
@@ -490,7 +498,7 @@ async def test_accepting_the_offer(
     entry = await factory.entry(alice, omens, status="reading")
     bare = await signed_in(client_factory(), alice)
     page = (await bare.get((await finish(member, entry)).headers["location"])).text
-    offer = next(f for f in forms(page) if f["author"] == str(p) and "finished=" in f["back"])
+    offer = next(f for f in offer_forms(page) if f["author"] == str(p))
     del bare.headers["X-CSRF-Token"]  # the form's own token only
     refused = await bare.post(
         f"/authors/{p}/favorite", data={"favorite": "yes", "back": offer["back"]}
@@ -552,7 +560,7 @@ async def test_adding_a_finished_book_offers_on_every_landing_page(
         assert query(location)["finished"] == [str(discworld["third"])], location
         page = (await member.get(location)).text
         assert offer_text(page).startswith("You've finished 2 books by Terry Pratchett."), path
-        assert any(f["author"] == str(p) and "finished=" in f["back"] for f in forms(page)), path
+        assert any(f["author"] == str(p) for f in offer_forms(page)), path
     # the HTMX list partial carries no offer
     fragment = await member.get("/", params={"finished": str(discworld["third"])},
                                 headers={"HX-Request": "true"})  # fmt: skip
@@ -598,3 +606,133 @@ async def test_first_book_not_offered_because_of_another_member(
     )
     page = (await member.get((await finish(member, mine)).headers["location"])).text
     assert offer_text(page) == ""
+
+
+# --------------------------------------------------------------------------- PR #42 review
+
+
+@pytest.mark.ac("017/AC-05")
+async def test_author_page_back_keeps_its_own_notice(
+    member: httpx.AsyncClient, omens: dict[str, uuid.UUID]
+) -> None:
+    """The author page reads ``msg``, so it gets the spec 011 address, with its notice."""
+    p = omens["p"]
+    for back in (f"/authors/{p}", f"/authors/{omens['g']}?msg=unfavorited"):
+        response = await member.post(
+            f"/authors/{p}/favorite", data={"favorite": "yes", "back": back}
+        )
+        assert response.headers["location"] == f"/authors/{p}?msg=favorited"
+    page = (await member.get(f"/authors/{p}?msg=favorited")).text
+    assert "Added to your favorite authors." in words(page)
+
+
+@pytest.mark.ac("017/AC-10")
+async def test_notice_shows_on_list_series_and_add_another(
+    factory: Factory, member: httpx.AsyncClient, alice: TestUser,
+    omens: dict[str, uuid.UUID],
+) -> None:  # fmt: skip
+    series = await factory.series("Discworld", alice)
+    for path in ("/", f"/series/{series}", f"/books/add?after={omens['entry']}"):
+        response = await member.post(
+            f"/authors/{omens['p']}/favorite", data={"favorite": "yes", "back": path}
+        )
+        page = (await member.get(response.headers["location"])).text
+        notice = re.search(r'<p[^>]*id="favorite-notice"[^>]*>(.*?)</p>', page, re.S)
+        assert notice, path
+        assert words(notice.group(1)) == "Added Terry Pratchett to your favorite authors."
+
+
+@pytest.mark.ac("017/AC-10")
+async def test_stories_not_added_warning_survives_accepting(
+    member: httpx.AsyncClient, discworld: dict[str, uuid.UUID]
+) -> None:
+    back = f"/entries/{discworld['e_small']}?msg=stories_not_added&finished={discworld['small']}"
+    response = await member.post(
+        f"/authors/{discworld['p']}/favorite", data={"favorite": "yes", "back": back}
+    )
+    kept = query(response.headers["location"])
+    assert kept["msg"] == ["stories_not_added"] and kept["favorited"] == [str(discworld["p"])]
+    for code in ("saved", "merged", "added", "reread"):
+        response = await member.post(
+            f"/authors/{discworld['p']}/favorite",
+            data={"favorite": "yes", "back": f"/entries/{discworld['e_small']}?msg={code}"},
+        )
+        assert "msg" not in query(response.headers["location"]), code
+
+
+@pytest.mark.ac("017/AC-08")
+async def test_a_star_keeps_the_other_offers(
+    factory: Factory, member: httpx.AsyncClient, alice: TestUser
+) -> None:
+    p = await factory.author("Terry Pratchett", alice)
+    g = await factory.author("Neil Gaiman", alice)
+    await factory.entry(alice, await factory.book("Mort", alice, author_ids=[p]))
+    await factory.entry(alice, await factory.book("Coraline", alice, author_ids=[g]))
+    omens = await factory.book("Good Omens", alice, author_ids=[p, g])
+    entry = await factory.entry(alice, omens, status="reading")
+    page = (await member.get((await finish(member, entry)).headers["location"])).text
+    more = page.split('id="more-heading"', 1)[1]
+    star = next(f for f in forms(more) if f["author"] == str(p))
+    assert query(star["back"])["finished"] == [str(omens)], star["back"]
+    response = await member.post(
+        f"/authors/{p}/favorite", data={"favorite": "yes", "back": star["back"]}
+    )
+    page = (await member.get(response.headers["location"])).text
+    assert "You've finished 2 books by Neil Gaiman." in offer_text(page)
+    assert "Terry Pratchett" not in offer_text(page)
+
+
+@pytest.mark.ac("017/AC-10")
+async def test_offer_returns_to_a_page_with_unusual_query_text(
+    member: httpx.AsyncClient, discworld: dict[str, uuid.UUID]
+) -> None:
+    """A browser sends characters such as ``,`` ``(`` ``!`` unencoded."""
+    await finish(member, discworld["e_small"])
+    raw = f"/?msg=added&finished={discworld['small']}&q=Smith,J(Jr.)!"
+    page = (await member.get(raw)).text
+    offer = next(iter(offer_forms(page)))
+    response = await member.post(
+        f"/authors/{discworld['p']}/favorite", data={"favorite": "yes", "back": offer["back"]}
+    )
+    location = response.headers["location"]
+    assert location.startswith("/?"), location
+    assert query(location)["q"] == ["Smith,J(Jr.)!"]
+
+
+@pytest.mark.ac("017/AC-03")
+async def test_notice_matches_the_current_favorite(
+    factory: Factory, member: httpx.AsyncClient, alice: TestUser,
+    omens: dict[str, uuid.UUID],
+) -> None:  # fmt: skip
+    book, p, g = omens["book"], omens["p"], omens["g"]  # Gaiman is a favorite, Pratchett not
+    for key, author in (("favorited", p), ("unfavorited", g)):
+        page = (await member.get(f"/books/{book}", params={key: str(author)})).text
+        assert 'id="favorite-notice"' not in page, key
+    page = (await member.get(f"/books/{book}", params={"favorited": str(g)})).text
+    assert "Added Neil Gaiman to your favorite authors." in words(page)
+
+
+@pytest.mark.ac("017/AC-15")
+async def test_book_page_never_works_out_an_offer(
+    app: Any, member: httpx.AsyncClient, discworld: dict[str, uuid.UUID]
+) -> None:
+    from sqlalchemy import event
+
+    statements: list[str] = []
+
+    def count(*args: Any) -> None:
+        statements.append(str(args[2]))
+
+    engine = app.state.db.engine.sync_engine
+    await finish(member, discworld["e_small"])
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        await member.get(f"/books/{discworld['small']}")
+        plain = len(statements)
+        statements.clear()
+        await member.get(
+            f"/books/{discworld['small']}", params={"finished": str(discworld["small"])}
+        )
+        assert len(statements) == plain
+    finally:
+        event.remove(engine, "before_cursor_execute", count)

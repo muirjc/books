@@ -233,19 +233,26 @@ async def series_page(
 
 
 async def _favorite_context(
-    request: Request, db: DbSession, auth: Authenticated, authors: Sequence[Any] = ()
+    request: Request,
+    db: DbSession,
+    auth: Authenticated,
+    authors: Sequence[Any] = (),
+    *,
+    offer: bool = True,
 ) -> dict[str, Any]:
     """Spec 017: the favorite notice, my favorites among the page's authors (the stars),
-    and the offer after a finishing save. ``notice_top``: show the notice where the offer
-    is, as the offer led here."""
+    and (``offer``) the offer after a finishing save. ``notice_top``: on a page with stars
+    lower down, show the notice where the offer is, as the offer led here.
+    ``favorite_back``: this page, for the stars, keeping ``finished`` (PR #42 review)."""
     ids = [author.id for author in authors]
     return {
-        "favorite_notice": await favorites.notice(request, db),
+        "favorite_notice": await favorites.notice(request, db, auth),
         "favorite_ids": await authors_service.favorite_ids(db, auth.account.id, ids)
         if ids
         else set(),
-        "offer": await favorites.offer(request, db, auth),
+        "offer": await favorites.offer(request, db, auth) if offer else None,
         "notice_top": "finished" in request.query_params,
+        "favorite_back": favorites.page_back(request),
     }
 
 
@@ -970,7 +977,8 @@ async def book_page(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
             "quick": await quick.notice(request, db, auth),
             "message": BOOK_PAGE_MESSAGES.get(request.query_params.get("msg", "")),
             "today": today(request),
-            **await _favorite_context(request, db, auth, book.authors),  # spec 017: stars
+            # Spec 017: stars; the book page never shows the offer (PR #42 review).
+            **await _favorite_context(request, db, auth, book.authors, offer=False),
         },
         auth=auth,
     )

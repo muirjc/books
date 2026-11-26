@@ -8,13 +8,18 @@
 
 Accepted `back` paths are:
 - `/books/<uuid>`;
-- `/authors/<uuid>`;
 - `/entries/<uuid>`, mine only;
 - `/`;
 - `/series/<uuid>`;
 - `/books/add`.
 
-Each may have a query string.
+Each may have a query string. An author page as `back` gets the spec 011 address
+(`/authors/<id>?msg=…`), whose notice it shows. `msg=stories_not_added` is kept; other
+`msg` codes are dropped.
+
+The notice shows only while it's true: "Added" when the author is my favorite now, and
+"Removed" when they're not. The stars and the offer post this page's address,
+re-encoded, so `finished` is kept and other offers stay.
 
 ## Pages
 

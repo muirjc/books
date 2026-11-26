@@ -178,6 +178,26 @@ files.
 - **US3**: adds the offer, which reuses US1's route and notice.
 - **US4**: hardens privacy, layout and speed.
 
+## PR #42 review (7 findings, all fixed with failing tests first)
+
+1. **Sideways scroll on a phone (important):** each name-and-star pair is now an inline
+   flex box. The pair moves to a new line as one, and a long name wraps inside it. The
+   a11y test adds a 45-character author name at every width.
+2. **Notice missing after some returns:** an author page as `back` now gets the spec 011
+   `?msg=` address. My books, series pages and Add another always show the notice.
+3. **`stories_not_added` was dropped:** that warning is kept; other `msg` codes are still
+   dropped.
+4. **A star lost the other offers:** stars post the page's own address, keeping
+   `finished`.
+5. **Unencoded query characters:** the offer's and stars' `back` is re-encoded
+   (`favorites.page_back`), so `,` `(` `!` are accepted.
+6. **False notices:** "Added" / "Removed" show only when they match my favorites now.
+7. **The book page worked out an offer it never shows:** it skips the offer now. A test
+   counts its SQL statements with and without `finished`.
+
+Also: my entry page's More list uses `link-list` (44 px links). With stars on its lines,
+axe flagged the Edit author links.
+
 ## Notes from implementation
 
 - **Tests first:** the T002, T005, T007, T009 and T011 tests were written first.

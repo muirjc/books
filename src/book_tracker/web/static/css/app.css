@@ -329,8 +329,10 @@ a.badge.status-link {
 /* Spec 017 R6: a star straight after each author's name, never wrapping apart from it;
    the offer after finishing a second book by an author. */
 .book-byline { margin: 1em 0; }  /* was a p */
-.author-pair { white-space: nowrap; }
-.star-form { display: inline-flex; vertical-align: middle; }
+/* The pair moves to a new line as one; a name longer than the line wraps inside it. */
+.author-pair { display: inline-flex; align-items: center; max-width: 100%; vertical-align: middle; }
+.author-pair a { min-width: 0; overflow-wrap: anywhere; }
+.star-form { display: inline-flex; flex: none; }
 .star-button { border-color: transparent; padding: 0 0.5rem; font-size: 1.25rem; line-height: 1; }
 .star-button:hover { border-color: var(--primary); }
 .favorite-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }

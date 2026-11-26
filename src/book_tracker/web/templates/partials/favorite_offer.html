@@ -1,7 +1,8 @@
 {#- Spec 017 AC-07–AC-12: after a finishing save, the notice from accepting the offer,
     then the offer for each author I've now finished at least twice. Expects: offer
-    (Offer or none), favorite_notice, notice_top, csrf_token. -#}
-{% if notice_top %}{% include "partials/favorite_notice.html" %}{% endif %}
+    (Offer or none), favorite_notice, notice_top, csrf_token; stars_below (the entry
+    page, whose notice is otherwise by its stars). -#}
+{% if notice_top or not stars_below %}{% include "partials/favorite_notice.html" %}{% endif %}
 {% if offer %}
 <div class="notice favorite-offer" role="status">
   {% for author, count in offer.authors %}

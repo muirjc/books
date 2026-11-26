@@ -19,7 +19,7 @@ story without a series.
 | Schema | Rule |
 |---|---|
 | `StoryAdd` (new story) | `title` and `author_ids` required. `series_id` and `series_number` both given or both left out; one alone → 422. |
-| `StoryUpdate` | `series_id` and `series_number` may be set to `null`, together; one alone (set or null) → 422. |
+| `StoryUpdate` | A field left out keeps its value. `series_id` and `series_number` may be set to `null` together; one alone set to `null` → 422. One alone set (say `{"series_number": "6"}`) is fine while the result has both or neither, e.g. renumbering a story in its series; it's 422 when the result would have a series without a number or a number without a series. |
 | `NewBookStory` (`stories` on entry create) | `title` required. No number and no `series_id` → no series. A number without `series_id` takes the new book's series; 422 when the book has none. `series_id` without a number → 422. |
 
 - Duplicate checks (`story_number_taken` 409, "same series and number" 422) apply only to

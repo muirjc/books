@@ -20,7 +20,8 @@ Rules:
 |---|---|---|
 | `position` | — | integer, required: the order the story was added to this book |
 
-- New links get the book's highest position plus one.
+- New links take the next value of `book_story_position_seq` (research R2). Positions are
+  only compared within a book, so a book's values may have gaps (say 4, 17, 230).
 - Existing links are numbered per book by series name, then number (today's order).
 
 ## Derived

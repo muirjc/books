@@ -6,6 +6,7 @@
   {% for story in stories %}
   <li>
     {% if story.series %}<span class="story-place">#{{ story.series_number | series_number }} <a href="/series/{{ story.series.id }}">{{ story.series.name }}</a> — </span>{% endif %}<span class="story-title">{{ story.title }}</span>
+    {%- if not story.series and story.authors %}<span class="story-authors"> by {% for a in story.authors %}{{ a.name }}{{ ", " if not loop.last }}{% endfor %}</span>{% endif %}
     {%- if also_in %}{% set others = story.books | rejectattr("id", "equalto", book.id) | list %}{% if others %}<span class="story-also"> · Also in {% for other in others %}“<a href="/books/{{ other.id }}">{{ other.title }}</a>”{{ ", " if not loop.last }}{% endfor %}</span>{% endif %}{% endif %}
     {% if editable %}
     <span class="story-actions">

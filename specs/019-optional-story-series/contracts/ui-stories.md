@@ -4,8 +4,8 @@
 
 | Place | With a series (as today) | Without a series |
 |---|---|---|
-| Book page, entry page, Edit book (`partials/book_stories.html`) | `#2.5 <a>Dresden Files</a> — Title` | `Title` (and "Also in …" on the book page) |
-| Author page, Stories list | `#2.5 Dresden Files — Title` | `Title` |
+| Book page, entry page, Edit book (`partials/book_stories.html`) | `#2.5 <a>Dresden Files</a> — Title` | `Title by Author, Author` (and "Also in …" on the book page) |
+| Author page, Stories list | `#2.5 Dresden Files — Title · in …` | `Title · in …` (the page is already that author's) |
 | Edit story | "All of <series>" link | no series link |
 | Edit author | title only | title only |
 | Series pages, progress, Add #next | listed | never listed |

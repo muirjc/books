@@ -360,16 +360,20 @@ def _check_story_row(parsed: AddBookForm, row: StoryRow) -> None:
         errors[f"story_title_{i}"] = f"{label}: Enter the story's title"
     elif len(row.title) > 300:
         errors[f"story_title_{i}"] = f"{label}: Keep the title to 300 characters or fewer"
+    number_ok = True
     try:
         row.number = _series_number.validate_python(row.number_text)
     except ValidationError as exc:
         errors[f"story_number_{i}"] = f"{label}: {first_error(exc)}"
-        return
+        number_ok = False
     for name, value in (("author", row.author_name), ("series", row.series_name)):
         if len(value) > 200:
             errors[f"story_{name}_name_{i}"] = f"{label}: {NAME_TOO_LONG}"
     # Spec 019: a series and a number, or neither. A blank series on a numbered row is the
-    # book's (AC-02); a blank number and series is a story without a series (AC-01).
+    # book's (AC-02); a blank number and series is a story without a series (AC-01). A
+    # number that didn't parse has its own error already (PR #44 review).
+    if not number_ok:
+        return
     if row.number is None and row.series_name:
         errors[f"story_number_{i}"] = f"{label}: {STORY_NUMBER_MISSING}"
     elif row.number is not None and not row.series_name and not parsed.series_name:

@@ -311,11 +311,12 @@ async def test_book_entry_and_edit_book_lists(
         page = (await member.get(path)).text
         items = story_items(page)
         assert [i.split(" · ")[0].split(" Edit")[0] for i in items] == [
-            "#3 Apple Tales — Apple Three", "#1 Zed Tales — Zed One", "Second", "First",
-        ], path  # fmt: skip
+            "#3 Apple Tales — Apple Three", "#1 Zed Tales — Zed One",
+            "Second by Shirley Jackson", "First by Shirley Jackson",
+        ], path  # fmt: skip  # PR #44 review: no series, so the authors show
         assert "/series/None" not in page and "#None" not in page and "— Second" not in page
     book = (await member.get(f"/books/{shelf['book']}")).text
-    assert "First · Also in “ Another Anthology ”" in story_items(book)[3]
+    assert "First by Shirley Jackson · Also in “ Another Anthology ”" in story_items(book)[3]
     assert f'<a href="/books/{shelf["other"]}">Another Anthology</a>' in book
 
 
@@ -358,3 +359,14 @@ async def test_series_pages_only_hold_their_stories(
     await member.post(f"/catalog/stories/{shelf['z1']}/edit", data=base)
     after = words((await member.get(f"/series/{shelf['zed']}")).text)
     assert "Zed One" not in after and "of 1 story" not in after
+
+
+@pytest.mark.ac("019/AC-03")
+async def test_a_bad_number_still_reports_the_other_row_errors(member: httpx.AsyncClient) -> None:
+    """PR #44 review: a number that doesn't parse doesn't hide a too-long series name."""
+    refused = await member.post("/books/add", data=add_book(
+        story_title_0="A", story_number_0="x", story_series_name_0="S" * 250,
+    ))  # fmt: skip
+    assert refused.status_code == 422
+    assert error_for(refused.text, "story_number_0").startswith("Story 1: ")
+    assert error_for(refused.text, "story_series_name_0").startswith("Story 1: Keep")

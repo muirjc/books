@@ -49,3 +49,5 @@ re-encoded, so `finished` is kept and other offers stay.
 - The JSON API.
 - List rows.
 - The HTMX My books list partial.
+
+*Amended 2026-11-26 by [spec 018](../../018-navigation-model/contracts/ui-navigation.md): the empty favorites text shows on the Authors page with Favorites only, and `back` may also be `/authors` with its query.*

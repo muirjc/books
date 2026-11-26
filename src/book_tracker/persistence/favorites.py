@@ -86,3 +86,8 @@ class FavoriteAuthorRepository:
             models.FavoriteAuthor.author_id == models.BookAuthor.author_id,
             self._mine(),
         )
+
+    def author_condition(self) -> ColumnElement[bool]:
+        """A condition on ``Author``: the author is my favorite (spec 018: the Authors
+        page's favorites-first order and Favorites only filter)."""
+        return exists().where(models.FavoriteAuthor.author_id == models.Author.id, self._mine())

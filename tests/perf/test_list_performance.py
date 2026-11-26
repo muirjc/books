@@ -152,16 +152,17 @@ UPCOMING_DATES = [
 async def test_upcoming_views_under_one_second(
     big_list: httpx.AsyncClient, factory: Factory
 ) -> None:
-    """Spec 007 SC-002: My books with the notice, the Upcoming filter and the Upcoming page,
-    with 200 dated books in the 5,000-book catalog."""
+    """Spec 007 SC-002 (amended by spec 018): My books with the Now out pointer, and the
+    Upcoming page with Now out, with 200 dated books in the 5,000-book catalog."""
     for statement in UPCOMING_DATES:
         await factory.execute(statement)
     await factory.execute("ANALYZE")
     assert await factory.scalar("SELECT count(*) FROM book WHERE release_date IS NOT NULL") == 200
+    assert "now-out-pointer" in (await big_list.get("/")).text
+    assert 'id="now-out"' in (await big_list.get("/upcoming")).text
     results = {
-        "my books + notice": await p95(lambda i: big_list.get("/")),
-        "upcoming filter": await p95(lambda i: big_list.get("/", params={"upcoming": "1"})),
-        "upcoming page": await p95(lambda i: big_list.get("/upcoming")),
+        "my books + pointer": await p95(lambda i: big_list.get("/")),
+        "upcoming page + now out": await p95(lambda i: big_list.get("/upcoming")),
     }
     print("\nspec 007 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert all(value < 1.0 for value in results.values()), results
@@ -180,7 +181,7 @@ async def test_unused_authors_under_one_second(
     await factory.execute("ANALYZE")
     results = {
         "unused authors": await p95(lambda i: big_list.get("/catalog/authors/unused")),
-        "my books + link": await p95(lambda i: big_list.get("/")),
+        "authors page + link": await p95(lambda i: big_list.get("/authors")),  # spec 018
     }
     print("\nspec 008 p95: " + ", ".join(f"{k} {v * 1000:.0f} ms" for k, v in results.items()))
     assert all(value < 1.0 for value in results.values()), results
@@ -296,7 +297,9 @@ async def test_author_pages_under_one_second(big_list: httpx.AsyncClient, factor
     await factory.execute("ANALYZE")
     results = {
         "author page": await p95(lambda i: big_list.get(f"/authors/{prolific}"), runs=40),
-        "my favorites": await p95(lambda i: big_list.get("/authors/favorites"), runs=40),
+        "favorites only": await p95(  # spec 018: the old My favorite authors page
+            lambda i: big_list.get("/authors", params={"favorites": "1"}), runs=40
+        ),
         "favorites filter": await p95(
             lambda i: big_list.get("/", params={"author_id": "favorites"}), runs=40
         ),

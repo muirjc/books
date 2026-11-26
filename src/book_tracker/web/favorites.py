@@ -30,9 +30,9 @@ DROPPED_KEYS = ("msg", "added", "stories", "wanted", "already", "favorited", "un
 KEPT_MESSAGES = ("stories_not_added",)
 _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 # The author page isn't here: it reads ``msg``, so it gets the spec 011 address (the
-# fallback) and its own notice (PR #42 review).
+# fallback) and its own notice (PR #42 review). The Authors index is (spec 018).
 _BACK = re.compile(
-    rf"/(?:(?:books|series)/{_UUID}|entries/(?P<entry>{_UUID})|books/add)?"
+    rf"/(?:(?:books|series)/{_UUID}|entries/(?P<entry>{_UUID})|books/add|authors)?"
     r"(?:\?[A-Za-z0-9._~%&=+\-]*)?"
 )
 

@@ -1,0 +1,4 @@
+{#- Spec 018 AC-12: Now out lives on Upcoming; My books points to it. Announced as a status message (spec 007 AC-21). Expects: now_out_count. -#}
+{% if now_out_count %}
+<p class="now-out-pointer" role="status"><a href="/upcoming#now-out">{% if now_out_count == 1 %}1 book you want to read is now out{% else %}{{ now_out_count }} books you want to read are now out{% endif %}</a></p>
+{% endif %}

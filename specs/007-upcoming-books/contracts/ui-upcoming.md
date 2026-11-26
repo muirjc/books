@@ -48,3 +48,5 @@ while the book is upcoming.
 - **Invalid date:** `422` with the error on `release_date`.
 - **The chosen-book display (spec 006):** gains "Coming <date>".
 - **Add and add another:** clears both fields.
+
+*Amended 2026-11-26 by [spec 018](../../018-navigation-model/contracts/ui-navigation.md): My books no longer has the Upcoming only filter (`?upcoming=1` redirects to `/upcoming`) or the Now out box. Now out is the first section of the Upcoming page (`#now-out`), and My books shows one line linking to it. The JSON API's `upcoming` filter is unchanged.*

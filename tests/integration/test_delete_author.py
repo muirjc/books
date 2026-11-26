@@ -51,17 +51,20 @@ async def exists(factory: Factory, author_id: uuid.UUID) -> bool:
 
 
 @pytest.mark.ac("008/AC-01")
-async def test_my_books_links_unused_authors(
+@pytest.mark.ac("018/AC-08")
+async def test_authors_page_links_unused_authors(
     member: httpx.AsyncClient, factory: Factory, authors: dict[str, uuid.UUID]
 ) -> None:
-    page = await member.get("/")
+    """Spec 018 moved the link from My books to the Authors page."""
+    page = await member.get("/authors")
     assert '<a href="/catalog/authors/unused">Authors with no books (2)</a>' in page.text
-    partial = await member.get("/", headers={"HX-Request": "true"})
+    partial = await member.get("/authors", headers={"HX-Request": "true"})
     assert "/catalog/authors/unused" not in partial.text
+    assert "/catalog/authors/unused" not in (await member.get("/")).text
     await factory.execute(
         "DELETE FROM author WHERE id IN (:a, :b)", a=authors["typo"], b=authors["nobody"]
     )
-    assert "/catalog/authors/unused" not in (await member.get("/")).text
+    assert "/catalog/authors/unused" not in (await member.get("/authors")).text
 
 
 @pytest.mark.ac("008/AC-02")

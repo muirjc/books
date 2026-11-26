@@ -124,8 +124,11 @@ def _uuid_param(request: Request, name: str) -> uuid.UUID | None:
 
 @router.get("/")
 async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
-    """My list with search, sort and filters; HTMX gets just the list (FR-021, FR-023)."""
+    """My list with search, sort and filters; HTMX gets just the list (FR-021, FR-023).
+    Upcoming books have one place, the Upcoming page (spec 018 AC-10)."""
     params = request.query_params
+    if params.get("upcoming") == "1":
+        return RedirectResponse("/upcoming", status_code=302)
     q = SearchQuery.model_validate({"q": params.get("q")}).q
     sort = params.get("sort", "title")
     sort = sort if sort in {value for value, _ in SORT_OPTIONS} else "title"
@@ -134,8 +137,6 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     favorites = params.get("author_id") == "favorites"  # spec 011 R3
     author_id = None if favorites else _uuid_param(request, "author_id")
     series_id = _uuid_param(request, "series_id")
-    upcoming = params.get("upcoming") == "1"  # spec 007 R4; anything else is off
-    on = today(request)
     page = await service.list_entries(
         db,
         auth.account.id,
@@ -146,17 +147,14 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         series_id=series_id,
         status=status,
         sort=sort,
-        upcoming_after=on if upcoming else None,
         favorite_authors=favorites,
     )
     kept = {
         "q": q,
-        # Upcoming only ignores the sort, so links don't carry it (PR #23 review).
-        "sort": "" if sort == "title" or upcoming else sort,
+        "sort": "" if sort == "title" else sort,
         "status": status.value if status else "",
         "author_id": "favorites" if favorites else str(author_id) if author_id else "",
         "series_id": str(series_id) if series_id else "",
-        "upcoming": "1" if upcoming else "",
     }
     query = urlencode({k: v for k, v in kept.items() if v})
     context: dict[str, Any] = {
@@ -175,9 +173,8 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     authors, series = await service.filter_options(db, auth.account.id)
     context.update(
         {
-            # Spec 007 R6: the full page only, so filtering never repeats or drops it.
-            "now_out": await service.now_out(db, auth.account.id, on),
-            "unused_authors": await catalog_service.unused_author_count(db),  # spec 008
+            # Spec 018 AC-12: a pointer to Upcoming's Now out, on the full page only.
+            "now_out_count": len(await service.now_out(db, auth.account.id, today(request))),
             "sort_options": SORT_OPTIONS,
             "statuses": STATUSES,
             "author_options": authors,
@@ -190,13 +187,20 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
 
 @router.get("/upcoming")
 async def upcoming_page(request: Request, auth: UiUser, db: DbSession) -> Response:
-    """My books not out yet, then the family catalog's (spec 007 R5)."""
-    view = await service.upcoming_view(db, auth.account.id, today(request))
+    """My books just out, my books not out yet, then the family catalog's (spec 007 R5,
+    spec 018 AC-11)."""
+    on = today(request)
+    view = await service.upcoming_view(db, auth.account.id, on)
     quick_added = await quick.notice(request, db, auth)  # spec 015
     return render(
         request,
         "pages/upcoming.html",
-        {"view": view, "active": "upcoming", "quick": quick_added},
+        {
+            "view": view,
+            "now_out": await service.now_out(db, auth.account.id, on),
+            "active": "upcoming",
+            "quick": quick_added,
+        },
         auth=auth,
     )
 

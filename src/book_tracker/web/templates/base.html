@@ -17,11 +17,15 @@
       <a class="brand" href="/">Family Book Tracker</a>
       {% if current_user %}
       <nav aria-label="Main">
-        <ul class="nav-list">
+        {#- Spec 018 R1: places, then actions as a group of their own. -#}
+        <ul class="nav-list nav-places">
           <li><a href="/"{% if active == "list" %} aria-current="page"{% endif %}>My books</a></li>
-          <li><a href="/books/add"{% if active == "add" %} aria-current="page"{% endif %}>Add a book</a></li>
           <li><a href="/catalog"{% if active == "catalog" %} aria-current="page"{% endif %}>Catalog</a></li>
+          <li><a href="/authors"{% if active == "authors" %} aria-current="page"{% endif %}>Authors</a></li>
           <li><a href="/upcoming"{% if active == "upcoming" %} aria-current="page"{% endif %}>Upcoming</a></li>
+        </ul>
+        <ul class="nav-list nav-actions" aria-label="Actions">
+          <li><a href="/books/add"{% if active == "add" %} aria-current="page"{% endif %}>Add a book</a></li>
           <li><a href="/import"{% if active == "import" %} aria-current="page"{% endif %}>Import</a></li>
           {% if current_user.is_admin %}
           <li><a href="/admin/users"{% if active == "admin" %} aria-current="page"{% endif %}>Accounts</a></li>

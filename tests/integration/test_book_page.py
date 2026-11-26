@@ -215,11 +215,11 @@ async def test_my_books_titles_still_open_my_entry(
     page = (await member.get("/")).text
     assert f'<a class="book-title" href="/entries/{w["mort_entry"]}">Mort</a>' in page
     assert f'href="/books/{w["mort"]}"' not in page
-    # The Now out list (spec 007) too.
+    # Spec 018 moved the Now out list to Upcoming; My books keeps only a pointer to it.
     out = await factory.book("Just Out", alice, author_ids=[w["terry"]], release_date=date.today())
-    entry = await factory.entry(alice, out, status="want_to_read", pre_ordered=True)
+    await factory.entry(alice, out, status="want_to_read", pre_ordered=True)
     page = (await member.get("/")).text
-    assert f'<a href="/entries/{entry}">Just Out</a>' in page
+    assert '<a href="/upcoming#now-out">1 book you want to read is now out</a>' in page
     assert f'href="/books/{out}"' not in page
 
 

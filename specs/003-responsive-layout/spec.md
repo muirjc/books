@@ -88,6 +88,9 @@ the content width and the number of rows the header takes.
 - **AC-08**: **Given** a laptop-width window, **When** any signed-in page loads, **Then** the
   site name, navigation links and account actions sit on one row, for a member and for an
   admin.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) (decided with the user): one row when it fits. At
+  1,024 px the site name and the seven menu items fill the row, so the account actions wrap
+  to a second row of their own, rather than squeezing the site name over several lines.*
 - **AC-09**: **Given** a tablet-width window (768 px and 820 px), **When** any signed-in
   page loads, **Then** all navigation links sit on one row.
 - **AC-10**: **Given** any width, **When** a page with running text loads (sign in, change

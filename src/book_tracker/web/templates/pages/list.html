@@ -7,15 +7,7 @@
 </div>
 {% include "partials/favorite_offer.html" %}
 
-{% if now_out %}
-{#- Spec 007 R6: books on my list I still want to read, out in the last 30 days. -#}
-<div class="notice" role="status" id="now-out">
-  <p><strong>Now out:</strong></p>
-  <ul>
-    {% for entry in now_out %}<li><a href="/entries/{{ entry.id }}">{{ entry.book.title }}</a>{% if entry.pre_ordered %} (pre-ordered){% endif %}</li>{% endfor %}
-  </ul>
-</div>
-{% endif %}
+{% include "partials/now_out_pointer.html" %}
 
 <form method="get" action="/" role="search" aria-label="Search and filter my books" class="filters list-filters"
       data-fold="{{ 'open' if filters_open else 'closed' }}" hx-get="/" hx-target="#reading-list" hx-push-url="true"
@@ -64,27 +56,17 @@
       {% endfor %}
     </select>
   </div>
-  <div class="field checkbox-field upcoming-field">
-    <input type="checkbox" id="upcoming" name="upcoming" value="1"{% if filters.upcoming %} checked{% endif %} aria-describedby="upcoming-hint">
-    <label for="upcoming">Upcoming only</label>
-    <p class="hint" id="upcoming-hint">Soonest first</p>
-  </div>
   <div class="actions">
     <button type="submit">Apply</button>
   </div>
   {#- Spec 014 AC-18, books-349: with the filters, so phones needn't scroll past the list,
       on a line of its own so the dropdowns stay level. books-g39: Clear leads it, leaving
       the laptop row room for the dropdowns. -#}
-  <p class="filter-link">{% include "partials/list_clear.html" %}<a href="/authors/favorites">My favorite authors</a></p>
+  <p class="filter-link">{% include "partials/list_clear.html" %}</p>
   </div>
 </form>
 
 <div id="reading-list" aria-live="polite">
   {% include "partials/reading_list.html" %}
 </div>
-
-{% if unused_authors %}
-{#- Spec 008: tidy the catalog. -#}
-<p class="tidy-link"><a href="/catalog/authors/unused">Authors with no books ({{ unused_authors }})</a></p>
-{% endif %}
 {% endblock %}

@@ -160,6 +160,8 @@ them.
   (`/authors/favorites`), **Then** it lists them by sort name, each linking to the author's
   page. It is linked from My books and from every author page. With none, it says "You
   haven't chosen any favorite authors yet." and explains how to choose one.
+  *Replaced 2026-11-26 by [spec 018](../018-navigation-model/spec.md) (AC-02–AC-07): the Authors page with **Favorites only**.
+  `/authors/favorites` redirects there.*
 - **AC-13**: **Given** My books, **Then** the Author filter offers **My favorite authors**
   (after **Any author**). Choosing it lists the viewer's books that have at least one
   favorite author, and the choice is kept across sorting and paging. The JSON API's list of

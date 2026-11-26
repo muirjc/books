@@ -6,6 +6,7 @@
   <h1>Catalog</h1>
   <p><a class="button button-primary" href="/books/add">Add a book</a></p>
 </div>
+{% with catalog_view = "books" %}{% include "partials/catalog_switch.html" %}{% endwith %}
 <div id="quick-notice-area">{% include "partials/quick_notice.html" %}</div>
 
 <form method="get" action="/catalog" role="search" aria-label="Search the catalog" class="filters catalog-filters"

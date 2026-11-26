@@ -258,6 +258,7 @@ async def test_edit_story_back_link(
 
 
 @pytest.mark.ac("014/AC-10")
+@pytest.mark.ac("018/AC-01")
 async def test_navigation_marks_the_related_tab(
     member: httpx.AsyncClient, factory: Factory, alice: TestUser, w: dict[str, Any]
 ) -> None:
@@ -266,7 +267,6 @@ async def test_navigation_marks_the_related_tab(
     expected = {
         "/": "My books",
         f"/entries/{w['entry']}": "My books",
-        "/authors/favorites": "My books",
         "/books/add": "Add a book",
         "/catalog": "Catalog",
         f"/catalog/books/{w['side']}/edit": "Catalog",
@@ -275,9 +275,10 @@ async def test_navigation_marks_the_related_tab(
         f"/catalog/stories/{story}/edit": "Catalog",
         f"/catalog/series/{w['dresden']}/edit": "Catalog",
         f"/catalog/authors/{w['jim']}/edit": "Catalog",
-        "/catalog/authors/unused": "Catalog",
+        "/catalog/authors/unused": "Authors",  # spec 018
         f"/series/{w['dresden']}": "Catalog",
-        f"/authors/{w['jim']}": "Catalog",
+        "/authors": "Authors",  # spec 018
+        f"/authors/{w['jim']}": "Authors",
         "/upcoming": "Upcoming",
         "/import": "Import",
     }
@@ -354,37 +355,37 @@ async def test_add_a_book_by_this_author(member: httpx.AsyncClient, w: dict[str,
 
 
 @pytest.mark.ac("014/AC-18")
-async def test_favorites_link_after_the_filters(member: httpx.AsyncClient) -> None:
+@pytest.mark.ac("018/AC-09")
+async def test_filter_line_after_the_filters(member: httpx.AsyncClient) -> None:
+    """Spec 018 moved My favorite authors to the Authors page; the line keeps Clear."""
     page = (await member.get("/")).text
     extra = re.search(r'<div id="filter-extra".*?</form>', page, re.S)
     assert extra
     block = extra.group(0)
     # books-349: after Apply, on its own line, so the Author dropdown lines up with the rest.
-    series, apply, favorites = (
+    series, apply, line = (
         block.find('id="series_id"'), block.find('<button type="submit">Apply</button>'),
-        block.find('<a href="/authors/favorites">My favorite authors</a></p>'),
+        block.find('<p class="filter-link">'),
     )  # fmt: skip
-    assert -1 < series < apply < favorites
+    assert -1 < series < apply < line
+    assert "My favorite authors</a>" not in block and "/authors" not in block
     assert re.search(r'<span id="list-clear"[^>]* hidden>', block)  # nothing filtered
 
 
-CLEAR = re.compile(r'<span id="list-clear"([^>]*)>(.*?)</span></span>', re.S)
+CLEAR = re.compile(r'<span id="list-clear"([^>]*)>(.*?)</span>', re.S)
 
 
 @pytest.mark.ac("014/AC-18")
 @pytest.mark.ac("003/AC-02")
 async def test_clear_filters_on_the_line_below(member: httpx.AsyncClient) -> None:
     """books-g39: Clear leaves the Apply cell, so the laptop dropdowns have room; it leads
-    the favorites line, after Apply, with the separator hidden from screen readers."""
+    a line of its own, after Apply (spec 018: the favorites link moved away)."""
     block = (await member.get("/?status=reading")).text
     actions = re.search(r'<div class="actions">.*?</div>', block, re.S)
     assert actions and "Clear" not in actions.group(0)
     line = re.search(r'<p class="filter-link">(.*?)</p>', block, re.S)
     assert line
-    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', line.group(1)) == [
-        ("/", "Clear filters"), ("/authors/favorites", "My favorite authors"),
-    ]  # fmt: skip
-    assert '<span aria-hidden="true"> · </span>' in line.group(1)
+    assert re.findall(r'<a href="([^"]+)">([^<]+)</a>', line.group(1)) == [("/", "Clear filters")]
     assert block.find(">Apply</button>") < line.start()
     clear = CLEAR.search(line.group(1))
     assert clear and "hidden" not in clear.group(1)

@@ -102,21 +102,23 @@ def _titles(body: str) -> list[str]:
     ]
 
 
-@pytest.mark.ac("011/AC-12")
-async def test_my_favorite_authors_page(people: Any, factory: Factory) -> None:
-    empty = (await people.member.get("/authors/favorites")).text
+@pytest.mark.ac("018/AC-04")
+@pytest.mark.ac("018/AC-07")
+async def test_favorites_only_replaces_my_favorite_authors(people: Any, factory: Factory) -> None:
+    """Spec 018 replaced the spec 011 AC-12 page with the Authors page's Favorites only."""
+    empty = (await people.member.get("/authors?favorites=1")).text
     assert "You haven't chosen any favorite authors yet." in empty
     await factory.favorite(people.alice, people.butcher)
     await factory.favorite(people.alice, people.austen)
     await factory.favorite(people.ben, people.lonely)
-    page = (await people.member.get("/authors/favorites")).text
-    assert "<h1>My favorite authors</h1>" in page
-    links = re.findall(r'<a href="/authors/([0-9a-f-]{36})">([^<]+)</a>', page)
+    page = (await people.member.get("/authors?favorites=1")).text
+    assert "<h1>Authors</h1>" in page
+    links = re.findall(r'<a class="row-name" href="/authors/([0-9a-f-]{36})">([^<]+)</a>', page)
     assert [name for _, name in links] == ["Jane Austen", "Jim Butcher"]  # Ben's isn't here
     home = (await people.member.get("/")).text
-    assert '<a href="/authors/favorites">My favorite authors</a>' in home
+    assert "/authors/favorites" not in home and "/authors?favorites=1" not in home
     author = (await people.member.get(f"/authors/{people.lonely}")).text
-    assert 'href="/authors/favorites"' in author
+    assert 'href="/authors?favorites=1"' in author
 
 
 @pytest.mark.ac("011/AC-13")

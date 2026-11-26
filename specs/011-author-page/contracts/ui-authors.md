@@ -16,3 +16,5 @@ Every POST needs the session CSRF token.
 | `GET /catalog/authors/{id}/edit` | With no books or stories, but favorited: by me, "This author is one of your favorite authors. Remove them from your favorites to delete them." with a link to the Author page; by another member only, "A family member has this author as a favorite, so they can't be deleted." No Delete button in either case. Edit author also links to the Author page. |
 | `POST /catalog/authors/{id}/delete` | When favorited (including meanwhile), shows Edit author with the message above (409). Nothing is deleted. |
 | `GET /catalog/authors/unused` | Leaves out favorited authors, as does its count on My books. |
+
+*Amended 2026-11-26 by [spec 018](../../018-navigation-model/contracts/ui-navigation.md): `GET /authors/favorites` redirects to `/authors?favorites=1`, the Authors page with Favorites only. The author page's My favorite authors link points there, and the menu's Authors item is current on author pages.*

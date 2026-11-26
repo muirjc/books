@@ -55,11 +55,11 @@ async def _targets(ui: UI, selector: str, where: str) -> None:
 
 
 @pytest.mark.ac("007/AC-19")
+@pytest.mark.ac("018/AC-18")
 async def test_upcoming_layouts(ui: UI, upcoming: Seeded) -> None:
     await ui.sign_in(upcoming.alice)
     pages = {
         "upcoming": "/upcoming",
-        "my books": "/?upcoming=1",
         "my books notice": "/",
         "add": "/books/add",
         "entry": f"/entries/{upcoming.entry_id}",
@@ -73,8 +73,9 @@ async def test_upcoming_layouts(ui: UI, upcoming: Seeded) -> None:
                 # Author names (spec 011) are inline links in a line of text, exempt from
                 # the target size (WCAG 2.5.8); the row's own targets are checked.
                 await _targets(ui, ".upcoming-list a:not(.book-meta a)", f"{name} {wh}")
-            if name.startswith("my books"):
                 await _targets(ui, "#now-out a", f"{name} {wh}")
+            if name.startswith("my books"):
+                await _targets(ui, ".now-out-pointer a", f"{name} {wh}")
             if wh in (PHONE, IPAD, LAPTOP):
                 await assert_no_axe_violations(ui.page, f"{name} {wh}")
 
@@ -98,20 +99,15 @@ async def test_upcoming_without_js(upcoming: Seeded, pw_browser: Browser, live_s
     await view.page.get_by_role("button", name="Use existing author “Terry Pratchett”").click()
     await view.page.wait_for_load_state()
     assert "msg=added" in view.page.url, view.page.url
-    # The filter, by checkbox and Apply.
-    await view.page.check("#upcoming")
-    await view.page.click(".filters .actions button[type=submit]")
-    await view.page.wait_for_load_state()
-    assert "upcoming=1" in view.page.url
-    items = await view.page.locator(".reading-list > li").all_inner_texts()
-    rows = [" ".join(t.split()) for t in items]
-    assert rows and rows[0].startswith("Hogfather Returns"), rows
-    assert "Pre-ordered" in rows[0]
+    # Spec 018: no Upcoming filter on My books; Upcoming is the one place.
+    assert await view.page.locator("#upcoming").count() == 0
     # The Upcoming page from the navigation.
     await view.page.get_by_role("link", name="Upcoming", exact=True).click()
     await view.page.wait_for_load_state()
     assert view.page.url.endswith("/upcoming")
     assert await view.page.get_by_role("heading", name="On my list").count() == 1
+    mine = await view.page.locator(".upcoming-list").first.inner_text()
+    assert "Hogfather Returns" in mine and "Pre-ordered" in mine
     assert "Ben's Upcoming Book" in await view.page.inner_text("main")
     await check(view.page, "upcoming no-js")
     await context.close()
@@ -121,9 +117,13 @@ async def test_upcoming_without_js(upcoming: Seeded, pw_browser: Browser, live_s
 async def test_now_out_is_status_text(ui: UI, upcoming: Seeded) -> None:
     await ui.sign_in(upcoming.alice)
     await ui.go("/")
-    notice = ui.page.get_by_role("status").filter(has_text="Now out")
+    # Spec 018: My books announces a line pointing to Upcoming's Now out.
+    notice = ui.page.get_by_role("status").filter(has_text="now out")
     assert await notice.count() == 1
-    assert " ".join((await notice.inner_text()).split()) == "Now out: Just Out (pre-ordered)"
+    assert " ".join((await notice.inner_text()).split()) == "1 book you want to read is now out"
     row = ui.page.locator(".reading-list > li", has_text=LONG_TITLE)
     assert "Pre-ordered" in await row.inner_text()
     assert "Coming " in await row.locator(".book-release").inner_text()
+    await ui.go("/upcoming")
+    section = ui.page.get_by_role("region", name="Now out")
+    assert " ".join((await section.inner_text()).split()) == "Now out Just Out (pre-ordered)"

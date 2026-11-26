@@ -162,6 +162,43 @@ async def catalog_view(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class SeriesIndexRow:
+    """A Series view row (spec 018): the series, its catalog books, and how many of those
+    I've finished (mine only)."""
+
+    series: Series
+    books: int
+    read: int
+
+
+@dataclass(frozen=True, slots=True)
+class SeriesIndex:
+    rows: tuple[SeriesIndexRow, ...]
+    page: int  # clamped to the last page
+    page_size: int
+    total: int
+
+
+async def series_index(
+    db: AsyncSession, user_id: uuid.UUID, *, page: int, page_size: int, q: str = ""
+) -> SeriesIndex:
+    """Every series by name (spec 018 R4), with my Finished counts from the user-bound
+    repository (Principle I)."""
+    found, total, page = await catalog.browse_series(
+        db, page=page, page_size=page_size, q=q.strip()
+    )
+    read = await ReadingEntryRepository(db, user_id).finished_counts_by_series(
+        [series.id for series, _ in found]
+    )
+    return SeriesIndex(
+        rows=tuple(SeriesIndexRow(s, books, read.get(s.id, 0)) for s, books in found),
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
+
+
 async def now_out(db: AsyncSession, user_id: uuid.UUID, today: date) -> tuple[ReadingEntry, ...]:
     """My Want to read books released in the last 30 days (spec 007 R6)."""
     return await ReadingEntryRepository(db, user_id).list_now_out(today)

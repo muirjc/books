@@ -94,6 +94,8 @@ its link to the Catalog.
   name on a book page (or **Add to my favorite authors** on an author page) adds one, and
   links to the Catalog ("Browse the Catalog"). With one or more favorites, the page is
   unchanged.
+  *Amended 2026-11-26 by [spec 018](../018-navigation-model/spec.md) (AC-04): this is the Authors page's Favorites only view,
+  with the same text and link.*
 
 ---
 

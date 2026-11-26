@@ -18,5 +18,5 @@
 <ul class="link-list">
   {% for ref in story.books %}<li><a href="/books/{{ ref.id }}">{{ ref.title }}</a></li>{% endfor %}
 </ul>
-<p><a href="/series/{{ story.series.id }}">All of {{ story.series.name }}</a></p>
+{% if story.series %}<p><a href="/series/{{ story.series.id }}">All of {{ story.series.name }}</a></p>{% endif %}
 {% endblock %}

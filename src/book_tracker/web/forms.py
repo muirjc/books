@@ -364,16 +364,16 @@ def _check_story_row(parsed: AddBookForm, row: StoryRow) -> None:
         row.number = _series_number.validate_python(row.number_text)
     except ValidationError as exc:
         errors[f"story_number_{i}"] = f"{label}: {first_error(exc)}"
-    else:
-        if row.number is None:
-            errors[f"story_number_{i}"] = f"{label}: Enter the story's number in the series"
+        return
     for name, value in (("author", row.author_name), ("series", row.series_name)):
         if len(value) > 200:
             errors[f"story_{name}_name_{i}"] = f"{label}: {NAME_TOO_LONG}"
-    if not row.series_name and not parsed.series_name:
-        errors[f"story_series_name_{i}"] = (
-            f"{label}: Choose a series for this story, or give the book a series"
-        )
+    # Spec 019: a series and a number, or neither. A blank series on a numbered row is the
+    # book's (AC-02); a blank number and series is a story without a series (AC-01).
+    if row.number is None and row.series_name:
+        errors[f"story_number_{i}"] = f"{label}: {STORY_NUMBER_MISSING}"
+    elif row.number is not None and not row.series_name and not parsed.series_name:
+        errors[f"story_series_name_{i}"] = f"{label}: {STORY_SERIES_MISSING}"
 
 
 def _check_story_pairs(parsed: AddBookForm, rows: list[StoryRow]) -> None:
@@ -536,7 +536,12 @@ def series_start_form(series: domain.Series, number: str) -> AddBookForm:
 
 # --------------------------------------------------------------------------- stories (spec 009)
 
-STORY_NUMBER_MISSING = "Enter the story's number in the series"
+# Spec 019: a story has a series and a number, or neither.
+STORY_NUMBER_MISSING = "Enter a number, or clear the series for a story that isn't part of a series"
+STORY_SERIES_MISSING = (
+    "Choose a series for this story, or clear the number for a story that isn't part of a series"
+)
+STORY_SERIES_ONLY = "Choose a series, or clear the number for a story that isn't part of a series"
 
 
 def parse_story(form: FormData) -> tuple[AddBookForm, uuid.UUID | None, uuid.UUID | None]:
@@ -550,9 +555,12 @@ def parse_story(form: FormData) -> tuple[AddBookForm, uuid.UUID | None, uuid.UUI
     )
     for name in ("isbn_13", "release_date", "summary"):
         parsed.errors.pop(name, None)
-    if not parsed.series_name:
-        parsed.errors.setdefault("series_name", "Choose a series")
-    if parsed.series_number is None:
+    # Spec 019 AC-04: both or neither; the book form's own "Choose a series first" is
+    # replaced by the story wording.
+    if parsed.series_number is not None and not parsed.series_name:
+        parsed.errors.pop("series_number", None)  # a valid number: only the series is missing
+        parsed.errors["series_name"] = STORY_SERIES_ONLY
+    elif parsed.series_name and parsed.series_number is None:
         parsed.errors.setdefault("series_number", STORY_NUMBER_MISSING)
     return parsed, optional_uuid(form, "story_id"), optional_uuid(form, "use_story")
 
@@ -580,9 +588,11 @@ def story_form(story: domain.Story) -> AddBookForm:
     raw.update(
         {
             "title": story.title,
-            "series_name": story.series.name,
-            "series_id": str(story.series.id),
-            "series_number": format_series_number(story.series_number),
+            "series_name": story.series.name if story.series else "",
+            "series_id": str(story.series.id) if story.series else "",
+            "series_number": (
+                format_series_number(story.series_number) if story.series_number is not None else ""
+            ),
         }
     )
     return AddBookForm(raw=raw)

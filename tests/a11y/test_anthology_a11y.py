@@ -51,9 +51,10 @@ async def test_story_section_states(ui: UI, seeded: Seeded, factory: Factory) ->
     await expect(stories).to_be_hidden()
     await ui.page.check("#anthology")
     await _every_width(ui, "section open")
-    # Two rows: one missing its number, one with a new author name.
+    # Two rows: one with a series and no number (spec 019), one with a new author name.
     await _book(ui, "Tales of the Disc")
     await ui.page.fill("#story_title_0", "Troll Bridge")
+    await ui.page.fill("#story_series_name_0", "Discworld")
     await _submit(ui, ADD_ROW)
     await expect(ui.page.locator("#story_title_1")).to_be_focused()
     await ui.page.fill("#story_title_1", "The Sea and Little Fishes")

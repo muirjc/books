@@ -419,12 +419,13 @@ class Factory:
         title: str,
         actor: TestUser,
         *,
-        series_id: uuid.UUID,
-        series_number: str,
+        series_id: uuid.UUID | None,
+        series_number: str | None,
         author_ids: list[uuid.UUID],
         book_ids: list[uuid.UUID],
     ) -> uuid.UUID:
-        """A catalog story (spec 009) in the given books."""
+        """A catalog story (spec 009) in the given books, in that order; with no series and
+        number, a story without a series (spec 019)."""
         story_id = uuid.uuid4()
         async with self._app.state.db.sessionmaker() as session:
             session.add(
@@ -432,7 +433,7 @@ class Factory:
                     id=story_id,
                     title=title,
                     series_id=series_id,
-                    series_number=Decimal(series_number),
+                    series_number=Decimal(series_number) if series_number is not None else None,
                     created_by=actor.id,
                     updated_by=actor.id,
                 )

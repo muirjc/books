@@ -102,7 +102,7 @@ def to_story(row: orm.Story) -> domain.Story:
             )
             for link in sorted(row.author_links, key=lambda link: link.position)
         ),
-        series=domain.SeriesRef(id=row.series.id, name=row.series.name),
+        series=domain.SeriesRef(id=row.series.id, name=row.series.name) if row.series else None,
         series_number=row.series_number,
         books=tuple(
             domain.BookRef(id=link.book_id, title=link.book_title)

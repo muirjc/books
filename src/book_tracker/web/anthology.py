@@ -112,9 +112,10 @@ async def story_action(db: AsyncSession, form: AddBookForm, data: FormData) -> R
 def _use_story(row: StoryRow, story: domain.Story) -> None:
     row.story_id = story.id
     row.title = story.title
-    row.number_text = format_series_number(story.series_number)
     row.number = story.series_number
-    row.series_id, row.series_name = story.series.id, story.series.name
+    row.number_text = format_series_number(row.number) if row.number is not None else ""
+    row.series_id = story.series.id if story.series else None
+    row.series_name = story.series.name if story.series else ""
     row.author_id, row.author_name = None, ""
 
 
@@ -270,9 +271,10 @@ def mark_taken(
     form: AddBookForm, row: StoryRow, story: domain.Story, taken: dict[int, domain.Story]
 ) -> None:
     taken[row.index] = story
+    number = story.series_number
+    place = f"#{format_series_number(number)} " if number is not None else ""
     form.errors[f"story_number_{row.index}"] = (
-        f"{row.label}: #{format_series_number(story.series_number)} “{story.title}” "
-        "is already in the catalog"
+        f"{row.label}: {place}“{story.title}” is already in the catalog"
     )
 
 

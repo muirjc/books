@@ -654,14 +654,21 @@ async def get_story(db: AsyncSession, story_id: uuid.UUID) -> domain.Story | Non
 
 
 async def book_stories(db: AsyncSession, book_id: uuid.UUID) -> list[domain.Story]:
-    """The stories a book contains, by series name, then number."""
+    """The stories a book contains: those with a series by series name, then number; then
+    those without one in the order they were added to this book (spec 019 AC-09)."""
     return await _story_list(
         db,
         _stories()
         .join(models.BookStory, models.BookStory.story_id == models.Story.id)
-        .join(models.Series, models.Series.id == models.Story.series_id)
+        .outerjoin(models.Series, models.Series.id == models.Story.series_id)
         .where(models.BookStory.book_id == book_id)
-        .order_by(func.lower(models.Series.name), models.Story.series_number),
+        .order_by(
+            models.Story.series_id.is_(None),
+            func.lower(models.Series.name),
+            models.Story.series_number,
+            models.BookStory.position,
+            models.Story.id,
+        ),
     )
 
 
@@ -706,7 +713,11 @@ async def stories_at(
     found = await _story_list(
         db, _stories().where(tuple_(models.Story.series_id, models.Story.series_number).in_(pairs))
     )
-    return {(story.series.id, story.series_number): story for story in found}
+    return {
+        (story.series.id, story.series_number): story
+        for story in found
+        if story.series is not None and story.series_number is not None  # the pairs given
+    }
 
 
 async def search_stories(db: AsyncSession, q: str, limit: int) -> list[domain.Story]:
@@ -738,7 +749,12 @@ async def story_matches(
             models.BookStory.book_id.in_(book_ids),
             models.Story.title.ilike(contains, escape="\\"),
         )
-        .order_by(models.BookStory.book_id, models.Story.series_number, models.Story.id)
+        .order_by(
+            models.BookStory.book_id,
+            models.Story.series_number.asc().nulls_last(),
+            models.BookStory.position,
+            models.Story.id,
+        )
     )
     found: dict[uuid.UUID, str] = {}
     for book_id, title in rows:
@@ -751,10 +767,11 @@ async def create_story(
     *,
     title: str,
     author_ids: list[uuid.UUID],
-    series_id: uuid.UUID,
-    series_number: Decimal,
+    series_id: uuid.UUID | None,
+    series_number: Decimal | None,
     actor_id: uuid.UUID,
 ) -> uuid.UUID:
+    """A new story; ``series_id`` and ``series_number`` both or neither (spec 019)."""
     story_id = uuid.uuid4()
     await db.execute(
         insert(models.Story).values(

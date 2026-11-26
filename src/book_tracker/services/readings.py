@@ -293,6 +293,8 @@ def series_rows(
     mine = {entry.book.id: entry for entry in entries}
     holds: dict[uuid.UUID, list[Decimal]] = {}
     for story in stories:
+        if story.series_number is None:  # a series' own stories always have one (spec 019)
+            continue
         for ref in story.books:
             holds.setdefault(ref.id, []).append(story.series_number)
     rows = [

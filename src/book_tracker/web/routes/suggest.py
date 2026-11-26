@@ -88,7 +88,11 @@ async def suggest(
                 Suggestion(
                     str(s.id),
                     s.title,
-                    f"#{format_series_number(s.series_number)} {s.series.name} · in "
+                    (
+                        f"#{format_series_number(s.series_number)} {s.series.name} · in "
+                        if s.series and s.series_number is not None
+                        else "in "  # spec 019: no series
+                    )
                     + ", ".join(ref.title for ref in s.books),
                 )
                 for s in await service.search_stories(db, q, LIMIT)

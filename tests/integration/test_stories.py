@@ -415,17 +415,20 @@ async def test_add_story(
 
 
 @pytest.mark.ac("009/AC-04")
+@pytest.mark.ac("019/AC-04")
 async def test_add_story_errors(
     member: httpx.AsyncClient, factory: Factory, world: dict[str, uuid.UUID]
 ) -> None:
     refused = await add_story(member, world["side_jobs"], title=" ", series_number="1000")
     assert refused.status_code == 422
     assert field_error(refused, "title") == "Enter a title"
-    assert field_error(refused, "series_name") == "Choose a series"
     assert field_error(refused, "series_number") != ""
+    # Spec 019: a series and no number is refused; neither is a story without a series.
     missing = await add_story(member, world["storm"], title="Kept title", series_number="")
     assert missing.status_code == 422
-    assert field_error(missing, "series_number") == "Enter the story's number in the series"
+    assert field_error(missing, "series_number") == (
+        "Enter a number, or clear the series for a story that isn't part of a series"
+    )
     assert 'value="Kept title"' in missing.text
     assert await story_count(factory) == 1
 

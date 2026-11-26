@@ -62,12 +62,12 @@ class NewBook:
 
 @dataclass(frozen=True, slots=True)
 class NewStory:
-    """A story to add to a book (spec 009)."""
+    """A story to add to a book (spec 009); a series and number, or neither (spec 019)."""
 
     title: str
     author_ids: list[uuid.UUID]
-    series_id: uuid.UUID
-    series_number: Decimal
+    series_id: uuid.UUID | None
+    series_number: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +82,10 @@ class StoryForBook:
     author_ids: list[uuid.UUID] | None = None
 
 
-NO_STORY_SERIES = "Choose a series for this story, or give the book a series"
+NO_STORY_SERIES = (
+    "Choose a series for this story, or clear the number for a story that isn't part of a series"
+)
+NO_STORY_NUMBER = "Enter a number, or clear the series for a story that isn't part of a series"
 AUTHOR_DELETED = "An author you chose was just deleted from the catalog. Choose the author again."
 STORY_DELETED = "That story was just deleted from the catalog."
 
@@ -157,7 +160,9 @@ async def guarded[T](
 
 
 def story_label(story: domain.Story) -> str:
-    """ "#2.5 Publicity and Advertising" """
+    """ "#2.5 Publicity and Advertising", or just the title without a series (spec 019)."""
+    if story.series_number is None:
+        return story.title
     return f"#{format_series_number(story.series_number)} {story.title}"
 
 
@@ -591,27 +596,35 @@ async def add_book_stories(
     for i, item in enumerate(stories):
         if item.story_id is not None:
             continue
-        series_id = item.series_id or (book.series.id if book.series else None)
-        if series_id is None:
-            raise ValidationFailed.single(f"stories.{i}.series_id", NO_STORY_SERIES)
-        assert item.series_number is not None  # noqa: S101 - callers validate it
+        # Spec 019: no number and no series is a story without a series; a number with no
+        # series takes the book's.
+        series_id: uuid.UUID | None = None
+        if item.series_number is None:
+            if item.series_id is not None:
+                raise ValidationFailed.single(f"stories.{i}.series_number", NO_STORY_NUMBER)
+        else:
+            series_id = item.series_id or (book.series.id if book.series else None)
+            if series_id is None:
+                raise ValidationFailed.single(f"stories.{i}.series_id", NO_STORY_SERIES)
         title = normalize_name(item.title)
         new.append(
             (i, NewStory(title, item.author_ids or book_authors, series_id, item.series_number))
         )
     seen: dict[tuple[uuid.UUID, Decimal], int] = {}
-    for i, n in new:  # e.g. two rows that a "Use …" name choice made one series (PR #33)
-        first = seen.setdefault((n.series_id, n.series_number), i)
+    placed = [(i, n.series_id, n.series_number) for i, n in new
+              if n.series_id is not None and n.series_number is not None]  # fmt: skip
+    for i, series_id, number in placed:  # e.g. two rows a "Use …" choice made one (PR #33)
+        first = seen.setdefault((series_id, number), i)
         if first != i:
             raise ValidationFailed.single(
                 f"stories.{i}.series_number",
                 "Has the same series and number as another story in this save",
             )
     await _check_story_references(db, new)
-    taken = await stories_at(db, [(n.series_id, n.series_number) for _, n in new])
-    for i, n in new:
-        if (n.series_id, n.series_number) in taken:
-            story = taken[(n.series_id, n.series_number)]
+    taken = await stories_at(db, [(series_id, number) for _, series_id, number in placed])
+    for i, series_id, number in placed:
+        if (series_id, number) in taken:
+            story = taken[(series_id, number)]
             raise StoryNumberTaken(i, story, story_label(story))
     created = {i: n for i, n in new}
     for i, item in enumerate(stories):
@@ -631,7 +644,7 @@ async def _check_story_references(db: AsyncSession, new: list[tuple[int, NewStor
     known_authors = await catalog.existing_author_ids(db, author_ids)
     missing_series = {
         series_id
-        for series_id in {n.series_id for _, n in new}
+        for series_id in {n.series_id for _, n in new if n.series_id is not None}
         if not await catalog.series_exists(db, series_id)
     }
     for i, n in new:
@@ -663,6 +676,8 @@ async def _create_book_story(
             [FieldError(f"stories.{index}.{e.field}", e.message) for e in exc.errors]
         ) from None
     except ConflictError as exc:  # another member took the number a moment ago (AC-16)
+        if new.series_id is None or new.series_number is None:  # pragma: no cover - defensive
+            raise
         story = await story_at(db, new.series_id, new.series_number)
         if story is None or exc.code != "story_number_taken":  # pragma: no cover - defensive
             raise
@@ -676,12 +691,16 @@ async def update_story(
     author_ids = changes.get("author_ids")
     if author_ids is not None and not author_ids:
         raise ValidationFailed.single("author_ids", "A story needs at least one author")
-    series_id = changes.get("series_id") or current.series.id
-    number = changes.get("series_number")
-    if number is None:
-        number = current.series_number
+    current_series = current.series.id if current.series else None
+    # Spec 019: a field left out keeps its value; given as None, it's cleared. The result
+    # must be a series and a number, or neither.
+    series_id = changes["series_id"] if "series_id" in changes else current_series
+    number = changes["series_number"] if "series_number" in changes else current.series_number
+    if (series_id is None) != (number is None):
+        field = "series_number" if number is None else "series_id"
+        raise ValidationFailed.single(field, NO_STORY_NUMBER if number is None else NO_STORY_SERIES)
     await _check_references(
-        db, author_ids or [], series_id if series_id != current.series.id else None
+        db, author_ids or [], series_id if series_id != current_series else None
     )
     fields: dict[str, Any] = {"series_id": series_id, "series_number": number}
     if changes.get("title") is not None:

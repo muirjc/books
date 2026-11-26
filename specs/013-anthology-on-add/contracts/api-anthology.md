@@ -47,3 +47,5 @@ The `stories` list holds at most 50 items. No two items may share an effective
 On any error, nothing is saved.
 
 The stories can be read back with the existing `GET /api/v1/books/{id}/stories` (spec 009).
+
+*Amended 2026-11-26 by [spec 019](../../019-optional-story-series/contracts/api-stories.md): an item with no `series_number` and no `series_id` has no series; `series_id` without a number is refused.*

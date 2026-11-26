@@ -72,6 +72,7 @@ form. They add the whole thing in one save.
   - each row has a title, a number, a series and an author;
   - a hint says a blank series uses the book's series, and a blank author uses all the
     book's authors. A story with several authors of its own gets the others on Edit book.
+  *Amended 2026-11-26 by [spec 019](../019-optional-story-series/spec.md) (AC-01): the hint also says to leave the number and series blank for a story that isn't part of a series.*
 - **AC-03**: **Given** the book's details and valid story rows, **When** the member chooses
   **Add to my list** or **Add and add another** (spec 004), **Then**:
   - the book, their entry and each story are saved together;
@@ -120,9 +121,11 @@ stops the whole save, and the member sees what to fix without losing anything ty
   - each problem is shown beside its field and listed in the error summary, naming the row
     ("Story 2: Enter a number");
   - everything typed is kept.
+  *Amended 2026-11-26 by [spec 019](../019-optional-story-series/spec.md) (AC-01, AC-03): a missing number is allowed when the series is blank too (a story without a series); a series with no number is refused.*
 - **AC-11**: **Given** a row whose series is blank and a book with no series, **When** the
   member saves, **Then** the row is refused with "Story N: Choose a series for this story,
   or give the book a series".
+  *Amended 2026-11-26 by [spec 019](../019-optional-story-series/spec.md) (AC-07): only for a row with a number, reworded "Story N: Choose a series for this story, or clear the number for a story that isn't part of a series".*
 - **AC-12**: **Given** two rows with the same series and number, **When** the member saves,
   **Then** both rows are marked ("Story 1 and Story 3 have the same number in The Dresden
   Files") and nothing is saved.

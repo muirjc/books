@@ -30,3 +30,5 @@ as other writes do. 401 and 403 are returned as elsewhere.
 
 Book search (`GET /api/v1/books?q=`) may now also return a book because one of its stories'
 titles matched. The response shape is unchanged.
+
+*Amended 2026-11-26 by [spec 019](../../019-optional-story-series/contracts/api-stories.md): `series` and `series_number` are nullable together; requests give both or neither.*

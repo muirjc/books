@@ -64,6 +64,7 @@ async def test_unticked_box_with_rows(
 
 
 @pytest.mark.ac("013/AC-10")
+@pytest.mark.ac("019/AC-03")
 async def test_row_errors_save_nothing(
     member: httpx.AsyncClient,
     factory: Factory,
@@ -72,13 +73,14 @@ async def test_row_errors_save_nothing(
     before = await counts(factory)
     data = side_jobs(dresden, story_title_0="Good", story_number_0="1.5",
                      story_title_1="", story_number_1="2.5",
-                     story_title_2="No number", story_title_3="Too big", story_number_3="1000",
+                     story_title_2="No number", story_series_name_2="Other Series",
+                     story_title_3="Too big", story_number_3="1000",
                      notes="Kept note")  # fmt: skip
     page = await member.post("/books/add", data=data)
     assert page.status_code == 422 and await counts(factory) == before
     assert field_error(page.text, "story_title_1") == "Story 2: Enter the story's title"
-    assert field_error(page.text, "story_number_2") == (
-        "Story 3: Enter the story's number in the series"
+    assert field_error(page.text, "story_number_2") == (  # spec 019: a series, no number
+        "Story 3: Enter a number, or clear the series for a story that isn't part of a series"
     )
     assert field_error(page.text, "story_number_3").startswith("Story 4: ")
     for name in ("story_title_1", "story_number_2", "story_number_3"):
@@ -88,6 +90,7 @@ async def test_row_errors_save_nothing(
 
 
 @pytest.mark.ac("013/AC-11")
+@pytest.mark.ac("019/AC-07")
 async def test_no_series_anywhere(
     member: httpx.AsyncClient,
     factory: Factory,
@@ -98,7 +101,8 @@ async def test_no_series_anywhere(
     page = await member.post("/books/add", data=data)
     assert page.status_code == 422
     assert field_error(page.text, "story_series_name_0") == (
-        "Story 1: Choose a series for this story, or give the book a series"
+        "Story 1: Choose a series for this story, or clear the number for a story that isn't "
+        "part of a series"
     )
     assert await factory.scalar("SELECT count(*) FROM book") == 0
 

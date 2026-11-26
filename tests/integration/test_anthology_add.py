@@ -108,7 +108,7 @@ async def test_checkbox_and_section(member: httpx.AsyncClient) -> None:
         assert f'name="{name}"' in page
     assert "<legend>Story 1</legend>" in page
     assert "Remove story 1" not in page  # the last row has no Remove
-    assert "Leave Series blank to use the book's series" in text_of(page)
+    assert "Leave Series blank on a numbered story to use the book's series" in text_of(page)
 
 
 @pytest.mark.ac("013/AC-03")

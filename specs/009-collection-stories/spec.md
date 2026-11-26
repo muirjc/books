@@ -66,15 +66,18 @@ each.
 - **AC-01**: **Given** a catalog book, **When** a member opens Edit book, **Then** a
   **Stories in this book** section lists its stories (series, number, title; by series name,
   then number) and offers **Add a story**.
+  *Amended 2026-11-26 by [spec 019](../019-optional-story-series/spec.md) (AC-09): stories without a series follow, in the order added to the book.*
 - **AC-02**: **Given** Add a story on a book, **When** the form opens, **Then** the series
   is filled with the book's series (if any) and the authors with the book's authors; the
   member types the title and number, and may change the series and authors.
+  *Amended 2026-11-26 by [spec 019](../019-optional-story-series/spec.md) (AC-04): the member may clear the series and leave the number blank for a story without a series.*
 - **AC-03**: **Given** a valid title, series and number, **When** the member saves, **Then**
   the story is added to the catalog and to this book, and the member returns to Edit book
   with a confirmation naming the story.
 - **AC-04**: **Given** Add a story, **When** the title is blank, the number is missing or out
   of range (the same 0–999.99 rule as book numbers), or no series is given, **Then** the
   story is refused with a message beside each field, and what was typed is kept.
+  *Amended 2026-11-26 by [spec 019](../019-optional-story-series/spec.md) (AC-04): no series with no number is allowed (a story without a series); a series without a number, or a number without a series, is refused.*
 - **AC-05**: **Given** a series and number already held by a story (say #2.5 *Publicity and
   Advertising*, in *Side Jobs*), **When** a member adds a story at that series and number to
   another book, **Then** nothing is saved yet; the page names the existing story and the

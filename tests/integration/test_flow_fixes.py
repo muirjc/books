@@ -202,9 +202,11 @@ async def test_edit_book_jump_link_and_hint(member: httpx.AsyncClient, w: dict[s
     page = (await member.get(f"/catalog/books/{w['side']}/edit")).text
     assert link(page, "Stories in this book") == "#stories"
     assert "Jump to:" in text_of(page)
-    assert "For an anthology or collection: each story gets its place in its series." in text_of(
-        page
+    hint = (  # spec 019: a story may have no series
+        "For an anthology or collection: each story gets its place in its series, or leave the "
+        "series and number blank for a story that isn't part of a series."
     )
+    assert hint in text_of(page)
 
 
 # --------------------------------------------------------------------------- US2

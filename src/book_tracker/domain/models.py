@@ -111,13 +111,14 @@ class BookRef:
 
 @dataclass(frozen=True, slots=True)
 class Story:
-    """A story in a series, contained in one or more books (spec 009)."""
+    """A story contained in one or more books (spec 009), in a series at a number or in
+    none (spec 019): ``series`` and ``series_number`` are both set or both None."""
 
     id: uuid.UUID
     title: str
     authors: tuple[BookAuthor, ...]
-    series: SeriesRef
-    series_number: Decimal
+    series: SeriesRef | None
+    series_number: Decimal | None
     books: tuple[BookRef, ...]  # by title
     created_by: UserRef
     created_at: datetime

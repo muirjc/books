@@ -72,7 +72,11 @@ def test_blank_rows_are_ignored() -> None:
     ("pairs", "field", "message"),
     [
         ((("story_number_0", "1.5"),), "story_title_0", "Story 1: Enter the story's title"),
-        ((("story_title_0", "A"),), "story_number_0", "Story 1: Enter the story's number"),
+        (
+            (("story_title_0", "A"), ("story_series_name_0", "Dresden")),
+            "story_number_0",
+            "Story 1: Enter a number, or clear the series",
+        ),  # spec 019
         ((("story_title_0", "A"), ("story_number_0", "1000")), "story_number_0", "Story 1: "),
         ((("story_title_0", "A"), ("story_number_0", "x")), "story_number_0", "Story 1: "),
         ((("story_title_0", "A" * 301), ("story_number_0", "1")), "story_title_0", "Story 1: Keep"),
@@ -86,12 +90,16 @@ def test_row_field_errors(pairs: tuple[tuple[str, str], ...], field: str, messag
 
 
 @pytest.mark.ac("013/AC-11")
+@pytest.mark.ac("019/AC-07")
 def test_no_series_anywhere() -> None:
     book = [("title", "Side Jobs"), ("author_name_0", "Jim Butcher")]
     form = parse(("story_title_0", "A"), ("story_number_0", "1.5"), book=book)
     assert form.errors["story_series_name_0"] == (
-        "Story 1: Choose a series for this story, or give the book a series"
+        "Story 1: Choose a series for this story, or clear the number for a story that isn't "
+        "part of a series"
     )
+    # Spec 019 AC-01: neither is a story without a series.
+    assert not parse(("story_title_0", "A"), book=book).errors
     ok = parse(("story_title_0", "A"), ("story_number_0", "1.5"),
                ("story_series_name_0", "Dresden"), book=book)  # fmt: skip
     assert not ok.errors

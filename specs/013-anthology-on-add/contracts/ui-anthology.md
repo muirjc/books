@@ -50,3 +50,5 @@ Each notice adds "with N stories" (N ≥ 1).
 
 `app.js`: `[data-anthology-toggle]` hides `#stories` when it is unticked on load, and
 toggles it on change. Nothing else depends on JavaScript.
+
+*Amended 2026-11-26 by [spec 019](../../019-optional-story-series/contracts/ui-stories.md): a row with no number and no series is a story without a series; a series with no number is refused.*

@@ -84,6 +84,9 @@ jobs:
   # breaking change needs a spec that declares it and the PR label `breaking-api`.
   contract:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       BASELINE: specs/001-family-reading-list/contracts/openapi.generated.json
     steps:
@@ -109,9 +112,18 @@ jobs:
         if: steps.base.outputs.found == 'true'
         # With the `breaking-api` label, report breaking changes without failing: oasdiff has
         # no `--fail-on none` (only ERR, WARN, MISSING-VERSION-BUMP), so leave the flag out.
+        # On a push to main there are no PR labels in the event, so look up the PR the pushed
+        # commit merged and use its labels.
         env:
           BREAKING_OK: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-api') }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            merged=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" \
+              --jq '[.[] | select(.merged_at != null) | .labels[].name] | index("breaking-api") != null')
+            BREAKING_OK=$merged
+            echo "Merged PR has the breaking-api label: $BREAKING_OK"
+          fi
           fail_on=(--fail-on ERR)
           if [ "$BREAKING_OK" = "true" ]; then fail_on=(); fi
           docker run --rm -v "$PWD":/w -w /w tufin/oasdiff:v1.38.0 breaking \

@@ -99,9 +99,10 @@ series, check the book page, entry page, Edit book, the author page and Edit aut
 **Acceptance Criteria**:
 
 - **AC-08**: **Given** a story without a series, **When** it's listed where "#n Series —
-  Title" shows today (the book page, the entry page, Edit book, the author page's Stories
-  list and Edit author), **Then** it shows its title and authors only, with no number,
-  series or empty link. Stories with a series show as today.
+  Title" shows today (the book page, the entry page, Edit book and the author page's
+  Stories list), **Then** it shows its title and authors only, with no number, series or
+  empty link. On Edit story it has no "All of <series>" link. Edit author already shows
+  story titles only. Stories with a series show as today.
 - **AC-09**: **Given** a book with stories with and without a series, **When** its stories
   are listed, **Then** the stories with a series come first, by series name and then number
   (as today), followed by the stories without a series in the order they were added to this
@@ -115,9 +116,8 @@ series, check the book page, entry page, Edit book, the author page and Edit aut
 
 **Acceptance Criteria**:
 
-- **AC-11**: **Given** a series page, a series' progress counts, the Series view's book
-  counts (spec 018) and the series' Add #next row, **Then** they count and list only
-  stories that have that series. A story without a series is on no series page.
+- **AC-11**: **Given** a series page, a series' progress counts and the series' Add #next
+  row, **Then** they count and list only stories that have that series. A story without a series is on no series page.
 - **AC-12**: **Given** a story that loses its series (AC-05), **When** that series page is
   next opened, **Then** the story is no longer on it.
 
@@ -129,7 +129,7 @@ series, check the book page, entry page, Edit book, the author page and Edit aut
 
 - **AC-13**: **Given** the JSON API, **When** a client creates, edits, lists or reads stories
   (spec 009) or creates an entry with `stories` (spec 013), **Then** the series and number
-  are optional, as on the forms (AC-03, AC-04), and responses give them as null for a story without
+  are optional, as on the forms (AC-02, AC-03, AC-04, AC-07), and responses give them as null for a story without
   a series. The published contract says so.
 - **AC-14**: **Given** the existing stories, **When** the change is applied, **Then** every
   story keeps its series and number, and the change can be undone while every story still
@@ -147,8 +147,8 @@ series, check the book page, entry page, Edit book, the author page and Edit aut
   after the spec 009 confirmation, as any story.
 - **A number of 0:** a number of 0 with a series is still allowed (0–999.99); "no number" is
   an empty field, not 0.
-- **The series is deleted:** spec 009 doesn't allow deleting a series that holds stories, and
-  that doesn't change.
+- **The series is deleted:** series can't be deleted (there is no such action), so a story
+  never loses its series that way.
 - **Status on stories:** a story without a series has no status of its own, as today; the
   member's status is the book's.
 - **A series story with no place in the reading order** (say an unnumbered Discworld short

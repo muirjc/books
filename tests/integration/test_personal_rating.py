@@ -181,6 +181,31 @@ async def test_add_a_book_with_a_rating(
     assert await rating_by_title(factory, "Grave Peril") is None
 
 
+@pytest.mark.ac("020/AC-03")
+async def test_add_the_existing_book_instead_keeps_the_rating(
+    member: httpx.AsyncClient, factory: Factory, alice: TestUser, shelf: dict[str, uuid.UUID]
+) -> None:
+    """PR #47 review: the ISBN is already in the catalog, and the member clicks "Add ... to my
+    list instead". The browser sends only that form's hidden fields and the button."""
+    await factory.book("Storm Front (catalog)", alice, isbn_13="9780306406157")
+    page = await member.post(
+        "/books/add", data=new_book(shelf["jim"], rating="5", isbn_13="9780306406157")
+    )
+    found = re.search(
+        r'<form method="post" action="/books/add" class="inline-form">(.*?)</form>',
+        page.text,
+        flags=re.S,
+    )
+    assert found, page.text
+    fields = dict(re.findall(r'<input type="hidden" name="([a-z_]+)" value="([^"]*)">',
+                             found.group(1)))  # fmt: skip
+    instead = re.search(r'name="book_id" value="([^"]+)"', found.group(1))
+    assert instead
+    saved = await member.post("/books/add", data=fields | {"book_id": instead.group(1)})
+    assert saved.status_code == 303, saved.text
+    assert await rating_by_title(factory, "Storm Front (catalog)") == 5
+
+
 @pytest.mark.ac("020/AC-04")
 @pytest.mark.parametrize("bad", ["6", "0", "x", "4.5"])
 async def test_a_tampered_rating_saves_nothing(

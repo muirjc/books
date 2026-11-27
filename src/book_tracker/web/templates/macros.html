@@ -6,9 +6,12 @@
 {%- if errors.get(name) %} aria-invalid="true"{% endif -%}
 {%- endmacro %}
 
-{#- Spec 020: the member's own rating as text (never symbols alone), or nothing. -#}
-{% macro rating_text(entry) -%}
-{%- if entry and entry.rating %}Rated {{ entry.rating }} out of 5{% endif -%}
+{#- Spec 020: the member's own rating as text (never symbols alone), or nothing at all.
+    ``before`` and ``tag`` wrap it only when there is one. -#}
+{% macro rating_text(entry, before="", tag="") -%}
+{%- if entry and entry.rating -%}
+{%- if tag %}<div class="{{ tag }}">{% endif %}{{ before }}Rated {{ entry.rating }} out of 5{% if tag %}</div>{% endif -%}
+{%- endif -%}
 {%- endmacro %}
 
 {% macro field_error(errors, name) -%}

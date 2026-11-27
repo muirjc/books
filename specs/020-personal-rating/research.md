@@ -48,7 +48,10 @@
 
 ## R5 – Schemas and service
 
-- `ReadingEntryCreate.rating: int | None = Field(None, ge=1, le=5)`.
+- `ReadingEntryCreate.rating: Rating | None = None`, where `Rating` (in `schemas/types.py`)
+  is `Annotated[int, Field(strict=True, ge=1, le=5)]`. Strict on purpose: `"4"`, `4.5`,
+  `4.0` and `true` are refused with 422 rather than coerced (AC-11). The page forms turn
+  `"1"`–`"5"` into integers before validating.
 - `ReadingEntryUpdate.rating`: same type; changed only when given, so a field left out
   keeps the rating and null clears it (AC-11). The API and web routes already pass only the
   fields set (`model_fields_set`); `update_entry` adds `rating` to the set of fields it

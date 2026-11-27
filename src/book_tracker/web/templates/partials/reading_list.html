@@ -19,7 +19,7 @@
     <div class="book-status"><span class="badge">{{ STATUS_LABELS[entry.status] }}</span></div>
     <div class="book-finished">{% if entry.finished_on %}Finished {{ entry.finished_on | nice_date }}{% endif %}</div>
     <div class="book-times">{% if entry.times_read > 1 %}Read {{ entry.times_read }} times{% endif %}</div>
-    {% if entry.rating %}<div class="book-rating">{{ rating_text(entry) }}</div>{% endif %}
+    {{ rating_text(entry, tag="book-rating") }}
     {% set release = release_label(entry.book, today, entry) %}
     {% if release | trim %}<div class="book-release">{{ release }}</div>{% endif %}
   </li>

@@ -27,6 +27,17 @@
   {{ field_error(errs, "times_read") }}
 </div>
 {% endif %}
+{#- Spec 020: the member's own rating; "" is No rating. -#}
+{% set current_rating = (values.get("rating") | string) if "rating" in values else ((entry.rating | string) if entry is defined and entry.rating else "") %}
+<div class="field">
+  <label for="rating">Rating (optional)</label>
+  <select id="rating" name="rating"{{ described(errs, "rating") }}>
+    {% for value, label in [("", "No rating"), ("1", "1 – Didn't like it"), ("2", "2 – It was OK"), ("3", "3 – Liked it"), ("4", "4 – Really liked it"), ("5", "5 – Loved it")] %}
+    <option value="{{ value }}"{% if value == current_rating %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {{ field_error(errs, "rating") }}
+</div>
 {#- Spec 007 R7: the hidden "" is sent when the box is unticked; a ticked box's "yes"
     comes later and wins. -#}
 {% set pre_ordered = (values.get("pre_ordered") == "yes") if "pre_ordered" in values else (entry.pre_ordered if entry is defined else false) %}

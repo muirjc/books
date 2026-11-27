@@ -128,4 +128,5 @@ def to_reading_entry(row: orm.ReadingEntry) -> domain.ReadingEntry:
         created_at=row.created_at,
         updated_at=row.updated_at,
         pre_ordered=row.pre_ordered,
+        rating=row.rating,
     )

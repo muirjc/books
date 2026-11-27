@@ -238,3 +238,62 @@ def test_optional_story_series_migration(postgres_server_url: str) -> None:
     command.downgrade(cfg, "0006_summary_drafts")
     assert _nullable(url) == {"series_id": "NO", "series_number": "NO"}
     command.upgrade(cfg, "head")
+
+
+# --------------------------------------------------------------------------- spec 020
+
+SEED_0007 = """
+INSERT INTO app_user (id, display_name, login, password_hash, role)
+  VALUES ('00000000-0000-0000-0000-000000000001', 'A', 'a', 'x', 'member');
+INSERT INTO book (id, title, created_by, updated_by) VALUES
+  ('00000000-0000-0000-0000-0000000000b1', 'One', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-0000000000b2', 'Two', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001');
+INSERT INTO reading_entry (id, user_id, book_id, status, finished_on, times_read, notes) VALUES
+  ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-0000000000b1', 'finished', '2024-05-01', 2, 'Loved the dragon'),
+  ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-0000000000b2', 'want_to_read', NULL, 0, NULL);
+"""
+ENTRY_ROW = (
+    "SELECT id::text, status, finished_on::text, times_read, notes FROM reading_entry ORDER BY id"
+)
+SET_RATING = (
+    "UPDATE reading_entry SET rating = %s WHERE id = '00000000-0000-0000-0000-0000000000e1'"
+)
+
+
+def _has_rating_column(url: str) -> bool:
+    with psycopg.connect(_plain(url)) as conn:
+        return bool(
+            conn.execute(
+                "SELECT count(*) FROM information_schema.columns "
+                "WHERE table_name = 'reading_entry' AND column_name = 'rating'"
+            ).fetchone()[0]  # type: ignore[index]
+        )
+
+
+@pytest.mark.ac("020/AC-13")
+def test_personal_rating_migration(postgres_server_url: str) -> None:
+    url = create_database(postgres_server_url, "book_tracker_migration_020")
+    cfg = alembic_config(url)
+    command.upgrade(cfg, "0007_optional_story_series")
+    with psycopg.connect(_plain(url)) as conn:
+        conn.execute(SEED_0007)
+        before = conn.execute(ENTRY_ROW).fetchall()
+    command.upgrade(cfg, "0008_personal_rating")
+    with psycopg.connect(_plain(url)) as conn:
+        assert conn.execute(ENTRY_ROW).fetchall() == before
+        assert conn.execute("SELECT rating FROM reading_entry").fetchall() == [(None,), (None,)]
+        for ok in (1, 5):
+            conn.execute(SET_RATING, (ok,))
+    for bad in (0, 6):
+        assert _refused(url, SET_RATING, bad) == "reading_entry_rating_check"
+
+    command.downgrade(cfg, "0007_optional_story_series")  # rated entries don't block it
+    assert not _has_rating_column(url)
+    with psycopg.connect(_plain(url)) as conn:
+        assert conn.execute(ENTRY_ROW).fetchall() == before
+    command.upgrade(cfg, "head")
+    assert _has_rating_column(url)

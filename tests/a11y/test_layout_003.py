@@ -148,7 +148,8 @@ async def test_my_books_laptop(ui: UI, many_books: Seeded) -> None:
     assert times, "times read shown on laptop"
     assert (await box(ui.page, ".book-list"))["width"] > 1200
     filters = await boxes(ui.page, ".filters .field, .filters button[type=submit]")
-    assert len(filters) == 6 and same_line(filters), filters  # spec 018: no Upcoming only
+    # Spec 018: no Upcoming only; spec 020 adds Rating.
+    assert len(filters) == 7 and same_line(filters), filters
     visible = await ui.page.evaluate(VISIBLE_ROWS)
     assert visible >= 12, f"SC-001: {visible} books visible"
 
@@ -315,10 +316,10 @@ async def test_book_form_focus_order_and_rotation(ui: UI, seeded: Seeded) -> Non
         focused = await ui.page.evaluate(FOCUS_ID)
         if focused != seen[-1]:  # a date field has a Tab stop per part
             seen.append(focused)
-    # Spec 007 adds release_date and pre_ordered.
+    # Spec 007 adds release_date and pre_ordered; spec 020 adds rating.
     assert seen == ["title", "author_name_0", "author_name_1", "author_name_2", "series_name",
                     "series_number", "isbn_13", "release_date", "status", "finished_on",
-                    "times_read", "pre_ordered", "notes", "Save"]  # fmt: skip
+                    "times_read", "rating", "pre_ordered", "notes", "Save"]  # fmt: skip
     await size(ui.page, IPAD)
     await ui.page.fill("#title", "Mort, typed")
     await ui.page.fill("#notes", "typed before turning")
@@ -513,7 +514,9 @@ async def test_series_and_summary_lists_keep_their_layout(
 # The search box, dropdowns and Apply, each with the box of the grid cell that holds it.
 # Upcoming only is left out: a checkbox, label and hint have no edge to share with a
 # dropdown (its own layout is books-02q). Clear is on the line below (books-g39).
-MY_BOOKS_CONTROLS = "#q, #sort, #status, #author_id, #series_id, .filters button[type=submit]"
+MY_BOOKS_CONTROLS = (
+    "#q, #sort, #status, #author_id, #series_id, #rating, .filters button[type=submit]"
+)
 FILTER_CONTROLS = """sel => [...document.querySelectorAll(sel)].map(e => {
   const r = e.getBoundingClientRect(), f = e.parentElement.getBoundingClientRect();
   return {id: e.id || e.type, top: r.top, bottom: r.bottom,
@@ -539,7 +542,7 @@ async def test_my_books_filter_controls_line_up(ui: UI, seeded: Seeded) -> None:
             assert not (await box(ui.page, link))["visible"], wh  # phone: folded until opened
             await toggle.click()
         controls = await ui.page.evaluate(FILTER_CONTROLS, MY_BOOKS_CONTROLS)
-        assert len(controls) == 6 and all(c["visible"] for c in controls), (wh, path, controls)
+        assert len(controls) == 7 and all(c["visible"] for c in controls), (wh, path, controls)
         for c in controls:
             for d in controls:
                 if same_line([c["field"], d["field"]]):  # one row of the filter grid
@@ -589,8 +592,10 @@ async def test_my_books_dropdowns_show_their_text(ui: UI, seeded: Seeded) -> Non
         toggle = ui.page.locator(".filters-toggle")
         if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
             await toggle.click()
-        fits = await ui.page.evaluate(SELECT_FIT, "#sort, #status, #author_id, #series_id")
-        assert len(fits) == 4, fits
+        fits = await ui.page.evaluate(
+            SELECT_FIT, "#sort, #status, #author_id, #series_id, #rating"
+        )  # spec 020: Rating too
+        assert len(fits) == 5, fits
         for f in fits:
             assert f["need"] <= f["has"], (wh, path, f)
         if wh[0] >= 1024:  # laptop: one row (FR-008), search still the widest

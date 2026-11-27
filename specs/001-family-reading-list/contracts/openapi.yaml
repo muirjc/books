@@ -175,8 +175,18 @@ paths:
           in: query
           schema:
             type: string
-            enum: [title, -title, author, -author, series, -series, finished_on, -finished_on]
+            enum: [title, -title, author, -author, series, -series, finished_on, -finished_on,
+                   rating, -rating]
             default: title
+          description: rating and -rating put unrated entries last, then sort by title (spec 020)
+        - name: min_rating
+          in: query
+          description: Only entries I rated at least this (spec 020)
+          schema: { type: integer, minimum: 1, maximum: 5 }
+        - name: rated
+          in: query
+          description: true only entries I rated; false only those I haven't (spec 020)
+          schema: { type: boolean }
         - name: upcoming
           in: query
           description: Only books not out yet, soonest first; sort is ignored (spec 007)
@@ -1384,7 +1394,8 @@ components:
 
     ReadingEntry:
       type: object
-      required: [id, book, status, finished_on, times_read, notes, pre_ordered, created_at, updated_at]
+      required:
+        [id, book, status, finished_on, times_read, notes, pre_ordered, rating, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         book: { $ref: "#/components/schemas/Book" }
@@ -1393,6 +1404,11 @@ components:
         times_read: { type: integer, minimum: 0, maximum: 99 }
         notes: { type: [string, "null"] }
         pre_ordered: { type: boolean, description: "The owner's own Pre-ordered flag (spec 007)" }
+        rating:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 5
+          description: The owner's own rating, 1 to 5; null for none (spec 020)
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -1412,6 +1428,12 @@ components:
           description: Not in the future
         notes: { type: [string, "null"], maxLength: 10000 }
         pre_ordered: { type: boolean, default: false }
+        rating:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 5
+          default: null
+          description: My rating, 1 to 5 (spec 020)
         stories:
           type: [array, "null"]
           maxItems: 50
@@ -1441,6 +1463,11 @@ components:
           description: Overrides the automatic increment when sent with a status change
         notes: { type: [string, "null"], maxLength: 10000 }
         pre_ordered: { type: boolean }
+        rating:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 5
+          description: My rating, 1 to 5; null clears it; left out keeps it (spec 020)
 
     ReadingEntryPage:
       type: object

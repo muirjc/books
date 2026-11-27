@@ -68,7 +68,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould.
 | FR-14 | The AI can suggest series name and number when drafting the summary, for the user to confirm. | S |
 | FR-15 | Optional ISBN on a book to make AI lookup more accurate. | S |
 | FR-16 | Cover image fetched from the book data source. | C |
-| FR-17 | Personal rating (1–5). | C |
+| FR-17 | Personal rating (1–5). Built 2026-11-27 (spec 020): optional on each entry, private to its owner, set on the entry page and Add a book, shown as "Rated N out of 5", with sort and filter on My books and in the API. | C |
 
 ## 4. AI-generated summaries
 

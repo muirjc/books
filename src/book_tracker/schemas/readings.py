@@ -17,7 +17,7 @@ from book_tracker.schemas.catalog import (
     NewBookStory,
     SeriesRef,
 )
-from book_tracker.schemas.types import FinishedOn, Notes
+from book_tracker.schemas.types import FinishedOn, Notes, Rating
 
 
 class ReadingEntryCreate(RequestModel):
@@ -29,6 +29,7 @@ class ReadingEntryCreate(RequestModel):
     finished_on: FinishedOn = None
     notes: Notes = None
     pre_ordered: bool = False  # spec 007
+    rating: Rating | None = Field(default=None, description="Spec 020: my rating, 1 to 5")
     stories: list[NewBookStory] | None = Field(
         default=None,
         max_length=MAX_NEW_BOOK_STORIES,
@@ -79,6 +80,10 @@ class ReadingEntryUpdate(RequestModel):
     times_read: int | None = Field(default=None, ge=0, le=99)
     notes: Notes = None
     pre_ordered: bool = False  # spec 007: changed only when given
+    rating: Rating | None = Field(
+        default=None,
+        description="Spec 020: my rating, 1 to 5; null clears it; left out keeps it",
+    )
 
     @model_validator(mode="after")
     def _something(self) -> Self:
@@ -99,6 +104,9 @@ class ReadingEntry(BaseModel):
     times_read: int = Field(ge=0, le=99)
     notes: str | None
     pre_ordered: bool = Field(description="The owner's own Pre-ordered flag (spec 007)")
+    rating: int | None = Field(
+        ge=1, le=5, description="The owner's own rating, 1 to 5; null for none (spec 020)"
+    )
     created_at: datetime
     updated_at: datetime
 

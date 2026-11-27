@@ -1,4 +1,4 @@
-{% from "macros.html" import author_links, series_line, release_label %}
+{% from "macros.html" import author_links, series_line, release_label, rating_text %}
 {% if htmx %}{% with oob=true %}{% include "partials/list_clear.html" %}{% endwith %}{% endif %}
 {% if page.total == 0 %}
 {% if filtered %}
@@ -19,6 +19,7 @@
     <div class="book-status"><span class="badge">{{ STATUS_LABELS[entry.status] }}</span></div>
     <div class="book-finished">{% if entry.finished_on %}Finished {{ entry.finished_on | nice_date }}{% endif %}</div>
     <div class="book-times">{% if entry.times_read > 1 %}Read {{ entry.times_read }} times{% endif %}</div>
+    {{ rating_text(entry, tag="book-rating") }}
     {% set release = release_label(entry.book, today, entry) %}
     {% if release | trim %}<div class="book-release">{{ release }}</div>{% endif %}
   </li>

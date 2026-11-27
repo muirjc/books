@@ -25,7 +25,10 @@ from book_tracker.persistence.mappers import to_reading_entry
 
 FilterOptions = list[tuple[uuid.UUID, str]]
 
-SORTS = ("title", "-title", "author", "-author", "series", "-series", "finished_on", "-finished_on")
+SORTS = (
+    "title", "-title", "author", "-author", "series", "-series", "finished_on", "-finished_on",
+    "rating", "-rating",  # spec 020
+)  # fmt: skip
 
 
 def _matches(q: str) -> ColumnElement[bool]:
@@ -67,6 +70,8 @@ def _order(sort: str) -> list[Any]:
         primary = [func.lower(models.Series.name), models.Book.series_number]
     elif key == "finished_on":
         primary = [models.ReadingEntry.finished_on]
+    elif key == "rating":  # spec 020 AC-08: unrated last either way, then by title
+        primary = [models.ReadingEntry.rating]
     else:
         primary = [title]
     ordered = [(c.desc() if descending else c.asc()).nulls_last() for c in primary]
@@ -95,10 +100,13 @@ class ReadingEntryRepository:
         sort: str = "title",
         upcoming_after: date | None = None,
         favorite_authors: bool = False,
+        min_rating: int | None = None,
+        rated: bool | None = None,
     ) -> ReadingEntryPage:
         """``upcoming_after``: only books released after that date, soonest first, and
         ``sort`` is ignored (spec 007 R4). ``favorite_authors``: only books by one of the bound
-        user's favorite authors (spec 011)."""
+        user's favorite authors (spec 011). ``min_rating``: only entries rated at least that;
+        ``rated``: only rated (True) or unrated (False) entries (spec 020)."""
         filtered = (
             self._owned()
             .join(models.Book, models.Book.id == models.ReadingEntry.book_id)
@@ -119,6 +127,11 @@ class ReadingEntryRepository:
             filtered = filtered.where(models.ReadingEntry.status == status.value)
         if upcoming_after is not None:
             filtered = filtered.where(models.Book.release_date > upcoming_after)
+        if min_rating is not None:
+            filtered = filtered.where(models.ReadingEntry.rating >= min_rating)
+        if rated is not None:
+            column = models.ReadingEntry.rating
+            filtered = filtered.where(column.is_not(None) if rated else column.is_(None))
         if favorite_authors:  # built here, so it is bound to the same user (PR #30 review)
             filtered = filtered.where(FavoriteAuthorRepository(self._db, self._user_id).condition())
         order = _soonest_first() if upcoming_after is not None else _order(sort)
@@ -314,6 +327,7 @@ class ReadingEntryRepository:
         times_read: int,
         notes: str | None,
         pre_ordered: bool = False,
+        rating: int | None = None,
     ) -> ReadingEntry:
         row = models.ReadingEntry(
             id=uuid.uuid4(),
@@ -324,6 +338,7 @@ class ReadingEntryRepository:
             times_read=times_read,
             notes=notes,
             pre_ordered=pre_ordered,
+            rating=rating,
         )
         self._db.add(row)
         await self._db.flush()

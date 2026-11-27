@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import release_label, series_line, status_badge, quick_add, star_button %}
+{% from "macros.html" import release_label, series_line, status_badge, quick_add, star_button, rating_text %}
 {% block title %}{{ book.title }}{% endblock %}
 {% block content %}
 {#- Spec 016: a catalog book, read-only. Only my own entry is used (Principle I). The id
@@ -19,7 +19,7 @@
 <section aria-labelledby="my-reading-heading" class="book-mine">
   <h2 id="my-reading-heading">My reading</h2>
   {% if entry %}
-  <p class="row-status">{{ status_badge(entry, book.title) }}{% if entry.finished_on %} · {{ entry.finished_on | nice_date }}{% endif %}</p>
+  <p class="row-status">{{ status_badge(entry, book.title) }}{% if entry.finished_on %} · {{ entry.finished_on | nice_date }}{% endif %}{{ rating_text(entry, before=" · ") }}</p>
   <p><a class="series-action" href="/entries/{{ entry.id }}">Open my entry</a></p>
   {% else %}
   <p class="row-status">Not on my list</p>

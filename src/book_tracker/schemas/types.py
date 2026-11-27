@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, overload
 
-from pydantic import AfterValidator, BeforeValidator, StringConstraints, WithJsonSchema
+from pydantic import AfterValidator, BeforeValidator, Field, StringConstraints, WithJsonSchema
 
 from book_tracker.domain.values import normalize_name, parse_isbn13, parse_series_number
 
@@ -120,6 +120,10 @@ def _release_date(value: Any) -> date | None:
 # Spec 007: an expected or actual release date.
 ReleaseDateIn = Annotated[date | None, BeforeValidator(_release_date)]
 Notes = Annotated[str | None, StringConstraints(max_length=10000)]
+
+# Spec 020: the owner's rating. Strict, so "4", 4.5 and true are refused rather than coerced.
+Rating = Annotated[int, Field(strict=True, ge=1, le=5)]
+RATING_VALUES = ("1", "2", "3", "4", "5")
 
 
 def _strip(value: Any) -> Any:

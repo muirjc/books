@@ -493,6 +493,7 @@ class ReadingEntry(Base):
             name="reading_entry_finished_on_check",
         ),
         CheckConstraint("times_read BETWEEN 0 AND 99", name="reading_entry_times_read_check"),
+        CheckConstraint("rating BETWEEN 1 AND 5", name="reading_entry_rating_check"),  # spec 020
         UniqueConstraint("user_id", "book_id", name="reading_entry_user_book_key"),
         Index("reading_entry_user_id_idx", "user_id"),
         Index("reading_entry_book_id_idx", "book_id"),
@@ -518,6 +519,7 @@ class ReadingEntry(Base):
     pre_ordered: Mapped[bool] = mapped_column(  # spec 007
         Boolean, nullable=False, default=False, server_default=sql_text("false")
     )
+    rating: Mapped[int | None] = mapped_column(SmallInteger)  # spec 020, 1-5
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 

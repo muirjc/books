@@ -123,7 +123,7 @@ async def test_sorts(world: dict[str, Any]) -> None:
     ]
     assert (await titles(api, sort="finished_on"))[:3] == ["The Colour of Magic", "Mort", "Emma"]
     assert (await titles(api, sort="-finished_on"))[:3] == ["Emma", "Mort", "The Colour of Magic"]
-    assert (await api.get("/api/v1/me/readings", params={"sort": "rating"})).status_code == 422
+    assert (await api.get("/api/v1/me/readings", params={"sort": "stars"})).status_code == 422
 
 
 @pytest.mark.ac("001/AC-21")

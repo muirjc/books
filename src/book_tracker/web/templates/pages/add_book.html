@@ -29,6 +29,7 @@
     <input type="hidden" name="finished_on" value="{{ form.raw.get('finished_on', '') }}">
     <input type="hidden" name="notes" value="{{ form.raw.get('notes', '') }}">
     <input type="hidden" name="pre_ordered" value="{{ 'yes' if form.pre_ordered else '' }}">
+    <input type="hidden" name="rating" value="{{ form.rating or '' }}">
     <input type="hidden" name="then" value="{{ form.then }}">
     {% if form.from_series %}<input type="hidden" name="from_series" value="{{ form.from_series }}">{% endif %}
     {#- Spec 013 AC-20: the typed stories are not added to the existing book; say so. -#}

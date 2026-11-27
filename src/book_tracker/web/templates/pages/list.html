@@ -56,6 +56,14 @@
       {% endfor %}
     </select>
   </div>
+  <div class="field">
+    <label for="rating">Rating</label>
+    <select id="rating" name="rating">
+      {% for value, label in rating_filters %}
+      <option value="{{ value }}"{% if value == filters.rating %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="actions">
     <button type="submit">Apply</button>
   </div>

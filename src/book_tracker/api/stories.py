@@ -21,7 +21,10 @@ router = APIRouter(tags=["catalog"])
 @router.get(
     "/books/{book_id}/stories",
     response_model=list[Story],
-    summary="The stories a book contains, by series name then number (spec 009)",
+    summary=(
+        "The stories a book contains: with a series by series name then number, then "
+        "those without one in the order added (specs 009, 019)"
+    ),
     responses=r.READ_ONE,
 )
 async def book_stories(book_id: uuid.UUID, auth: ApiUser, db: DbSession) -> list[Story]:
@@ -49,8 +52,9 @@ async def add_story(
         if not added:
             return JSONResponse(story_out(story).model_dump(mode="json"), status_code=200)
         return story_out(story)
-    # StoryAdd guarantees all four fields of a new story when story_id isn't given.
-    assert body.title and body.author_ids and body.series_id and body.series_number is not None  # noqa: S101
+    # StoryAdd guarantees a title and authors when story_id isn't given, and a series and
+    # number together or neither (spec 019).
+    assert body.title and body.author_ids  # noqa: S101
     new = service.NewStory(body.title, body.author_ids, body.series_id, body.series_number)
     return story_out(await service.add_new_story(db, auth.account.id, book_id, new))
 

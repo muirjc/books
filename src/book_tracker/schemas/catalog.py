@@ -106,9 +106,10 @@ class Story(BaseModel):
     id: uuid.UUID
     title: str
     authors: list[BookAuthorRef]
-    series: SeriesRef
-    series_number: str = Field(
-        description='Decimal as a string, e.g. "2.5"', pattern=r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
+    series: SeriesRef | None = Field(description="None for a story without a series (spec 019)")
+    series_number: str | None = Field(
+        description='Decimal as a string, e.g. "2.5"; None exactly when series is None',
+        pattern=r"^[0-9]{1,3}(\.[0-9]{1,2})?$",
     )
     books: list[BookRef] = Field(description="The books that contain it, by title")
     created_by: UserRef
@@ -297,9 +298,20 @@ class DraftForm(BaseModel):
         return value in ("1", "true", "on", True)
 
 
+def _both_or_neither(model: RequestModel) -> None:
+    """Spec 019: a story's series and number are given together, or not at all."""
+    fields = model.model_fields_set & {"series_id", "series_number"}
+    given = {name for name in fields if getattr(model, name) is not None}
+    if len(fields) == 1 or len(given) == 1:
+        raise ValueError(
+            "Give both series_id and series_number, or neither for a story without a series"
+        )
+
+
 class StoryAdd(RequestModel):
-    """Add an existing story (``story_id``) or a new one (the other four fields) to a book
-    (spec 009); not both."""
+    """Add an existing story (``story_id``) or a new one to a book (spec 009); not both. A
+    new story needs ``title`` and ``author_ids``, and a series and number together or
+    neither (spec 019)."""
 
     story_id: uuid.UUID | None = None
     title: Title | None = None
@@ -318,9 +330,10 @@ class StoryAdd(RequestModel):
             if self.model_fields_set & new:
                 raise ValueError("Give either story_id or a new story's details, not both")
             return self
-        missing = sorted(name for name in new if getattr(self, name) is None)
+        missing = sorted(name for name in ("title", "author_ids") if getattr(self, name) is None)
         if missing:
             raise ValueError(f"A new story needs {', '.join(missing)}")
+        _both_or_neither(self)
         return self
 
 
@@ -329,8 +342,9 @@ MAX_NEW_BOOK_STORIES = 50  # spec 013
 
 class NewBookStory(RequestModel):
     """A story for a new book (spec 013): an existing one (``story_id``), or a new one with
-    ``title`` and ``series_number``. A new story's series and authors default to the
-    book's."""
+    a ``title``. A new story with a number and no series takes the book's; with neither, it
+    has no series; a series without a number is refused (spec 019). Authors default to
+    the book's."""
 
     story_id: uuid.UUID | None = None
     title: Title | None = None
@@ -348,9 +362,10 @@ class NewBookStory(RequestModel):
             if self.model_fields_set - {"story_id"}:
                 raise ValueError("Give either story_id or a new story's details, not both")
             return self
-        missing = [name for name in ("title", "series_number") if getattr(self, name) is None]
-        if missing:
-            raise ValueError(f"A new story needs {' and '.join(missing)}")
+        if self.title is None:
+            raise ValueError("A new story needs title")
+        if self.series_id is not None and self.series_number is None:
+            raise ValueError("Give series_number with series_id, or neither")
         return self
 
 
@@ -366,7 +381,12 @@ class StoryUpdate(RequestModel):
 
     @model_validator(mode="after")
     def _something(self) -> Self:
-        _require_changes(self, nullable=set())
+        # Spec 019: the series and number may be cleared together.
+        _require_changes(self, nullable={"series_id", "series_number"})
+        fields = self.model_fields_set & {"series_id", "series_number"}
+        nulls = {name for name in fields if getattr(self, name) is None}
+        if nulls and nulls != {"series_id", "series_number"}:
+            raise ValueError("Clear series_id and series_number together")
         return self
 
 

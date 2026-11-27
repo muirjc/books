@@ -61,6 +61,8 @@ class ReadingEntryCreate(RequestModel):
                     raise ValueError(f"Story {i} repeats an earlier story_id")
                 seen_ids.add(item.story_id)
                 continue
+            if item.series_number is None:
+                continue  # spec 019: a story without a series
             series_id = item.series_id or new_book.series_id
             if series_id is None:
                 raise ValueError(f"Story {i} needs a series_id: the new book has no series")

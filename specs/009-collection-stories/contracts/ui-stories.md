@@ -20,3 +20,5 @@ in the named book, return 404.
 | `GET /catalog/authors/{id}/edit` | Adds a "Stories" list (title links to Edit story) after Books. Delete is offered only with no books and no stories, otherwise "This author can't be deleted while books or stories list them." |
 | `GET /suggest/stories` | Story suggestions, `data-id` = story id, detail "#n Series · in Book". |
 | `GET /suggest/books` | A book matched by a story title gets the detail "contains “Story title”". |
+
+*Amended 2026-11-26 by [spec 019](../../019-optional-story-series/contracts/ui-stories.md): a story may have no series and no number; it shows by title only, after the book's stories with a series, and is on no series page.*

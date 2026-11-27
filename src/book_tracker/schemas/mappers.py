@@ -194,8 +194,10 @@ def story_out(story: domain.Story) -> c.Story:
             c.BookAuthorRef(id=a.id, name=a.name, real_name=a.real_name, position=a.position)
             for a in story.authors
         ],
-        series=c.SeriesRef(id=story.series.id, name=story.series.name),
-        series_number=format_series_number(story.series_number),
+        series=c.SeriesRef(id=story.series.id, name=story.series.name) if story.series else None,
+        series_number=(
+            format_series_number(story.series_number) if story.series_number is not None else None
+        ),
         books=[c.BookRef(id=ref.id, title=ref.title) for ref in story.books],
         created_by=user_ref_out(story.created_by),
         created_at=story.created_at,

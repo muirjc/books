@@ -107,11 +107,15 @@ jobs:
       # oasdiff pinned to v1.38.0 (looked up 2026-11-18; v1.39.0 was one day old). Bump deliberately.
       - name: oasdiff breaking
         if: steps.base.outputs.found == 'true'
+        # With the `breaking-api` label, report breaking changes without failing: oasdiff has
+        # no `--fail-on none` (only ERR, WARN, MISSING-VERSION-BUMP), so leave the flag out.
         env:
-          FAIL_ON: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-api') && 'none' || 'ERR' }}
-        run: >
-          docker run --rm -v "$PWD":/w -w /w tufin/oasdiff:v1.38.0 breaking
-          base.json generated.json --fail-on "$FAIL_ON"
+          BREAKING_OK: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-api') }}
+        run: |
+          fail_on=(--fail-on ERR)
+          if [ "$BREAKING_OK" = "true" ]; then fail_on=(); fi
+          docker run --rm -v "$PWD":/w -w /w tufin/oasdiff:v1.38.0 breaking \
+            base.json generated.json "${fail_on[@]}"
 
   spec-gate:
     if: github.event_name == 'pull_request'

@@ -19,6 +19,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     SmallInteger,
     String,
@@ -258,30 +259,34 @@ class BookAuthor(Base):
 
 
 class Story(Base):
-    """A story in a series, contained in one or more books (spec 009)."""
+    """A story, contained in one or more books (spec 009), in a series at a number or in
+    none (spec 019): both or neither."""
 
     __tablename__ = "story"
     __table_args__ = (
         CheckConstraint(
             "series_number >= 0 AND series_number <= 999.99", name="story_series_number_range"
         ),
+        CheckConstraint(
+            "(series_id IS NULL) = (series_number IS NULL)", name="story_series_both_or_neither"
+        ),
         Index("story_series_number_uq", "series_id", "series_number", unique=True),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     title: Mapped[str] = mapped_column(String(300), nullable=False)
-    series_id: Mapped[uuid.UUID] = mapped_column(
+    series_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("series.id", ondelete="RESTRICT", name="story_series_id_fkey"),
-        nullable=False,
+        nullable=True,
     )
-    series_number: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    series_number: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     created_by: Mapped[uuid.UUID] = _user_fk("story_created_by_fkey")
     updated_by: Mapped[uuid.UUID] = _user_fk("story_updated_by_fkey")
     created_at: Mapped[datetime] = _created_at()
     updated_at: Mapped[datetime] = _updated_at()
 
-    series: Mapped[Series] = relationship(lazy="joined", innerjoin=True)
+    series: Mapped[Series | None] = relationship(lazy="joined")
     author_links: Mapped[list[StoryAuthor]] = relationship(
         lazy="selectin", order_by="StoryAuthor.position", viewonly=True
     )
@@ -319,7 +324,10 @@ class StoryAuthor(Base):
 
 class BookStory(Base):
     __tablename__ = "book_story"
-    __table_args__ = (Index("book_story_story_id_idx", "story_id"),)
+    __table_args__ = (
+        Index("book_story_story_id_idx", "story_id"),
+        CheckConstraint("position >= 1", name="book_story_position_check"),
+    )
 
     book_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -330,6 +338,10 @@ class BookStory(Base):
         UUID(as_uuid=True),
         ForeignKey("story.id", ondelete="RESTRICT", name="book_story_story_id_fkey"),
         primary_key=True,
+    )
+    # Spec 019: the order the story was added to this book (a sequence, research R2).
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=sql_text("nextval('book_story_position_seq')")
     )
 
     # A story lists its books by id and title only, not the whole Book graph.

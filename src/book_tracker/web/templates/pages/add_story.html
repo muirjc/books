@@ -3,7 +3,7 @@
 {% block title %}Add a story to {{ book.title }}{% endblock %}
 {% block content %}
 <h1>Add a story to “{{ book.title }}”</h1>
-<p class="muted">For a collection: each story gets its own place in its series, so the series page shows where it falls.</p>
+<p class="muted">For a collection: each story gets its own place in its series, so the series page shows where it falls. Leave the series and number blank for a story that isn't part of a series.</p>
 {% if added_label %}<p class="notice" role="status" id="added-notice">{% if already %}That story is already in this book.{% else %}Added “{{ added_label }}”.{% endif %}</p>{% endif %}
 {{ error_summary(form.errors) }}
 <form method="post" action="/catalog/books/{{ book.id }}/stories/add" class="stack" novalidate>

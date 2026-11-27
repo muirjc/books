@@ -90,7 +90,7 @@ async def test_create_with_stories(
     [
         ("too_many", "stories"),
         ("no_title", "stories.0"),
-        ("no_number", "stories.0"),
+        ("series_no_number", "stories.0"),  # spec 019: a number alone is fine, not this
         ("both", "stories.0"),
         ("no_series", "stories"),
         ("same_pair", "stories"),
@@ -107,7 +107,7 @@ async def test_refused_items(
     payload: dict[str, Any] = {
         "too_many": body(ids, [{"title": f"S{i}", "series_number": str(i)} for i in range(51)]),
         "no_title": body(ids, [{"series_number": "1.5"}]),
-        "no_number": body(ids, [{"title": "A"}]),
+        "series_no_number": body(ids, [{"title": "A", "series_id": str(ids["dresden"])}]),
         "both": body(ids, [{**one, "story_id": sid}]),
         "no_series": body(ids, [one], series=False),
         "same_pair": body(ids, [one, {"title": "B", "series_number": "1.50",

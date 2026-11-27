@@ -217,22 +217,26 @@ async def add_story(book_id: uuid.UUID, request: Request, auth: UiUser, db: DbSe
         return page(422)
     if form.new_names:
         return page(409)
+    # parse_story: a series and a number, or neither (spec 019 AC-04).
+    number = form.series_number
     series = await chosen_series(db, form)
-    assert form.series_number is not None  # noqa: S101 - parse_story requires it
-    if series is not None:
-        taken = await service.story_at(db, series.id, form.series_number)
+    if series is not None and number is not None:
+        taken = await service.story_at(db, series.id, number)
         if taken is not None:  # AC-05: offer it, before anything is created
             return page(409, taken=taken)
     author_ids, author_conflicts = await resolve_authors(db, auth, form)
     series_id, series_conflict = await resolve_series(db, auth, form)
     if author_conflicts or series_conflict:
         return page(409, author_conflicts=author_conflicts, series_conflict=series_conflict)
-    assert series_id is not None  # noqa: S101 - a series name is required
-    new = service.NewStory(form.title, author_ids, series_id, form.series_number)
+    new = service.NewStory(form.title, author_ids, series_id, number)
     try:
         story = await service.add_new_story(db, auth.account.id, book.id, new)
     except ConflictError as exc:  # another member took the number a moment ago
-        taken = await service.story_at(db, series_id, form.series_number)
+        taken = (
+            await service.story_at(db, series_id, number)
+            if series_id is not None and number is not None
+            else None
+        )
         if taken is None or exc.code != "story_number_taken":  # pragma: no cover - defensive
             raise
         return page(409, taken=taken)

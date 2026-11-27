@@ -13,7 +13,7 @@
 </div>
 <section id="stories" class="stories" aria-labelledby="stories-heading">
   <h2 id="stories-heading"{% if story_focus == "heading" %} tabindex="-1" autofocus{% endif %}>Stories in this book</h2>
-  <p class="hint" id="stories-hint">Leave Series blank to use the book's series, and Author blank to use all the book's authors. A story with several authors of its own gets the others on Edit book.</p>
+  <p class="hint" id="stories-hint">Leave the number and series blank for a story that isn't part of a series. Leave Series blank on a numbered story to use the book's series, and Author blank to use all the book's authors. A story with several authors of its own gets the others on Edit book.</p>
   {% set last = form.stories | length - 1 %}
   {% for row in form.stories %}
   {% set i = row.index %}
@@ -39,7 +39,7 @@
         {{ field_error(form.errors, "story_title_" ~ i) }}
       </div>
       <div class="field story-number">
-        <label for="story_number_{{ i }}">Number</label>
+        <label for="story_number_{{ i }}">Number (optional)</label>
         <input id="story_number_{{ i }}" name="story_number_{{ i }}" type="text" inputmode="decimal"
                maxlength="6" value="{{ row.number_text }}"{{ described(form.errors, "story_number_" ~ i) }}>
         {{ field_error(form.errors, "story_number_" ~ i) }}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 import psycopg
+import pytest
 from alembic import command
 
 from tests.conftest import alembic_config, create_database
@@ -135,3 +136,105 @@ def test_upgrade_downgrade_upgrade(postgres_server_url: str) -> None:
     assert _tables(url) == EXPECTED_TABLES | {"alembic_version"}
     assert CONSTRAINTS_0002 <= _constraints(url)
     assert _columns(url) == COLUMNS_0003
+
+
+# --------------------------------------------------------------------------- spec 019
+
+SEED_0006 = """
+INSERT INTO app_user (id, display_name, login, password_hash, role)
+  VALUES ('00000000-0000-0000-0000-000000000001', 'A', 'a', 'x', 'member');
+INSERT INTO series (id, name, created_by, updated_by) VALUES
+  ('00000000-0000-0000-0000-0000000000a1', 'Zebra Tales', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-0000000000a2', 'Apple Tales', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001');
+INSERT INTO book (id, title, created_by, updated_by) VALUES
+  ('00000000-0000-0000-0000-0000000000b1', 'Collection', '00000000-0000-0000-0000-000000000001',
+   '00000000-0000-0000-0000-000000000001');
+INSERT INTO story (id, title, series_id, series_number, created_by, updated_by) VALUES
+  ('00000000-0000-0000-0000-0000000000c1', 'Z2', '00000000-0000-0000-0000-0000000000a1', 2,
+   '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-0000000000c2', 'Z1', '00000000-0000-0000-0000-0000000000a1', 1,
+   '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-0000000000c3', 'A9', '00000000-0000-0000-0000-0000000000a2', 9,
+   '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001');
+INSERT INTO book_story (book_id, story_id) VALUES
+  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000c1'),
+  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000c2'),
+  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000c3');
+"""
+USER = "00000000-0000-0000-0000-000000000001"
+NEW_STORY = (
+    "INSERT INTO story (id, title, series_id, series_number, created_by, updated_by) "
+    "VALUES (gen_random_uuid(), %s, %s, %s, %s, %s)"
+)
+
+
+def _nullable(url: str) -> dict[str, str]:
+    with psycopg.connect(_plain(url)) as conn:
+        rows = conn.execute(
+            "SELECT column_name, is_nullable FROM information_schema.columns "
+            "WHERE table_name = 'story' AND column_name IN ('series_id', 'series_number')"
+        ).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
+def _refused(url: str, sql: str, *params: object) -> str:
+    with psycopg.connect(_plain(url)) as conn:
+        try:
+            conn.execute(sql, params)
+        except psycopg.errors.IntegrityError as exc:
+            return exc.diag.constraint_name or ""
+    raise AssertionError(f"not refused: {params}")
+
+
+@pytest.mark.ac("019/AC-14")
+def test_optional_story_series_migration(postgres_server_url: str) -> None:
+    url = create_database(postgres_server_url, "book_tracker_migration_019")
+    cfg = alembic_config(url)
+    command.upgrade(cfg, "0006_summary_drafts")
+    with psycopg.connect(_plain(url)) as conn:
+        conn.execute(SEED_0006)
+    command.upgrade(cfg, "0007_optional_story_series")
+    assert _nullable(url) == {"series_id": "YES", "series_number": "YES"}
+    with psycopg.connect(_plain(url)) as conn:
+        kept = conn.execute(
+            "SELECT title, series_id IS NOT NULL, series_number FROM story ORDER BY title"
+        ).fetchall()
+        # Today's order (series name, then number) becomes each book's positions.
+        order = conn.execute(
+            "SELECT s.title FROM book_story bs JOIN story s ON s.id = bs.story_id "
+            "ORDER BY bs.position"
+        ).fetchall()
+        assert all(r[1] for r in kept) and [float(r[2]) for r in kept] == [9.0, 1.0, 2.0]
+        assert [r[0] for r in order] == ["A9", "Z1", "Z2"]
+        for title in ("The Lottery", "The Lottery"):  # no series, same title: fine
+            conn.execute(NEW_STORY, (title, None, None, USER, USER))
+        # A later link sorts after the book's earlier ones.
+        conn.execute(
+            "INSERT INTO book_story (book_id, story_id) SELECT "
+            "'00000000-0000-0000-0000-0000000000b1', id FROM story WHERE series_id IS NULL"
+        )
+        last = conn.execute(
+            "SELECT s.series_id IS NULL FROM book_story bs JOIN story s ON s.id = bs.story_id "
+            "ORDER BY bs.position"
+        ).fetchall()
+        assert [r[0] for r in last] == [False, False, False, True, True]
+    series = "00000000-0000-0000-0000-0000000000a1"
+    assert _refused(url, NEW_STORY, "Half", series, None, USER, USER) == (
+        "story_series_both_or_neither"
+    )
+    assert _refused(url, NEW_STORY, "Half", None, 3, USER, USER) == ("story_series_both_or_neither")
+    assert _refused(url, NEW_STORY, "Twin", series, 1, USER, USER) == "story_series_number_uq"
+
+    with pytest.raises(Exception, match="no series"):
+        command.downgrade(cfg, "0006_summary_drafts")
+    with psycopg.connect(_plain(url)) as conn:
+        conn.execute(
+            "DELETE FROM book_story WHERE story_id IN "
+            "(SELECT id FROM story WHERE series_id IS NULL)"
+        )
+        conn.execute("DELETE FROM story WHERE series_id IS NULL")
+    command.downgrade(cfg, "0006_summary_drafts")
+    assert _nullable(url) == {"series_id": "NO", "series_number": "NO"}
+    command.upgrade(cfg, "head")

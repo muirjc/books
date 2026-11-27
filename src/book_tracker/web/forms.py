@@ -20,6 +20,7 @@ from book_tracker.domain.enums import ReadingStatus
 from book_tracker.domain.values import SERIES_NUMBER_MAX, format_series_number, normalize_name
 from book_tracker.schemas.readings import ReadingEntryUpdate
 from book_tracker.schemas.types import (
+    RATING_VALUES,
     FinishedOn,
     Isbn13In,
     Notes,
@@ -160,6 +161,7 @@ class AddBookForm:
     finished_on: date | None = None
     notes: str | None = None
     pre_ordered: bool = False  # spec 007, a personal field
+    rating: int | None = None  # spec 020, a personal field
     summary: str | None = None
     # Where a successful save goes (spec 004): My books, or a fresh form for the next book.
     then: Literal["list", "another"] = "list"
@@ -415,6 +417,14 @@ def _parse_entry_fields(form: FormData, parsed: AddBookForm, errors: dict[str, s
         errors["notes"] = "Keep notes to 10,000 characters or fewer"
     # A hidden "" comes before the checkbox's "yes"; the last value wins (spec 007 R7).
     parsed.pre_ordered = text(form, "pre_ordered") == "yes"
+    rating = text(form, "rating")
+    if rating in RATING_VALUES:
+        parsed.rating = int(rating)
+    elif rating:
+        errors["rating"] = RATING_ERROR
+
+
+RATING_ERROR = "Choose a rating from 1 to 5, or No rating"  # spec 020 AC-04
 
 
 def _date_message(exc: ValidationError) -> str:
@@ -427,7 +437,7 @@ def parse_entry_update(
 ) -> tuple[ReadingEntryUpdate | None, dict[str, str], dict[str, Any]]:
     """Fields present in the form become the update; returns (model, errors, raw values)."""
     raw: dict[str, Any] = {}
-    for name in ("status", "finished_on", "times_read", "notes", "pre_ordered"):
+    for name in ("status", "finished_on", "times_read", "notes", "pre_ordered", "rating"):
         if name in form:
             raw[name] = text(form, name)
     data: dict[str, Any] = {}
@@ -441,6 +451,9 @@ def parse_entry_update(
         data["notes"] = raw["notes"] or None
     if "pre_ordered" in raw:
         data["pre_ordered"] = raw["pre_ordered"] == "yes"
+    if "rating" in raw:  # spec 020: "" clears it; anything but 1-5 is refused below
+        rating = raw["rating"]
+        data["rating"] = int(rating) if rating in RATING_VALUES else (rating or None)
     try:
         return ReadingEntryUpdate.model_validate(data), {}, raw
     except ValidationError as exc:
@@ -454,6 +467,8 @@ def parse_entry_update(
                 message = "Enter a date like 2026-03-01"
             elif name == "status":
                 message = "Choose a status"
+            elif name == "rating":
+                message = RATING_ERROR
             errors.setdefault(name, message)
         return None, errors, raw
 

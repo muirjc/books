@@ -34,8 +34,9 @@ PageSize = Annotated[int, Query(ge=1, le=200)]
 
 
 Sort = Literal[
-    "title", "-title", "author", "-author", "series", "-series", "finished_on", "-finished_on"
-]
+    "title", "-title", "author", "-author", "series", "-series", "finished_on", "-finished_on",
+    "rating", "-rating",  # spec 020
+]  # fmt: skip
 
 
 @router.get(
@@ -52,7 +53,17 @@ async def list_readings(
     author_id: uuid.UUID | None = None,
     series_id: uuid.UUID | None = None,
     status: ReadingStatus | None = None,
-    sort: Sort = "title",
+    sort: Annotated[
+        Sort,
+        Query(description="rating and -rating put unrated entries last, then by title (spec 020)"),
+    ] = "title",
+    min_rating: Annotated[
+        int | None, Query(ge=1, le=5, description="Only entries I rated at least this (spec 020)")
+    ] = None,
+    rated: Annotated[
+        bool | None,
+        Query(description="true only entries I rated; false only those I haven't (spec 020)"),
+    ] = None,
     page: Page = 1,
     page_size: PageSize = 50,
     upcoming: Annotated[
@@ -75,6 +86,8 @@ async def list_readings(
         sort=sort,
         upcoming_after=today(request) if upcoming else None,
         favorite_authors=favorite_authors,
+        min_rating=min_rating,
+        rated=rated,
     )
     return reading_entry_page_out(result)
 
@@ -133,6 +146,7 @@ async def add_reading(
         finished_on=body.finished_on,
         notes=body.notes,
         pre_ordered=body.pre_ordered,
+        rating=body.rating,
     )
     return reading_entry_out(entry)
 

@@ -137,6 +137,7 @@ class ReadingEntry:
     created_at: datetime
     updated_at: datetime
     pre_ordered: bool = False  # spec 007: the owner's own flag
+    rating: int | None = None  # spec 020: the owner's own rating, 1-5
 
 
 @dataclass(frozen=True, slots=True)

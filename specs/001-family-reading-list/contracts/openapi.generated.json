@@ -1089,6 +1089,20 @@
             "title": "Pre Ordered",
             "type": "boolean"
           },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The owner's own rating, 1 to 5; null for none (spec 020)",
+            "title": "Rating"
+          },
           "status": {
             "$ref": "#/components/schemas/ReadingStatus"
           },
@@ -1112,6 +1126,7 @@
           "times_read",
           "notes",
           "pre_ordered",
+          "rating",
           "created_at",
           "updated_at"
         ],
@@ -1172,6 +1187,20 @@
             "default": false,
             "title": "Pre Ordered",
             "type": "boolean"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Spec 020: my rating, 1 to 5",
+            "title": "Rating"
           },
           "status": {
             "$ref": "#/components/schemas/ReadingStatus",
@@ -1263,6 +1292,20 @@
             "default": false,
             "title": "Pre Ordered",
             "type": "boolean"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Spec 020: my rating, 1 to 5; null clears it; left out keeps it",
+            "title": "Rating"
           },
           "status": {
             "anyOf": [
@@ -4167,11 +4210,13 @@
             }
           },
           {
+            "description": "rating and -rating put unrated entries last, then by title (spec 020)",
             "in": "query",
             "name": "sort",
             "required": false,
             "schema": {
               "default": "title",
+              "description": "rating and -rating put unrated entries last, then by title (spec 020)",
               "enum": [
                 "title",
                 "-title",
@@ -4180,10 +4225,50 @@
                 "series",
                 "-series",
                 "finished_on",
-                "-finished_on"
+                "-finished_on",
+                "rating",
+                "-rating"
               ],
               "title": "Sort",
               "type": "string"
+            }
+          },
+          {
+            "description": "Only entries I rated at least this (spec 020)",
+            "in": "query",
+            "name": "min_rating",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries I rated at least this (spec 020)",
+              "title": "Min Rating"
+            }
+          },
+          {
+            "description": "true only entries I rated; false only those I haven't (spec 020)",
+            "in": "query",
+            "name": "rated",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true only entries I rated; false only those I haven't (spec 020)",
+              "title": "Rated"
             }
           },
           {

@@ -100,6 +100,7 @@ def reading_entry_out(entry: domain.ReadingEntry) -> r.ReadingEntry:
         times_read=entry.times_read,
         notes=entry.notes,
         pre_ordered=entry.pre_ordered,
+        rating=entry.rating,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
     )

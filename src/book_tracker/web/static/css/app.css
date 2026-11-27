@@ -235,7 +235,7 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .signed-in-label { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   /* books-g39: at 1024px every dropdown shows its whole default choice. */
   .filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) auto auto; }
-  .list-filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(8rem, 1fr)) auto; column-gap: 0.5rem; }
+  .list-filters { grid-template-columns: minmax(0, 2fr) repeat(5, minmax(8rem, 1fr)) auto; column-gap: 0.5rem; } /* spec 020: five dropdowns */
   .list-filters select { padding-left: 0.5rem; padding-right: 0.5rem; }
   .reading-list > li {
     grid-template-columns: minmax(0, 1fr) minmax(0, 26%) 7rem 11.5rem 6.5rem;
@@ -253,6 +253,8 @@ main p, main .hint, main .notice { max-width: 75ch; }
 
 /* Spec 007: release labels, the Upcoming page, and checkbox fields. */
 .reading-list > li > .book-release { grid-column: 1 / -1; white-space: normal; }
+/* Spec 020: my rating, a full-width line of its own at every width. */
+.reading-list > li > .book-rating { grid-column: 1 / -1; white-space: normal; }
 .coming { font-weight: 600; }
 .upcoming-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; min-height: var(--target); }
 .upcoming-list .book-title { display: inline-flex; align-items: center; min-height: var(--target); }

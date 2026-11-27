@@ -112,7 +112,24 @@ SORT_OPTIONS = [
     ("series", "Series"),
     ("-finished_on", "Recently finished"),
     ("finished_on", "Finished longest ago"),
+    ("-rating", "Highest rated"),  # spec 020
+    ("rating", "Lowest rated"),
 ]
+# Spec 020 AC-09: the Rating filter's choices, and what each one asks the list for.
+RATING_FILTERS = [
+    ("", "Any rating"),
+    ("5", "5"),
+    ("4", "4 and up"),
+    ("3", "3 and up"),
+    ("2", "2 and up"),
+    ("rated", "Rated"),
+    ("unrated", "Not rated"),
+]
+RATING_QUERIES: dict[str, dict[str, Any]] = {
+    **{n: {"min_rating": int(n)} for n in ("5", "4", "3", "2")},
+    "rated": {"rated": True},
+    "unrated": {"rated": False},
+}
 
 
 def _uuid_param(request: Request, name: str) -> uuid.UUID | None:
@@ -137,6 +154,8 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
     favorites = params.get("author_id") == "favorites"  # spec 011 R3
     author_id = None if favorites else _uuid_param(request, "author_id")
     series_id = _uuid_param(request, "series_id")
+    rating = params.get("rating", "")
+    rating = rating if rating in RATING_QUERIES else ""  # anything else is ignored
     page = await service.list_entries(
         db,
         auth.account.id,
@@ -148,6 +167,7 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         status=status,
         sort=sort,
         favorite_authors=favorites,
+        **RATING_QUERIES.get(rating, {}),
     )
     kept = {
         "q": q,
@@ -155,6 +175,7 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
         "status": status.value if status else "",
         "author_id": "favorites" if favorites else str(author_id) if author_id else "",
         "series_id": str(series_id) if series_id else "",
+        "rating": rating,
     }
     query = urlencode({k: v for k, v in kept.items() if v})
     context: dict[str, Any] = {
@@ -179,6 +200,7 @@ async def my_list(request: Request, auth: UiUser, db: DbSession) -> Response:
             "statuses": STATUSES,
             "author_options": authors,
             "series_options": series,
+            "rating_filters": RATING_FILTERS,
             **await _favorite_context(request, db, auth),  # spec 017: the offer
         }
     )
@@ -478,6 +500,7 @@ async def add_book(
                 finished_on=form.finished_on,
                 notes=form.notes,
                 pre_ordered=form.pre_ordered,
+                rating=form.rating,
             )
             entry = await service.add_entry(
                 db,
@@ -488,6 +511,7 @@ async def add_book(
                 finished_on=payload.finished_on,
                 notes=payload.notes,
                 pre_ordered=payload.pre_ordered,
+                rating=payload.rating,
             )
         else:
             author_ids, author_conflicts = await resolve_authors(db, auth, form)
@@ -534,6 +558,7 @@ async def add_book(
                 finished_on=form.finished_on,
                 notes=form.notes,
                 pre_ordered=form.pre_ordered,
+                rating=form.rating,
                 stories=stories,
             )
     except StoryNumberTaken as exc:  # another member took the number a moment ago (AC-16)
@@ -716,7 +741,7 @@ async def resolve_series(
 
 # --------------------------------------------------------------------------- book details
 
-ENTRY_FIELDS = frozenset({"status", "finished_on", "times_read", "notes", "pre_ordered"})
+ENTRY_FIELDS = frozenset({"status", "finished_on", "times_read", "notes", "pre_ordered", "rating"})
 
 
 def book_form(book: domain.Book) -> AddBookForm:

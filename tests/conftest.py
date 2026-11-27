@@ -458,6 +458,7 @@ class Factory:
         times_read: int | None = None,
         notes: str | None = None,
         pre_ordered: bool = False,
+        rating: int | None = None,
     ) -> uuid.UUID:
         row = models.ReadingEntry(
             id=uuid.uuid4(),
@@ -468,6 +469,7 @@ class Factory:
             times_read=times_read if times_read is not None else (1 if status == "finished" else 0),
             notes=notes,
             pre_ordered=pre_ordered,
+            rating=rating,
         )
         await self._add(row)
         return row.id

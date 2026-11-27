@@ -6,6 +6,11 @@
 {%- if errors.get(name) %} aria-invalid="true"{% endif -%}
 {%- endmacro %}
 
+{#- Spec 020: the member's own rating as text (never symbols alone), or nothing. -#}
+{% macro rating_text(entry) -%}
+{%- if entry and entry.rating %}Rated {{ entry.rating }} out of 5{% endif -%}
+{%- endmacro %}
+
 {% macro field_error(errors, name) -%}
 {%- if errors.get(name) %}<p class="field-error" id="{{ name }}-error">{{ errors[name] }}</p>{% endif -%}
 {%- endmacro %}

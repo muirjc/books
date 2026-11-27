@@ -76,10 +76,13 @@ async def list_entries(
     sort: str = "title",
     upcoming_after: date | None = None,
     favorite_authors: bool = False,
+    min_rating: int | None = None,
+    rated: bool | None = None,
 ) -> ReadingEntryPage:
     """My list, sorted, filtered and searched (FR-021, FR-023). With ``upcoming_after``
     (today), only books not out yet, soonest first (spec 007). With ``favorite_authors``,
-    only books by one of my favorite authors (spec 011)."""
+    only books by one of my favorite authors (spec 011). ``min_rating`` and ``rated``
+    filter by my rating (spec 020)."""
     return await ReadingEntryRepository(db, user_id).list(
         page=page,
         page_size=page_size,
@@ -90,6 +93,8 @@ async def list_entries(
         sort=sort if sort in SORTS else "title",
         upcoming_after=upcoming_after,
         favorite_authors=favorite_authors,
+        min_rating=min_rating,
+        rated=rated,
     )
 
 
@@ -396,6 +401,7 @@ async def add_entry(
     finished_on: date | None = None,
     notes: str | None = None,
     pre_ordered: bool = False,
+    rating: int | None = None,
     now: datetime | None = None,
     stories: Sequence[catalog_service.StoryForBook] = (),
 ) -> ReadingEntry:
@@ -436,6 +442,7 @@ async def add_entry(
                 times_read=times_read,
                 notes=notes,
                 pre_ordered=pre_ordered,
+                rating=rating,
             )
     except IntegrityError:
         # Added concurrently by another request from the same member.
@@ -454,7 +461,7 @@ async def update_entry(
         raise NotFoundError()
     new_status: ReadingStatus = changes.get("status") or entry.status
     fields: dict[str, Any] = {
-        k: v for k, v in changes.items() if k in {"finished_on", "notes", "pre_ordered"}
+        k: v for k, v in changes.items() if k in {"finished_on", "notes", "pre_ordered", "rating"}
     }
     fields["status"] = new_status
     fields["times_read"] = apply_status_change(

@@ -568,39 +568,69 @@ async def test_catalog_filters_on_one_row_from_tablet(ui: UI, seeded: Seeded) ->
         assert same_line([check, label]), (wh, check, label)
 
 
-# Each dropdown's selected text, measured in its own font, against the room inside it
-# (padding either side plus about 20px for the arrow).
 SELECT_FIT = """sel => [...document.querySelectorAll(sel)].map(e => {
   const s = getComputedStyle(e), c = document.createElement('canvas').getContext('2d');
   c.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
-  const text = e.options[e.selectedIndex].text;
-  const need = c.measureText(text).width + parseFloat(s.paddingLeft)
-    + parseFloat(s.paddingRight) + 20;
-  return {id: e.id, text, need: Math.ceil(need), has: e.clientWidth};
+  const room = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight) + 20;
+  const fixed = [...e.options].filter(o => !/^[0-9a-f-]{36}$/.test(o.value));
+  const need = o => Math.ceil(c.measureText(o.text).width + room);
+  return {id: e.id, has: e.clientWidth,
+          cut: fixed.filter(o => need(o) > e.clientWidth).map(o => [o.text, need(o)])};
 })"""
+MY_BOOKS_DROPDOWNS = "#sort, #status, #author_id, #series_id, #rating"
+ONE_ROW_FROM = (1200, 800)  # books-1gu: the My books filters' one row starts at 75em
+SMALL_TABLETS = ((640, 900), (700, 900), (767, 900))  # PR #48 review: 40em up to 48em
 
 
 @pytest.mark.ac("003/AC-02")
 @pytest.mark.ac("003/AC-03")
 async def test_my_books_dropdowns_show_their_text(ui: UI, seeded: Seeded) -> None:
-    """books-g39: at every width, each My books dropdown shows its whole default choice
-    (at 1024px they read "Any st", "Any a"); on a laptop search stays the widest."""
+    """books-g39, books-1gu: at every width, each My books dropdown has room for every
+    fixed choice ("Finished longest ago", "Want to read", "My favorite authors"), not only
+    its default, filtered or not (a filter opens the phone fold); on a laptop search
+    stays the widest."""
     await ui.sign_in(seeded.alice)
-    for wh, path in ((wh, path) for wh in WIDTHS for path in ("/", "/?status=reading")):
+    widths = (*WIDTHS, *SMALL_TABLETS, ONE_ROW_FROM)
+    for wh, path in ((wh, path) for wh in widths for path in ("/", "/?status=reading")):
         await size(ui.page, wh)
         await ui.go(path)
         toggle = ui.page.locator(".filters-toggle")
         if await toggle.is_visible() and await toggle.get_attribute("aria-expanded") == "false":
             await toggle.click()
-        fits = await ui.page.evaluate(
-            SELECT_FIT, "#sort, #status, #author_id, #series_id, #rating"
-        )  # spec 020: Rating too
+        fits = await ui.page.evaluate(SELECT_FIT, MY_BOOKS_DROPDOWNS)
         assert len(fits) == 5, fits
         for f in fits:
-            assert f["need"] <= f["has"], (wh, path, f)
-        if wh[0] >= 1024:  # laptop: one row (FR-008), search still the widest
+            assert not f["cut"], (wh, path, f)
+        if wh[0] >= 1024:  # laptop: search still the widest
             search = await box(ui.page, "#q")
-            assert search["width"] >= max(f["has"] for f in fits), (wh, path, search)
+            assert search["width"] >= max(f["has"] for f in fits), (wh, path, search, fits)
+
+
+@pytest.mark.ac("003/AC-02")
+@pytest.mark.ac("003/AC-03")
+async def test_my_books_filter_rows(ui: UI, seeded: Seeded) -> None:
+    """books-1gu (amended FR-008): from 768px up to 1199px the filters take two rows,
+    search, Sort and Status, then Author, Series, Rating and Apply; from 1200px, one.
+    PR #48 review: from 640px to 767px, two columns: search alone, then the dropdowns in
+    pairs, with Apply beside Rating."""
+    await ui.sign_in(seeded.alice)
+    cells = "#q, #sort, #status, #author_id, #series_id, #rating, .list-filters [type=submit]"
+    for wh in (*SMALL_TABLETS, IPAD_MINI, IPAD, LAPTOP_MIN, (1199, 800), ONE_ROW_FROM, LAPTOP):
+        await size(ui.page, wh)
+        await ui.go("/?status=reading")
+        q, sort, status, author, series, rating, apply = await boxes(ui.page, cells)
+        if wh[0] >= 1200:
+            assert same_line([q, sort, status, author, series, rating, apply]), (wh, q, apply)
+        elif wh[0] < 768:
+            for pair in ([sort, status], [author, series], [rating, apply]):
+                assert same_line(pair), (wh, pair)
+            assert q["bottom"] < sort["top"] < author["top"] < rating["top"], (wh, q, rating)
+            assert abs(q["left"] - sort["left"]) <= 1 and abs(q["right"] - status["right"]) <= 1
+        else:
+            assert same_line([q, sort, status]), (wh, q, sort, status)
+            assert same_line([author, series, rating, apply]), (wh, author, apply)
+            assert author["top"] > q["bottom"], (wh, q, author)
+            assert abs(author["left"] - q["left"]) <= 1, (wh, q, author)  # rows start level
 
 
 @pytest.mark.ac("014/AC-18")

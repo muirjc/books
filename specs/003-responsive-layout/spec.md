@@ -56,8 +56,9 @@ scrolling.
   status, author and series filters and the Apply button sit on one row.
   *Amended 2026-11-27 by books-1gu (decided with the user): one row from 1,200 px, with
   rating (spec 020) too. At 1,024 px the five dropdowns could not show their longer choices
-  ("Finished longest ago", "My favorite authors") on one row, so up to 1,199 px the filters
-  take two rows: search, sort and status; then author, series, rating and Apply.*
+  ("Finished longest ago", "My favorite authors") on one row, so from 768 px up to 1,199 px
+  the filters take two rows: search, sort and status; then author, series, rating and
+  Apply (FR-008).*
 - **AC-03**: **Given** a tablet-width window (768 px and 820 px), **When** My books loads,
   **Then** each book is one row showing title, authors and series, and status (as today).
 - **AC-04**: **Given** a phone-width window (390 px), **When** My books loads, **Then** each
@@ -209,9 +210,11 @@ row and the table width.
   search) behind one "Sort and filter" control, shown open when any sort or filter other
   than the default is in use.
 - **FR-008**: From 1200 px (75em), all My books filters and Apply MUST fit on one row.
-  From tablet width up to 1199 px they take two rows: search, sort and status; then
-  author, series, rating and Apply. At every width each dropdown has room for its longest
-  fixed choice (amended 2026-11-27, books-1gu: at 1024 px one row could not show them).
+  From 768 px up to 1199 px they take two rows: search, sort and status; then author,
+  series, rating and Apply. From 640 px to 767 px, two columns: search alone, then the
+  dropdowns in pairs with Apply beside rating. At every width each dropdown has room for
+  its longest fixed choice (amended 2026-11-27, books-1gu: at 1024 px one row could not
+  show them).
 - **FR-009**: On laptop width, a book's page and Add a book MUST show the book fields and
   the reading fields in two side-by-side columns, with the submit button below both.
 - **FR-010**: On tablet width, the book forms MUST pair series with number in series, and

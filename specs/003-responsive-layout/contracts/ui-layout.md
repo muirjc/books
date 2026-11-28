@@ -60,12 +60,14 @@ Filters:
 |---|---|
 | Phone, with JS | search shown; the rest folded when `data-fold="closed"`; toggle visible |
 | Phone, without JS | all shown (as today) |
-| Tablet, and laptop up to 1199 px | two rows: search (two columns wide), sort, status; then author, series, rating, Apply; toggle hidden |
+| Tablet, 640–767 px | two columns: search alone; sort, status; author, series; rating, Apply; toggle hidden |
+| 768–1199 px | two rows: search (two columns wide), sort, status; then author, series, rating, Apply; toggle hidden |
 | From 1200 px (75em) | one row: search, sort, status, author, series, rating, Apply; toggle hidden |
 
-books-1gu: sort, status and rating are as wide as their longest choice; author has room
-for "My favorite authors"; series takes the rest. Author and series names can be longer
-and may still be cut off.
+books-1gu: from 768 px, sort, status and rating are as wide as their longest choice and
+author (13rem) has room for "My favorite authors". On two rows series takes the rest; on
+one row search (at least 13rem) and series share it 2:1. Author and series names can be
+longer and may still be cut off.
 
 ## Book forms (Add a book `/books/add`, a book's page `/entries/{id}`, Edit book)
 

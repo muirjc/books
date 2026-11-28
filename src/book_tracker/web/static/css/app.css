@@ -200,6 +200,12 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .filters .field { min-width: 0; }
   .filters.catalog-filters { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; } /* Catalog: one row, tablet up */
   .filters.index-filters { grid-template-columns: minmax(0, 28rem) auto auto; } /* Authors, Series: one row (spec 018) */
+  /* books-1gu: My books, two rows up to 75em: search, Sort, Status; then Author, Series,
+     Rating, Apply. Sort, Status and Rating take their longest choice (auto); Author has
+     room for "My favorite authors"; Series names are unbounded and take what is left. */
+  .filters.list-filters { grid-template-columns: minmax(13rem, 1fr) minmax(8rem, 1fr) auto auto; }
+  .list-filters > .field:first-child { grid-column: span 2; }
+  .list-filters select { padding-left: 0.5rem; padding-right: 0.5rem; }
   .filter-extra { display: contents; }
   .filters-toggle { display: none; }
   .reading-list > li {
@@ -235,8 +241,6 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .signed-in-label { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   /* books-g39: at 1024px every dropdown shows its whole default choice. */
   .filters { grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr)) auto auto; }
-  .list-filters { grid-template-columns: minmax(0, 2fr) repeat(5, minmax(8rem, 1fr)) auto; column-gap: 0.5rem; } /* spec 020: five dropdowns */
-  .list-filters select { padding-left: 0.5rem; padding-right: 0.5rem; }
   .reading-list > li {
     grid-template-columns: minmax(0, 1fr) minmax(0, 26%) 7rem 11.5rem 6.5rem;
     grid-template-areas: "title meta status finished times";
@@ -249,6 +253,14 @@ main p, main .hint, main .notice { max-width: 75ch; }
   .import-toolbar .import-controls { flex: 4 1 0; flex-wrap: nowrap; }
   .import-controls .field { flex: 1 1 0; }
   .import-controls button { flex: none; }
+}
+
+/* ------------------------------------------------------------------ wide laptop: 75em (1200px) */
+@media (min-width: 75em) {
+  /* books-1gu (spec 003 FR-008, amended): My books filters on one row from 75em, each
+     dropdown with room for its longest fixed choice; search takes the rest. */
+  .filters.list-filters { grid-template-columns: minmax(0, 2fr) auto auto minmax(13rem, 1fr) minmax(8rem, 1fr) auto auto; column-gap: 0.5rem; }
+  .list-filters > .field:first-child { grid-column: auto; }
 }
 
 /* Spec 007: release labels, the Upcoming page, and checkbox fields. */

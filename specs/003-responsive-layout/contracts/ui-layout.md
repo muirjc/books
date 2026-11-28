@@ -44,7 +44,7 @@ the row layout; the series page (`.series-list`) and the summary history keep si
 Filters:
 
 - The form keeps role `search`. Search (`#q`) is always shown.
-- Sort, status, author, series, Apply and Clear sit inside `#filter-extra.filter-extra`
+- Sort, status, author, series, rating (spec 020), Apply and Clear sit inside `#filter-extra.filter-extra`
   (books-g39: Clear, as "Clear filters", leads the favorites line after Apply).
 - The form carries `data-fold="open"` when the request has a non-default sort or any filter
   (`q`, `status`, `author_id`, `series_id`); otherwise `data-fold="closed"`.
@@ -60,8 +60,12 @@ Filters:
 |---|---|
 | Phone, with JS | search shown; the rest folded when `data-fold="closed"`; toggle visible |
 | Phone, without JS | all shown (as today) |
-| Tablet | grid, wrapping as today; toggle hidden |
-| Laptop | one row: search, sort, status, author, series, Apply; toggle hidden |
+| Tablet, and laptop up to 1199 px | two rows: search (two columns wide), sort, status; then author, series, rating, Apply; toggle hidden |
+| From 1200 px (75em) | one row: search, sort, status, author, series, rating, Apply; toggle hidden |
+
+books-1gu: sort, status and rating are as wide as their longest choice; author has room
+for "My favorite authors"; series takes the rest. Author and series names can be longer
+and may still be cut off.
 
 ## Book forms (Add a book `/books/add`, a book's page `/entries/{id}`, Edit book)
 

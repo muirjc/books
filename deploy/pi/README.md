@@ -258,9 +258,10 @@ admin user.
 
 ## 9. Routine maintenance
 
-**Update the app** (migrations run when the app starts):
+**Update the app** (migrations run when the app starts). Take a backup first:
 
 ```bash
+sudo systemctl start books-backup.service     # no password needed (section 10, step 4)
 cd /opt/books/repo && git pull          # picks up changes to the stack files
 cd deploy/pi && docker compose pull && docker compose up -d
 docker image prune -f
@@ -382,6 +383,19 @@ the backup stops with an error rather than writing to the Pi's own disk.
    sudo systemctl start books-backup.service     # a first backup now
    journalctl -u books-backup -n 20              # ends with "books-backup: done"
    ```
+
+4. **Let a deploy start the backup without a password** (books-euq.14). Every other
+   `sudo` still asks for one. Replace `jmuir` with your admin user:
+
+   ```bash
+   echo 'jmuir ALL=(root) NOPASSWD: /usr/bin/systemctl start books-backup.service' \
+     | sudo tee /etc/sudoers.d/91-books-backup >/dev/null
+   sudo chmod 0440 /etc/sudoers.d/91-books-backup
+   sudo visudo -c                                # every file "parsed OK"
+   sudo -k; sudo -n true                         # fails: a password is required
+   ```
+
+   Don't leave a blanket `NOPASSWD: ALL` rule from setup in `/etc/sudoers.d/`.
 
 ### Restore test (release gate, before go-live)
 
